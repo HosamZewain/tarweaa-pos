@@ -3,13 +3,18 @@
 namespace App\Filament\Resources;
 
 use App\DTOs\CloseDrawerData;
+use App\Enums\CashMovementType;
 use App\Enums\DrawerSessionStatus;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Filament\Resources\DrawerSessionResource\Pages;
 use App\Models\CashierDrawerSession;
+use App\Models\Order;
 use App\Services\DrawerSessionService;
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Infolists;
+use Filament\Schemas\Schema;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -115,18 +120,156 @@ class DrawerSessionResource extends Resource
                 Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()->formatStateUsing(fn (DrawerSessionStatus $state) => $state->label()),
                 Infolists\Components\TextEntry::make('opener.name')->label('فتح بواسطة'),
                 Infolists\Components\TextEntry::make('closer.name')->label('أغلق بواسطة')->placeholder('—'),
+                Infolists\Components\TextEntry::make('orders_count')
+                    ->label('عدد الطلبات')
+                    ->state(fn (CashierDrawerSession $record) => $record->orders->count()),
+                Infolists\Components\TextEntry::make('paid_orders_count')
+                    ->label('طلبات مدفوعة')
+                    ->state(fn (CashierDrawerSession $record) => $record->orders->where('payment_status', PaymentStatus::Paid)->count()),
+                Infolists\Components\TextEntry::make('open_orders_count')
+                    ->label('طلبات غير مكتملة')
+                    ->state(fn (CashierDrawerSession $record) => $record->orders->where('payment_status', '!=', PaymentStatus::Paid)->count()),
+                Infolists\Components\TextEntry::make('duration')
+                    ->label('مدة الجلسة')
+                    ->state(fn (CashierDrawerSession $record) => $record->ended_at
+                        ? $record->started_at?->diffForHumans($record->ended_at, true)
+                        : $record->started_at?->diffForHumans(now(), true)),
             ])->columns(4),
-            \Filament\Schemas\Components\Section::make('الأرصدة')->schema([
+            \Filament\Schemas\Components\Section::make('المؤشرات المالية')->schema([
                 Infolists\Components\TextEntry::make('opening_balance')->label('رصيد الفتح')->money('EGP'),
                 Infolists\Components\TextEntry::make('expected_balance')->label('الرصيد المتوقع')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('closing_balance')->label('رصيد الإغلاق')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—'),
+                Infolists\Components\TextEntry::make('cash_sales_total')
+                    ->label('مبيعات نقدية')
+                    ->state(fn (CashierDrawerSession $record) => round(
+                        (float) $record->cashMovements->where('type', CashMovementType::Sale)->sum('amount'),
+                        2
+                    ))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('card_sales_total')
+                    ->label('مبيعات بطاقة')
+                    ->state(fn (CashierDrawerSession $record) => round(
+                        (float) $record->orders
+                            ->flatMap->payments
+                            ->where('payment_method', PaymentMethod::Card)
+                            ->sum('amount'),
+                        2
+                    ))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('refund_total')
+                    ->label('استرجاعات نقدية')
+                    ->state(fn (CashierDrawerSession $record) => round(
+                        (float) $record->cashMovements->where('type', CashMovementType::Refund)->sum('amount'),
+                        2
+                    ))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('cash_in_total')
+                    ->label('إيداعات نقدية')
+                    ->state(fn (CashierDrawerSession $record) => round(
+                        (float) $record->cashMovements->where('type', CashMovementType::CashIn)->sum('amount'),
+                        2
+                    ))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('cash_out_total')
+                    ->label('سحوبات نقدية')
+                    ->state(fn (CashierDrawerSession $record) => round(
+                        (float) $record->cashMovements->where('type', CashMovementType::CashOut)->sum('amount'),
+                        2
+                    ))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('expenses_total')
+                    ->label('مصروفات نقدية')
+                    ->state(fn (CashierDrawerSession $record) => round((float) $record->expenses->sum('amount'), 2))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('gross_sales_total')
+                    ->label('إجمالي مبيعات الطلبات')
+                    ->state(fn (CashierDrawerSession $record) => round((float) $record->orders->sum('total'), 2))
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('avg_ticket')
+                    ->label('متوسط قيمة الطلب')
+                    ->state(function (CashierDrawerSession $record): float {
+                        $count = max(1, $record->orders->count());
+
+                        return round((float) $record->orders->sum('total') / $count, 2);
+                    })
+                    ->money('EGP'),
             ])->columns(4),
             \Filament\Schemas\Components\Section::make('التوقيتات')->schema([
                 Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime(),
                 Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->placeholder('—'),
                 Infolists\Components\TextEntry::make('notes')->label('ملاحظات')->placeholder('—'),
             ])->columns(3),
+            \Filament\Schemas\Components\Section::make('الطلبات المرتبطة')->schema([
+                Infolists\Components\TextEntry::make('orders_empty_state')
+                    ->label('')
+                    ->state('لا توجد طلبات مرتبطة بهذه الجلسة حتى الآن.')
+                    ->visible(fn (CashierDrawerSession $record) => $record->orders->isEmpty()),
+                Infolists\Components\RepeatableEntry::make('orders')->label('')->schema([
+                    Infolists\Components\TextEntry::make('order_number')->label('رقم الطلب'),
+                    Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()
+                        ->formatStateUsing(fn (OrderStatus $state) => $state->label()),
+                    Infolists\Components\TextEntry::make('payment_status')->label('الدفع')->badge()
+                        ->formatStateUsing(fn (PaymentStatus $state) => $state->label()),
+                    Infolists\Components\TextEntry::make('type_label')->label('النوع'),
+                    Infolists\Components\TextEntry::make('source_label')->label('المصدر'),
+                    Infolists\Components\TextEntry::make('customer_name')->label('العميل')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('total')->label('الإجمالي')->money('EGP'),
+                    Infolists\Components\TextEntry::make('paid_amount')->label('المدفوع')->money('EGP'),
+                    Infolists\Components\TextEntry::make('change_amount')->label('الباقي')->money('EGP'),
+                    Infolists\Components\TextEntry::make('payment_methods_summary')
+                        ->label('طرق الدفع')
+                        ->state(fn (Order $record) => $record->payments
+                            ->map(fn ($payment) => $payment->payment_method->label() . ' ' . number_format((float) $payment->amount, 2) . ' ج.م')
+                            ->implode('، '))
+                        ->placeholder('—')
+                        ->columnSpan(2),
+                    Infolists\Components\TextEntry::make('items_count')
+                        ->label('عدد الأصناف')
+                        ->state(fn (Order $record) => $record->items->count()),
+                    Infolists\Components\TextEntry::make('created_at')->label('وقت الإنشاء')->dateTime(),
+                ])
+                    ->columns(4)
+                    ->visible(fn (CashierDrawerSession $record) => $record->orders->isNotEmpty()),
+            ]),
+            \Filament\Schemas\Components\Section::make('الحركات النقدية')->schema([
+                Infolists\Components\TextEntry::make('cash_movements_empty_state')
+                    ->label('')
+                    ->state('لا توجد حركات نقدية مسجلة على هذه الجلسة.')
+                    ->visible(fn (CashierDrawerSession $record) => $record->cashMovements->isEmpty()),
+                Infolists\Components\RepeatableEntry::make('cashMovements')->label('')->schema([
+                    Infolists\Components\TextEntry::make('type')->label('النوع')
+                        ->formatStateUsing(fn (CashMovementType $state) => $state->label()),
+                    Infolists\Components\TextEntry::make('direction')->label('الاتجاه')
+                        ->formatStateUsing(fn ($state) => $state->label()),
+                    Infolists\Components\TextEntry::make('amount')->label('المبلغ')->money('EGP'),
+                    Infolists\Components\TextEntry::make('reference_type')->label('نوع المرجع')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('reference_id')->label('رقم المرجع')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('performer.name')->label('نفذ بواسطة')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('notes')->label('ملاحظات')->placeholder('—')->columnSpan(2),
+                    Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime(),
+                ])
+                    ->columns(4)
+                    ->visible(fn (CashierDrawerSession $record) => $record->cashMovements->isNotEmpty()),
+            ]),
+            \Filament\Schemas\Components\Section::make('المصروفات المسجلة على الجلسة')->schema([
+                Infolists\Components\TextEntry::make('expenses_empty_state')
+                    ->label('')
+                    ->state('لا توجد مصروفات مرتبطة بهذه الجلسة.')
+                    ->visible(fn (CashierDrawerSession $record) => $record->expenses->isEmpty()),
+                Infolists\Components\RepeatableEntry::make('expenses')->label('')->schema([
+                    Infolists\Components\TextEntry::make('expense_number')->label('رقم المصروف'),
+                    Infolists\Components\TextEntry::make('category.name')->label('الفئة')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('amount')->label('المبلغ')->money('EGP'),
+                    Infolists\Components\TextEntry::make('payment_method')->label('طريقة الدفع')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('receipt_number')->label('رقم الإيصال')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('description')->label('الوصف')->columnSpan(2),
+                    Infolists\Components\TextEntry::make('approved_at')->label('وقت الاعتماد')->dateTime()->placeholder('—'),
+                    Infolists\Components\TextEntry::make('approver.name')->label('اعتمد بواسطة')->placeholder('—'),
+                ])
+                    ->columns(4)
+                    ->visible(fn (CashierDrawerSession $record) => $record->expenses->isNotEmpty()),
+            ]),
         ]);
     }
 

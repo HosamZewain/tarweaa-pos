@@ -15,11 +15,17 @@ use App\Models\CashMovement;
 use App\Models\PosDevice;
 use App\Models\Shift;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class DrawerSessionService
 {
+    private const CLOSE_PREVIEW_CACHE_PREFIX = 'drawer_close_preview:';
+    private const CLOSE_RECONCILIATION_LOCK_PREFIX = 'drawer_close_reconciliation:';
+    private const CLOSE_PREVIEW_TTL_MINUTES = 10;
+
     // ─────────────────────────────────────────
     // Open Drawer
     // ─────────────────────────────────────────
@@ -142,6 +148,20 @@ class DrawerSessionService
             throw DrawerException::sessionClosed();
         }
 
+        $this->consumeClosePreviewToken(
+            session: $session,
+            actor: $actor,
+            actualCash: $data->actualCash,
+            token: $data->previewToken,
+        );
+
+        $expected = $session->calculateExpectedBalance();
+        $variance = round($data->actualCash - $expected, 2);
+
+        if (abs($variance) >= 0.01 && blank($data->notes)) {
+            throw DrawerException::varianceReasonRequired();
+        }
+
         DB::transaction(function () use ($session, $data) {
             $expected = $session->calculateExpectedBalance();
 
@@ -168,6 +188,8 @@ class DrawerSessionService
             'variance'         => $session->cash_difference,
             'closed_by'        => $data->closedBy,
         ]);
+
+        $this->clearCloseReconciliationState($session, $actor, $data->previewToken);
 
         return $session->fresh(['cashier:id,name', 'posDevice:id,name']);
     }
@@ -223,6 +245,7 @@ class DrawerSessionService
         CashMovementData     $data,
     ): CashMovement {
         $this->authoriseSessionAccess($actor, $session, 'drawers.cash_in');
+        $this->assertSessionNotUnderReconciliation($session, $actor);
 
         if ($session->isClosed()) {
             throw DrawerException::sessionClosed();
@@ -253,6 +276,7 @@ class DrawerSessionService
         CashMovementData     $data,
     ): CashMovement {
         $this->authoriseSessionAccess($actor, $session, 'drawers.cash_out');
+        $this->assertSessionNotUnderReconciliation($session, $actor);
 
         if ($session->isClosed()) {
             throw DrawerException::sessionClosed();
@@ -295,51 +319,84 @@ class DrawerSessionService
             'drawer_sessions.viewAny',
         );
 
-        $movements = $session->cashMovements()->orderBy('created_at')->get();
-        $orders    = $session->orders()->get();
+        if ($this->shouldHideLiveFinancialSummary($actor, $session)) {
+            throw DrawerException::unauthorized('عرض الإحصائيات المالية قبل جرد الدرج');
+        }
 
-        $byType = fn (string $type) => $movements
-            ->filter(fn ($m) => $m->type->value === $type)
-            ->sum(fn ($m) => (float) $m->amount);
+        return $this->buildSessionSummary($session);
+    }
 
-        $totalIn  = (float) $movements->where('direction.value', 'in')->sum('amount');
-        $totalOut = (float) $movements->where('direction.value', 'out')->sum('amount');
+    public function getClosePreview(
+        CashierDrawerSession $session,
+        User $actor,
+        float $actualCash,
+    ): array {
+        $this->authoriseSessionAccess($actor, $session, 'drawers.close');
 
-        // Non-cash sales: payments for these orders that are NOT cash
-        $nonCashSales = \App\Models\OrderPayment::whereIn('order_id', $orders->pluck('id'))
-            ->where('payment_method', '!=', \App\Enums\PaymentMethod::Cash)
-            ->sum('amount');
+        if ($session->isClosed()) {
+            throw DrawerException::sessionClosed();
+        }
 
-        return [
-            'session_number'      => $session->session_number,
-            'cashier'             => $session->cashier->name,
-            'pos_device'          => $session->posDevice->name,
-            'status'              => $session->status->label(),
-            'started_at'          => $session->started_at,
-            'ended_at'            => $session->ended_at,
-            'opening_balance'     => (float) $session->opening_balance,
-            'cash_sales'          => $byType('sale'),
-            'non_cash_sales'      => (float) $nonCashSales,
-            'total_refunds'       => $byType('refund'),
-            'cash_in'             => $byType('cash_in'),
-            'cash_out'            => $byType('cash_out'),
-            'gross_in'            => $totalIn,
-            'gross_out'           => $totalOut,
-            'expected_cash'       => $session->calculateExpectedBalance(),
-            'expected_balance'    => $session->calculateExpectedBalance(),
-            'closing_balance'     => $session->closing_balance ? (float) $session->closing_balance : null,
-            'variance'            => $session->cash_difference ? (float) $session->cash_difference : null,
-            'order_count'         => $orders->count(),
-            'paid_orders_count'   => $orders->where('payment_status.value', 'paid')->count(),
-            'pending_orders_count'=> $orders->where('payment_status.value', 'pending')->count(),
-            'movements'           => $movements->map(fn ($m) => [
-                'type'      => $m->type->label(),
-                'direction' => $m->direction->label(),
-                'amount'    => (float) $m->amount,
-                'notes'     => $m->notes,
-                'at'        => $m->created_at,
-            ])->values(),
-        ];
+        if ($existingLock = $this->getCloseReconciliationState($session, $actor)) {
+            return $existingLock;
+        }
+
+        $summary = $this->buildSessionSummary($session);
+        $variance = round($actualCash - (float) $summary['expected_cash'], 2);
+        $token = (string) Str::uuid();
+
+        Cache::put(
+            self::CLOSE_PREVIEW_CACHE_PREFIX . $token,
+            [
+                'session_id' => $session->id,
+                'actor_id' => $actor->id,
+                'actual_cash' => round($actualCash, 2),
+            ],
+            now()->addMinutes(self::CLOSE_PREVIEW_TTL_MINUTES),
+        );
+
+        $preview = array_merge($summary, [
+            'actual_cash' => round($actualCash, 2),
+            'variance' => $variance,
+            'matches_expected' => abs($variance) < 0.01,
+            'can_close' => true,
+            'close_block_reason' => null,
+            'requires_variance_reason' => abs($variance) >= 0.01,
+            'preview_token' => $token,
+            'locked' => true,
+        ]);
+
+        Cache::put(
+            $this->closeReconciliationLockKey($session->id, $actor->id),
+            $preview,
+            now()->addMinutes(self::CLOSE_PREVIEW_TTL_MINUTES),
+        );
+
+        return $preview;
+    }
+
+    public function getCloseReconciliationState(CashierDrawerSession $session, User $actor): ?array
+    {
+        return $this->getCloseReconciliationStateForActor($session, $actor->id);
+    }
+
+    public function getCloseReconciliationStateForActor(CashierDrawerSession $session, int $actorId): ?array
+    {
+        $payload = Cache::get($this->closeReconciliationLockKey($session->id, $actorId));
+
+        return is_array($payload) ? $payload : null;
+    }
+
+    public function assertSessionNotUnderReconciliation(CashierDrawerSession $session, User $actor): void
+    {
+        $this->assertSessionNotUnderReconciliationForActor($session, $actor->id);
+    }
+
+    public function assertSessionNotUnderReconciliationForActor(CashierDrawerSession $session, int $actorId): void
+    {
+        if ($this->getCloseReconciliationStateForActor($session, $actorId)) {
+            throw DrawerException::reconciliationLocked();
+        }
     }
 
     private function authoriseOpen(User $actor, OpenDrawerData $data): void
@@ -377,5 +434,98 @@ class DrawerSessionService
         }
 
         throw DrawerException::unauthorized('إدارة جلسة درج لا تخصك');
+    }
+
+    private function shouldHideLiveFinancialSummary(User $actor, CashierDrawerSession $session): bool
+    {
+        return $session->isOpen()
+            && $actor->id === $session->cashier_id
+            && $actor->mustDeclareCashBeforeSeeingSessionFinancialStats();
+    }
+
+    private function buildSessionSummary(CashierDrawerSession $session): array
+    {
+        $movements = $session->cashMovements()->orderBy('created_at')->get();
+        $orders    = $session->orders()->get();
+
+        $byType = fn (string $type) => $movements
+            ->filter(fn ($m) => $m->type->value === $type)
+            ->sum(fn ($m) => (float) $m->amount);
+
+        $totalIn  = (float) $movements->where('direction.value', 'in')->sum('amount');
+        $totalOut = (float) $movements->where('direction.value', 'out')->sum('amount');
+
+        $nonCashSales = \App\Models\OrderPayment::whereIn('order_id', $orders->pluck('id'))
+            ->where('payment_method', '!=', \App\Enums\PaymentMethod::Cash)
+            ->sum('amount');
+
+        $expectedCash = $session->calculateExpectedBalance();
+
+        return [
+            'session_number'       => $session->session_number,
+            'cashier'              => $session->cashier->name,
+            'pos_device'           => $session->posDevice->name,
+            'status'               => $session->status->label(),
+            'started_at'           => $session->started_at,
+            'ended_at'             => $session->ended_at,
+            'opening_balance'      => (float) $session->opening_balance,
+            'cash_sales'           => $byType('sale'),
+            'non_cash_sales'       => (float) $nonCashSales,
+            'total_refunds'        => $byType('refund'),
+            'cash_in'              => $byType('cash_in'),
+            'cash_out'             => $byType('cash_out'),
+            'gross_in'             => $totalIn,
+            'gross_out'            => $totalOut,
+            'expected_cash'        => $expectedCash,
+            'expected_balance'     => $expectedCash,
+            'closing_balance'      => $session->closing_balance ? (float) $session->closing_balance : null,
+            'variance'             => $session->cash_difference ? (float) $session->cash_difference : null,
+            'order_count'          => $orders->count(),
+            'paid_orders_count'    => $orders->where('payment_status.value', 'paid')->count(),
+            'pending_orders_count' => $orders->where('payment_status.value', 'pending')->count(),
+            'movements'            => $movements->map(fn ($m) => [
+                'type'      => $m->type->label(),
+                'direction' => $m->direction->label(),
+                'amount'    => (float) $m->amount,
+                'notes'     => $m->notes,
+                'at'        => $m->created_at,
+            ])->values(),
+        ];
+    }
+
+    private function consumeClosePreviewToken(
+        CashierDrawerSession $session,
+        User $actor,
+        float $actualCash,
+        ?string $token,
+    ): void {
+        if (!$token) {
+            throw DrawerException::closeDeclarationRequired();
+        }
+
+        $payload = Cache::get(self::CLOSE_PREVIEW_CACHE_PREFIX . $token);
+
+        if (
+            !$payload ||
+            (int) ($payload['session_id'] ?? 0) !== $session->id ||
+            (int) ($payload['actor_id'] ?? 0) !== $actor->id ||
+            round((float) ($payload['actual_cash'] ?? 0), 2) !== round($actualCash, 2)
+        ) {
+            throw DrawerException::closeDeclarationRequired();
+        }
+    }
+
+    private function clearCloseReconciliationState(CashierDrawerSession $session, User $actor, ?string $token): void
+    {
+        Cache::forget($this->closeReconciliationLockKey($session->id, $actor->id));
+
+        if ($token) {
+            Cache::forget(self::CLOSE_PREVIEW_CACHE_PREFIX . $token);
+        }
+    }
+
+    private function closeReconciliationLockKey(int $sessionId, int $actorId): string
+    {
+        return self::CLOSE_RECONCILIATION_LOCK_PREFIX . $sessionId . ':' . $actorId;
     }
 }

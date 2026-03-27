@@ -172,7 +172,7 @@ class Shift extends Model
             $diff = $this->started_at->diff($this->ended_at);
         }
 
-        return sprintf('%dس %دق', $diff->h + ($diff->days * 24), $diff->i);
+        return sprintf('%d س %d دق', $diff->h + ($diff->days * 24), $diff->i);
     }
 
     // ─────────────────────────────────────────

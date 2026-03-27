@@ -56,4 +56,19 @@ class DrawerException extends \RuntimeException
     {
         return new self("غير مصرح لك بـ: {$action}", 403);
     }
+
+    public static function closeDeclarationRequired(): self
+    {
+        return new self('يجب مراجعة الجرد وتأكيد المبلغ المُعلن قبل إغلاق الدرج.', 422);
+    }
+
+    public static function varianceReasonRequired(): self
+    {
+        return new self('سبب الفرق مطلوب عند وجود عجز أو فائض قبل إغلاق الدرج.', 422);
+    }
+
+    public static function reconciliationLocked(): self
+    {
+        return new self('تم بدء جرد إغلاق الدرج بالفعل. يجب إكمال الإغلاق أولاً قبل العودة إلى نقطة البيع.', 423);
+    }
 }

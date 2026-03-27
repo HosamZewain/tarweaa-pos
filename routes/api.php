@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('drawers')->group(function () {
         Route::get('/active',               [DrawerController::class, 'active']);
         Route::post('/open',                [DrawerController::class, 'open']);
+        Route::post('/{session}/close-preview', [DrawerController::class, 'previewClose']);
         Route::post('/{session}/close',     [DrawerController::class, 'close']);
         Route::get('/{session}/summary',    [DrawerController::class, 'summary']);
         Route::post('/{session}/cash-in',   [DrawerController::class, 'cashIn']);

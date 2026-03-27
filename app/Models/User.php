@@ -185,6 +185,21 @@ class User extends Authenticatable implements FilamentUser
         return $this->is_active && $this->hasRole(['admin', 'manager']);
     }
 
+    public function canViewLiveSessionFinancialStats(): bool
+    {
+        return $this->is_active && !$this->isCashier();
+    }
+
+    public function mustDeclareCashBeforeSeeingSessionFinancialStats(): bool
+    {
+        return !$this->canViewLiveSessionFinancialStats();
+    }
+
+    public function canCloseDrawerWithVariance(): bool
+    {
+        return $this->hasRole(['admin', 'manager']);
+    }
+
     // ─────────────────────────────────────────
     // Business Logic Helpers
     // ─────────────────────────────────────────

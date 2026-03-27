@@ -17,14 +17,19 @@ class OrderLifecycleService
 {
     public function __construct(
         private readonly DiscountAuditService $discountAuditService,
+        private readonly DrawerSessionService $drawerSessionService,
     ) {}
 
     /**
      * Cancel a single order item and recalculate order totals.
      */
-    public function removeItem(OrderItem $item): void
+    public function removeItem(OrderItem $item, ?User $by = null): void
     {
         $order = $item->order;
+
+        if ($by) {
+            $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
+        }
 
         if ($order->status->isFinal()) {
             throw OrderException::invalidTransition($order->status, $order->status);
@@ -48,6 +53,8 @@ class OrderLifecycleService
         ?string $reason = null,
     ): Order
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
+
         if ($order->status->isFinal()) {
             throw OrderException::invalidTransition($order->status, $order->status);
         }
@@ -86,6 +93,8 @@ class OrderLifecycleService
      */
     public function transition(Order $order, OrderStatus $newStatus, User $by): Order
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
+
         if (!$order->status->canTransitionTo($newStatus)) {
             throw OrderException::invalidTransition($order->status, $newStatus);
         }
@@ -102,6 +111,8 @@ class OrderLifecycleService
      */
     public function cancel(Order $order, User $by, string $reason): Order
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
+
         if ($order->isCancelled()) {
             throw OrderException::alreadyCancelled();
         }

@@ -12,7 +12,9 @@ class KitchenAccessTest extends TestCase
     public function test_guest_can_load_kitchen_shell(): void
     {
         $this->get('/kitchen')
-            ->assertSuccessful();
+            ->assertSuccessful()
+            ->assertSee('رقم الطلب')
+            ->assertSee('اضغط Enter للتجهيز');
     }
 
     public function test_kitchen_login_page_accepts_redirect_target(): void

@@ -200,6 +200,42 @@ class CardTerminalPaymentSupportTest extends TestCase
         ]);
     }
 
+    public function test_order_show_returns_payment_terminal_details_for_receipt_printing(): void
+    {
+        [$cashier, $order] = $this->createOrderContext('003');
+
+        $terminal = PaymentTerminal::create([
+            'name' => 'Receipt Terminal',
+            'bank_name' => 'Bank Misr',
+            'code' => 'RCPT-TERM-1',
+            'fee_type' => PaymentTerminalFeeType::Fixed,
+            'fee_percentage' => 0,
+            'fee_fixed_amount' => 2,
+            'is_active' => true,
+        ]);
+
+        app(OrderPaymentService::class)->processPayment(
+            order: $order,
+            payments: [
+                new ProcessPaymentData(
+                    method: PaymentMethod::Card,
+                    amount: 100,
+                    terminalId: $terminal->id,
+                    referenceNumber: 'SHOW-123',
+                ),
+            ],
+            actorId: $cashier->id,
+        );
+
+        Sanctum::actingAs($cashier);
+
+        $this->getJson("/api/orders/{$order->id}")
+            ->assertOk()
+            ->assertJsonPath('data.payments.0.reference_number', 'SHOW-123')
+            ->assertJsonPath('data.payments.0.terminal.id', $terminal->id)
+            ->assertJsonPath('data.payments.0.terminal.name', 'Receipt Terminal');
+    }
+
     public function test_terminal_fee_service_supports_all_fee_types(): void
     {
         $service = app(PaymentTerminalFeeService::class);

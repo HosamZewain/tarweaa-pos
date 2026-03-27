@@ -18,6 +18,7 @@ class OrderPaymentService
     public function __construct(
         private readonly RecipeInventoryService $recipeInventoryService,
         private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
+        private readonly DrawerSessionService $drawerSessionService,
     ) {}
 
     /**
@@ -28,6 +29,8 @@ class OrderPaymentService
      */
     public function processPayment(Order $order, array $payments, int $actorId): Order
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($order->drawerSession, $actorId);
+
         if ($order->activeItems()->doesntExist()) {
             throw OrderException::emptyOrder();
         }
@@ -130,6 +133,8 @@ class OrderPaymentService
      */
     public function refund(Order $order, User $by, float $refundAmount, string $reason): Order
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
+
         if ($order->payment_status !== PaymentStatus::Paid) {
             throw OrderException::cannotRefundUnpaid();
         }

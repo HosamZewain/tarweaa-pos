@@ -15,6 +15,7 @@ class CloseDrawerRequest extends FormRequest
     {
         return [
             'actual_cash' => ['required', 'numeric', 'min:0'],
+            'preview_token' => ['nullable', 'string', 'max:255'],
             'notes'       => ['nullable', 'string', 'max:1000'],
         ];
     }

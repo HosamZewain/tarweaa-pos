@@ -48,10 +48,18 @@ class POSController extends Controller
 
         $activeShift   = $this->shiftService->getActiveShift();
         $activeDrawer  = $this->drawerService->getActiveSessionForCashier($user->id);
+        $reconciliationLock = $activeDrawer
+            ? $this->drawerService->getCloseReconciliationState($activeDrawer, $user)
+            : null;
+        $isLocked = $reconciliationLock !== null;
+        $ready = $user->canCreateOrder() && !$isLocked;
+        $blockReason = $isLocked
+            ? 'تم بدء جرد إغلاق الدرج بالفعل. يجب إكمال الإغلاق أولاً قبل العودة إلى نقطة البيع.'
+            : $user->getOrderBlockReason();
 
         return $this->success([
-            'ready'          => $user->canCreateOrder(),
-            'block_reason'   => $user->getOrderBlockReason(),
+            'ready'          => $ready,
+            'block_reason'   => $blockReason,
             'cashier'        => [
                 'id'   => $user->id,
                 'name' => $user->name,
@@ -66,6 +74,7 @@ class POSController extends Controller
                 'session_number'  => $activeDrawer->session_number,
                 'opening_balance' => $activeDrawer->opening_balance,
                 'started_at'      => $activeDrawer->started_at,
+                'close_reconciliation' => $reconciliationLock,
             ] : null,
         ]);
     }

@@ -25,6 +25,7 @@ class OrderCreationService
         private readonly DiscountAuditService $discountAuditService,
         private readonly RecipeInventoryService $recipeInventoryService,
         private readonly RecipeService $recipeService,
+        private readonly DrawerSessionService $drawerSessionService,
     ) {}
 
     /**
@@ -55,6 +56,8 @@ class OrderCreationService
         $drawerSession = $guardRow->drawerSession;
         $shift         = $drawerSession->shift;
         $posDevice     = $drawerSession->posDevice;
+
+        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($drawerSession, $cashier->id);
 
         if (!$shift->isOpen()) {
             throw OrderException::noActiveShift();
@@ -119,6 +122,8 @@ class OrderCreationService
      */
     public function addItem(Order $order, AddOrderItemData $data, int $actorId): OrderItem
     {
+        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($order->drawerSession, $actorId);
+
         if ($order->status->isFinal()) {
             throw OrderException::invalidTransition($order->status, $order->status);
         }
@@ -233,6 +238,8 @@ class OrderCreationService
         }
 
         $drawerSession = CashierDrawerSession::findOrFail($drawerSessionId);
+
+        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($drawerSession, $processedBy->id);
 
         if (!$drawerSession->isOpen()) {
             throw OrderException::noOpenDrawer();

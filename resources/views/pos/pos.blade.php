@@ -17,7 +17,18 @@
     .topbar-info { display: flex; align-items: center; gap: 1rem; font-size: 0.8rem; }
     .topbar-info .item { display: flex; align-items: center; gap: 0.35rem; color: var(--text-secondary); }
     .topbar-info .item strong { color: var(--text-primary); }
-    .topbar-actions { display: flex; gap: 0.5rem; }
+    .topbar-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+    .topbar-close-btn {
+        border-color: rgba(239, 68, 68, 0.35);
+        background: rgba(239, 68, 68, 0.12);
+        color: #fca5a5;
+        font-weight: 700;
+    }
+    .topbar-close-btn:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.5);
+        color: #fecaca;
+    }
 
     /* ═══ Order Type Bar ═══ */
     .type-bar {
@@ -325,6 +336,9 @@
                 </div>
             </div>
             <div class="topbar-actions">
+                <button class="btn btn-sm btn-secondary topbar-close-btn" onclick="goToCloseDrawer()">
+                    <span class="text-sm">🔒 إغلاق الدرج</span>
+                </button>
                 <button class="btn btn-sm btn-secondary" onclick="openMovementModal()">
                     <span class="text-sm">🗄️ حركة الدرج</span>
                 </button>
@@ -600,6 +614,10 @@
             <button class="btn btn-sm btn-ghost" id="tab-session-stats" onclick="showSessionTab('stats')">💰 إحصائيات مالية</button>
         </div>
 
+        <div id="session-stats-restricted" class="hidden text-sm text-muted mb-4 p-3 rounded-lg border border-border bg-bg-primary">
+            تظهر الإحصائيات المالية للكاشير فقط أثناء إغلاق الجلسة بعد إدخال المبلغ الفعلي.
+        </div>
+
         {{-- Session Orders Tab --}}
         <div id="session-orders-content">
             <div class="overflow-x-auto">
@@ -699,6 +717,7 @@
     let discountApprovers = [];
     let paymentTerminals = [];
     let currentCardPreview = null;
+    let lastPaidOrder = null;
 
     function userHasPermission(permission) {
         if (Array.isArray(currentUser.roles) && currentUser.roles.some((role) => role.name === 'admin')) {
@@ -706,6 +725,22 @@
         }
 
         return Array.isArray(currentUser.permissions) && currentUser.permissions.includes(permission);
+    }
+
+    function userHasRole(role) {
+        return Array.isArray(currentUser.roles) && currentUser.roles.some((userRole) => userRole.name === role);
+    }
+
+    function isCashierOnlyUser() {
+        return userHasRole('cashier') && !userHasRole('admin') && !userHasRole('manager');
+    }
+
+    function canViewLiveSessionStats() {
+        if (typeof currentUser.can_view_live_session_stats === 'boolean') {
+            return currentUser.can_view_live_session_stats;
+        }
+
+        return !isCashierOnlyUser();
     }
 
     function escapeHtml(value) {
@@ -719,6 +754,220 @@
 
     function moneyValue(amount) {
         return Number.parseFloat(amount || 0).toFixed(2);
+    }
+
+    function formatReceiptDateTime(value) {
+        try {
+            const date = value ? new Date(value) : new Date();
+            return new Intl.DateTimeFormat('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+            }).format(date);
+        } catch {
+            return '';
+        }
+    }
+
+    function paymentMethodLabel(method) {
+        if (method === 'cash') return 'نقدي';
+        if (method === 'card') return 'بطاقة';
+        return method || '—';
+    }
+
+    function openReceiptPrintWindow() {
+        return window.open('', '_blank', 'width=420,height=760');
+    }
+
+    function escapeReceiptHtml(value) {
+        return escapeHtml(value ?? '');
+    }
+
+    function buildReceiptHtml(order, { shouldOpenDrawer = false } = {}) {
+        const items = Array.isArray(order?.items) ? order.items : [];
+        const payments = Array.isArray(order?.payments) ? order.payments : [];
+        const primaryPayment = payments[0] || null;
+        const customerName = order?.customer_name || order?.customer?.name || 'عميل نقدي';
+        const customerPhone = order?.customer_phone || order?.customer?.phone || '';
+        const cashierName = order?.cashier?.name || currentUser.name || '—';
+        const deviceName = order?.pos_device?.name || order?.posDevice?.name || drawerSession?.pos_device?.name || '—';
+        const reference = primaryPayment?.reference_number || '';
+        const terminalName = primaryPayment?.terminal?.name || '';
+
+        return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إيصال ${escapeReceiptHtml(order?.order_number || '')}</title>
+    <style>
+        @page { size: 80mm auto; margin: 6mm; }
+        body {
+            margin: 0;
+            color: #000;
+            background: #fff;
+            font-family: "Tajawal", Arial, sans-serif;
+            direction: rtl;
+        }
+        .receipt {
+            width: 100%;
+            max-width: 72mm;
+            margin: 0 auto;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .center { text-align: center; }
+        .muted { color: #555; }
+        .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .line { border-top: 1px dashed #000; margin: 8px 0; }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 4px 0;
+        }
+        .row strong:last-child, .item-row strong:last-child { direction: ltr; text-align: left; }
+        .item {
+            margin: 8px 0;
+            padding-bottom: 6px;
+            border-bottom: 1px dotted #999;
+        }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .item-name { font-weight: 700; }
+        .item-meta { font-size: 11px; color: #555; margin-top: 2px; }
+        .totals .row { font-size: 13px; }
+        .grand {
+            font-size: 15px;
+            font-weight: 800;
+        }
+        .footer-note {
+            margin-top: 10px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="center">
+            <div class="title">Tarweaa</div>
+            <div class="muted">إيصال دفع</div>
+        </div>
+
+        <div class="line"></div>
+
+        <div class="row"><span>رقم الطلب</span><strong>${escapeReceiptHtml(order?.order_number || '—')}</strong></div>
+        <div class="row"><span>التاريخ</span><strong>${escapeReceiptHtml(formatReceiptDateTime(order?.created_at))}</strong></div>
+        <div class="row"><span>الكاشير</span><strong>${escapeReceiptHtml(cashierName)}</strong></div>
+        <div class="row"><span>نقطة البيع</span><strong>${escapeReceiptHtml(deviceName)}</strong></div>
+        <div class="row"><span>العميل</span><strong>${escapeReceiptHtml(customerName)}</strong></div>
+        ${customerPhone ? `<div class="row"><span>الهاتف</span><strong>${escapeReceiptHtml(customerPhone)}</strong></div>` : ''}
+        ${order?.delivery_address ? `<div class="row"><span>العنوان</span><strong>${escapeReceiptHtml(order.delivery_address)}</strong></div>` : ''}
+
+        <div class="line"></div>
+
+        ${items.map((item) => {
+            const modifiers = Array.isArray(item?.modifiers) ? item.modifiers.map((modifier) => `${modifier.modifier_name} x${modifier.quantity}`).join(' • ') : '';
+            const notes = item?.notes ? `ملاحظة: ${item.notes}` : '';
+            const metaParts = [item?.variant_name, modifiers, notes].filter(Boolean);
+            return `
+                <div class="item">
+                    <div class="item-row">
+                        <div>
+                            <div class="item-name">${escapeReceiptHtml(item?.item_name || '—')}</div>
+                            ${metaParts.length ? `<div class="item-meta">${escapeReceiptHtml(metaParts.join(' • '))}</div>` : ''}
+                        </div>
+                        <strong>${escapeReceiptHtml(`${moneyValue(item?.quantity || 0)} x ${moneyValue(item?.unit_price || 0)}`)}</strong>
+                    </div>
+                    <div class="row">
+                        <span></span>
+                        <strong>${escapeReceiptHtml(moneyValue(item?.total || 0))} ج.م</strong>
+                    </div>
+                </div>
+            `;
+        }).join('')}
+
+        <div class="line"></div>
+
+        <div class="totals">
+            <div class="row"><span>المجموع الفرعي</span><strong>${escapeReceiptHtml(moneyValue(order?.subtotal || 0))} ج.م</strong></div>
+            <div class="row"><span>الخصم</span><strong>${escapeReceiptHtml(moneyValue(order?.discount_amount || 0))} ج.م</strong></div>
+            <div class="row"><span>الضريبة</span><strong>${escapeReceiptHtml(moneyValue(order?.tax_amount || 0))} ج.م</strong></div>
+            <div class="row"><span>التوصيل</span><strong>${escapeReceiptHtml(moneyValue(order?.delivery_fee || 0))} ج.م</strong></div>
+            <div class="row grand"><span>الإجمالي</span><strong>${escapeReceiptHtml(moneyValue(order?.total || 0))} ج.م</strong></div>
+        </div>
+
+        <div class="line"></div>
+
+        ${payments.map((payment) => `
+            <div class="row"><span>الدفع (${escapeReceiptHtml(paymentMethodLabel(payment?.payment_method))})</span><strong>${escapeReceiptHtml(moneyValue(payment?.amount || 0))} ج.م</strong></div>
+            ${payment?.terminal?.name ? `<div class="row"><span>الجهاز</span><strong>${escapeReceiptHtml(payment.terminal.name)}</strong></div>` : ''}
+            ${payment?.reference_number ? `<div class="row"><span>المرجع</span><strong>${escapeReceiptHtml(payment.reference_number)}</strong></div>` : ''}
+        `).join('')}
+        <div class="row"><span>المبلغ المدفوع</span><strong>${escapeReceiptHtml(moneyValue(order?.paid_amount || 0))} ج.م</strong></div>
+        <div class="row"><span>الباقي</span><strong>${escapeReceiptHtml(moneyValue(order?.change_amount || 0))} ج.م</strong></div>
+
+        ${(primaryPayment?.payment_method === 'card' && primaryPayment?.fee_amount) ? `
+            <div class="row"><span>رسوم البطاقة</span><strong>${escapeReceiptHtml(moneyValue(primaryPayment.fee_amount))} ج.م</strong></div>
+            <div class="row"><span>صافي التسوية</span><strong>${escapeReceiptHtml(moneyValue(primaryPayment.net_settlement_amount || 0))} ج.م</strong></div>
+        ` : ''}
+
+        <div class="line"></div>
+
+        <div class="center footer-note">
+            <div>شكرًا لزيارتكم</div>
+            ${shouldOpenDrawer ? '<div class="muted">سيتم إرسال أمر الطباعة الآن. إذا كانت طابعة الكاش تدعم فتح الدرج مع أمر الطباعة فسيتم فتحه تلقائيًا.</div>' : ''}
+            ${terminalName ? `<div class="muted">تمت العملية عبر ${escapeReceiptHtml(terminalName)}</div>` : ''}
+        </div>
+    </div>
+    <script>
+        window.onload = () => {
+            setTimeout(() => {
+                window.focus();
+                window.print();
+            }, 250);
+        };
+        window.onafterprint = () => {
+            setTimeout(() => window.close(), 250);
+        };
+    <\/script>
+</body>
+</html>`;
+    }
+
+    async function printPaidOrderReceipt(orderId, { shouldOpenDrawer = false, receiptWindow = null } = {}) {
+        const printWindow = receiptWindow || openReceiptPrintWindow();
+
+        if (!printWindow) {
+            showToast('تم الدفع، لكن المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة للطباعة.', 'error');
+            return;
+        }
+
+        try {
+            printWindow.document.write('<html><body style="font-family:Tajawal,Arial,sans-serif;padding:24px;text-align:center">جاري تجهيز الإيصال...</body></html>');
+            printWindow.document.close();
+
+            const response = await api(`/orders/${orderId}`);
+            const order = response?.data;
+
+            lastPaidOrder = order || null;
+
+            if (!order) {
+                throw new Error('تعذر تحميل بيانات الإيصال');
+            }
+
+            printWindow.document.open();
+            printWindow.document.write(buildReceiptHtml(order, { shouldOpenDrawer }));
+            printWindow.document.close();
+        } catch (err) {
+            printWindow.close();
+            showToast(err.message || 'تم الدفع لكن تعذر تجهيز الإيصال للطباعة', 'error');
+        }
     }
 
     function getSubtotal() {
@@ -831,6 +1080,12 @@
             const drawerRes = await api('/drawers/active');
             if (!drawerRes?.data) {
                 window.location.href = '/pos/drawer';
+                return;
+            }
+
+            if (drawerRes.data.close_reconciliation?.locked) {
+                showToast('تم بدء جرد إغلاق الدرج. أكمل الإغلاق أولاً.', 'info');
+                window.location.href = '/pos/close-drawer';
                 return;
             }
 
@@ -1684,6 +1939,7 @@
         const btn = document.getElementById('btn-confirm-pay');
         const total = getTotal();
         let paidAmount = total;
+        let receiptWindow = null;
         let paymentPayload = {
             method: selectedPayMethod,
             amount: paidAmount,
@@ -1725,6 +1981,8 @@
                 reference_number: referenceNumber,
             };
         }
+
+        receiptWindow = openReceiptPrintWindow();
 
         btn.disabled = true;
         btn.textContent = 'جاري المعالجة...';
@@ -1779,11 +2037,19 @@
                 },
             });
 
+            await printPaidOrderReceipt(currentOrder.id, {
+                shouldOpenDrawer: selectedPayMethod === 'cash',
+                receiptWindow,
+            });
+
             closePayModal();
             showToast('تم الدفع بنجاح ✅');
             clearCart();
             selectCustomer(null);
         } catch (err) {
+            if (receiptWindow && !receiptWindow.closed) {
+                receiptWindow.close();
+            }
             showToast(err.message || 'فشل في إتمام العملية', 'error');
         } finally {
             btn.disabled = false;
@@ -1964,6 +2230,11 @@
     }
 
     function openSessionModal() {
+        const statsTab = document.getElementById('tab-session-stats');
+        const restrictionNotice = document.getElementById('session-stats-restricted');
+
+        statsTab.classList.toggle('hidden', !canViewLiveSessionStats());
+        restrictionNotice.classList.toggle('hidden', canViewLiveSessionStats());
         document.getElementById('session-modal').classList.remove('hidden');
         showSessionTab('orders');
     }
@@ -1973,6 +2244,11 @@
     }
 
     function showSessionTab(tab) {
+        if (tab === 'stats' && !canViewLiveSessionStats()) {
+            showToast('الإحصائيات المالية تظهر عند إغلاق الجلسة بعد الجرد', 'info');
+            tab = 'orders';
+        }
+
         document.getElementById('session-orders-content').classList.toggle('hidden', tab !== 'orders');
         document.getElementById('session-stats-content').classList.toggle('hidden', tab !== 'stats');
         document.getElementById('tab-session-orders').classList.toggle('active', tab === 'orders');
@@ -2110,6 +2386,10 @@
         api('/auth/logout', { method: 'POST' }).catch(() => {});
         clearAuth();
         window.location.href = '/pos/login';
+    }
+
+    function goToCloseDrawer() {
+        window.location.href = '/pos/close-drawer';
     }
 </script>
 @endsection

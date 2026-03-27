@@ -185,14 +185,55 @@
         // Clear any stale auth on login page load
         clearAuth();
 
+        const POST_LOGIN_REDIRECT_KEY = 'post_login_redirect';
+
         let currentTab = 'pin';
         let pinValue = '';
         const PIN_MIN_LENGTH = 4;
         const PIN_MAX_LENGTH = 6;
 
-        function getPostLoginRedirect(user) {
+        function getRequestedRedirectTarget() {
             const params = new URLSearchParams(window.location.search);
-            const target = getSafeRedirectTarget(params.get('redirect'), getAuthorizedHome(user));
+            const queryRedirect = params.get('redirect');
+
+            if (queryRedirect) {
+                const safeQueryRedirect = getSafeRedirectTarget(queryRedirect, '/pos/drawer');
+                sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, safeQueryRedirect);
+
+                return safeQueryRedirect;
+            }
+
+            const storedRedirect = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
+
+            return getSafeRedirectTarget(storedRedirect, '/pos/drawer');
+        }
+
+        function clearRequestedRedirectTarget() {
+            sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+        }
+
+        function validateLoginTargetAccess(user) {
+            const target = getRequestedRedirectTarget();
+
+            if (target.startsWith('/kitchen') && !canAccessKitchenSurface(user)) {
+                return {
+                    allowed: false,
+                    message: 'هذا الحساب لا يملك صلاحية شاشة المطبخ. استخدم حساب مطبخ أو مدير لديه صلاحية المطبخ.',
+                };
+            }
+
+            if (target.startsWith('/pos') && !canAccessPosSurface(user)) {
+                return {
+                    allowed: false,
+                    message: 'هذا الحساب لا يملك صلاحية نقطة البيع.',
+                };
+            }
+
+            return { allowed: true };
+        }
+
+        function getPostLoginRedirect(user) {
+            const target = getSafeRedirectTarget(getRequestedRedirectTarget(), getAuthorizedHome(user));
 
             if (target.startsWith('/kitchen')) {
                 return canAccessKitchenSurface(user) ? target : getAuthorizedHome(user);
@@ -264,9 +305,21 @@
                     method: 'POST',
                     body: { pin: pinValue, device_name: 'pos-terminal' },
                 });
+
+                const access = validateLoginTargetAccess(data.data.user);
+                if (!access.allowed) {
+                    clearAuth();
+                    clearRequestedRedirectTarget();
+                    errEl.textContent = access.message;
+                    pinClear();
+                    return;
+                }
+
                 setToken(data.data.token);
                 setUser(data.data.user);
-                window.location.href = getPostLoginRedirect(data.data.user);
+                const redirectTarget = getPostLoginRedirect(data.data.user);
+                clearRequestedRedirectTarget();
+                window.location.href = redirectTarget;
             } catch (err) {
                 errEl.textContent = err.message || 'خطأ في تسجيل الدخول';
                 pinClear();
@@ -293,9 +346,20 @@
                         device_name: 'pos-terminal',
                     },
                 });
+
+                const access = validateLoginTargetAccess(data.data.user);
+                if (!access.allowed) {
+                    clearAuth();
+                    clearRequestedRedirectTarget();
+                    errEl.textContent = access.message;
+                    return;
+                }
+
                 setToken(data.data.token);
                 setUser(data.data.user);
-                window.location.href = getPostLoginRedirect(data.data.user);
+                const redirectTarget = getPostLoginRedirect(data.data.user);
+                clearRequestedRedirectTarget();
+                window.location.href = redirectTarget;
             } catch (err) {
                 errEl.textContent = err.message || 'خطأ في تسجيل الدخول';
             } finally {
@@ -303,5 +367,7 @@
                 btn.textContent = 'تسجيل الدخول';
             }
         }
+
+        getRequestedRedirectTarget();
     </script>
 @endsection

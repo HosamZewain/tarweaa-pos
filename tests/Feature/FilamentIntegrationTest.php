@@ -75,6 +75,40 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_drawer_session_details_with_financial_and_order_sections()
+    {
+        $shift = Shift::query()->first() ?? Shift::create([
+            'shift_number' => 'SHIFT-DRW-VIEW-001',
+            'status' => 'open',
+            'opened_by' => $this->adminUser->id,
+            'started_at' => now(),
+        ]);
+
+        $device = PosDevice::query()->first() ?? PosDevice::create([
+            'name' => 'POS Drawer View',
+            'identifier' => 'POS-DRW-VIEW-1',
+            'is_active' => true,
+        ]);
+
+        $drawer = CashierDrawerSession::query()->create([
+            'session_number' => 'DRAWER-DETAIL-001',
+            'cashier_id' => $this->adminUser->id,
+            'shift_id' => $shift->id,
+            'pos_device_id' => $device->id,
+            'opened_by' => $this->adminUser->id,
+            'opening_balance' => 100,
+            'status' => 'open',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($this->adminUser)
+            ->get("/admin/drawer-sessions/{$drawer->id}")
+            ->assertSuccessful()
+            ->assertSee('المؤشرات المالية')
+            ->assertSee('الطلبات المرتبطة')
+            ->assertSee('الحركات النقدية');
+    }
+
     public function test_admin_can_view_inventory_resource()
     {
         $this->actingAs($this->adminUser)
@@ -87,6 +121,40 @@ class FilamentIntegrationTest extends TestCase
         $this->actingAs($this->adminUser)
              ->get('/admin/orders')
              ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_shift_details_with_financial_and_drawer_sections()
+    {
+        $shift = Shift::query()->create([
+            'shift_number' => 'SHIFT-DETAIL-001',
+            'status' => 'open',
+            'opened_by' => $this->adminUser->id,
+            'started_at' => now(),
+        ]);
+
+        $device = PosDevice::query()->first() ?? PosDevice::create([
+            'name' => 'POS Shift View',
+            'identifier' => 'POS-SHF-VIEW-1',
+            'is_active' => true,
+        ]);
+
+        CashierDrawerSession::query()->create([
+            'session_number' => 'DRAWER-SHIFT-DETAIL-001',
+            'cashier_id' => $this->adminUser->id,
+            'shift_id' => $shift->id,
+            'pos_device_id' => $device->id,
+            'opened_by' => $this->adminUser->id,
+            'opening_balance' => 100,
+            'status' => 'open',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($this->adminUser)
+            ->get("/admin/shifts/{$shift->id}")
+            ->assertSuccessful()
+            ->assertSee('الإحصاءات التشغيلية')
+            ->assertSee('الملخص المالي')
+            ->assertSee('جلسات الدرج ضمن الوردية');
     }
 
     public function test_admin_can_view_order_details_with_discount_audit_information()

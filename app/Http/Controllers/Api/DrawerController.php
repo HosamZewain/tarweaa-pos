@@ -37,6 +37,20 @@ class DrawerController extends Controller
     }
 
     /**
+     * POST /api/drawers/{session}/close-preview — Preview drawer close summary after physical count.
+     */
+    public function previewClose(CloseDrawerRequest $request, CashierDrawerSession $session): JsonResponse
+    {
+        $preview = $this->drawerService->getClosePreview(
+            session: $session,
+            actor: $request->user(),
+            actualCash: (float) $request->validated('actual_cash'),
+        );
+
+        return $this->success($preview);
+    }
+
+    /**
      * POST /api/drawers/{session}/close — Close a drawer session.
      */
     public function close(CloseDrawerRequest $request, CashierDrawerSession $session): JsonResponse
@@ -66,7 +80,15 @@ class DrawerController extends Controller
             return $this->success(null, 'لا توجد جلسة درج مفتوحة');
         }
 
-        return $this->success($session);
+        return $this->success(array_merge(
+            $session->toArray(),
+            [
+                'close_reconciliation' => $this->drawerService->getCloseReconciliationState(
+                    session: $session,
+                    actor: $request->user(),
+                ),
+            ],
+        ));
     }
 
     /**

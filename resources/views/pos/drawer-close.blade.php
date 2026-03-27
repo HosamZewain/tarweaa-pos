@@ -45,6 +45,11 @@
         text-align: center;
         margin: 1rem 0;
     }
+    .close-review-panel {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+    }
     .actual-value {
         font-size: 2.25rem;
         font-weight: 800;
@@ -61,6 +66,33 @@
         cursor: pointer;
     }
     .back-link:hover { color: var(--text-primary); }
+    .back-link.disabled {
+        display: none;
+    }
+    .actual-input.locked {
+        opacity: 0.85;
+    }
+    .actual-input.locked input {
+        cursor: not-allowed !important;
+        opacity: 0.9;
+    }
+    .close-block-message {
+        margin-bottom: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: var(--radius);
+        background: var(--danger-bg);
+        color: var(--danger);
+        font-size: 0.92rem;
+        font-weight: 700;
+        text-align: center;
+    }
+    .variance-reason {
+        margin-bottom: 1rem;
+    }
+    .variance-reason textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
 </style>
 @endsection
 
@@ -77,20 +109,12 @@
         <div id="main-content" class="hidden">
             <div class="close-header">
                 <h2>🔒 إغلاق الدرج</h2>
-                <p>عدّ المبلغ النقدي في الدرج</p>
+                <p>أدخل المبلغ الفعلي أولاً، ثم راجع ملخص الجلسة قبل تأكيد الإغلاق</p>
             </div>
 
             <div class="card">
                 <div class="card-body">
-                    {{-- Session Summary --}}
-                    <table class="summary-table" id="summary-table">
-                        <tr><td>رقم الجلسة</td><td id="s-number">—</td></tr>
-                        <tr><td>الرصيد الافتتاحي</td><td id="s-opening">0.00</td></tr>
-                        <tr><td>مبيعات نقدية</td><td id="s-sales">0.00</td></tr>
-                        <tr><td>إضافات نقدية</td><td id="s-cashin">0.00</td></tr>
-                        <tr><td>سحوبات نقدية</td><td id="s-cashout">0.00</td></tr>
-                        <tr class="highlight"><td>المتوقع في الدرج</td><td id="s-expected">0.00</td></tr>
-                    </table>
+                    <div class="text-center text-muted text-sm" id="session-reference">رقم الجلسة: —</div>
 
                     {{-- Actual cash input --}}
                     <div class="actual-input">
@@ -100,15 +124,35 @@
                                placeholder="0.00" style="background:transparent; border:none; color:var(--text-primary); font-size:3rem; font-weight:800; direction:ltr; cursor:pointer">
                     </div>
 
-                    {{-- Variance display --}}
-                    <div id="variance-banner" class="variance-banner ok hidden">
-                        <div class="variance-label">الفرق</div>
-                        <div id="variance-value">0.00 ج.م</div>
-                    </div>
-
-                    <button class="btn btn-danger btn-lg btn-block" id="close-btn" onclick="confirmClose()">
-                        إغلاق الدرج
+                    <button class="btn btn-primary btn-lg btn-block" id="review-btn" onclick="reviewClose()">
+                        مراجعة الإغلاق
                     </button>
+
+                    <div id="close-review-panel" class="close-review-panel hidden">
+                        <div id="close-block-message" class="close-block-message hidden"></div>
+                        <table class="summary-table" id="summary-table">
+                            <tr><td>رقم الجلسة</td><td id="s-number">—</td></tr>
+                            <tr><td>الرصيد الافتتاحي</td><td id="s-opening">0.00</td></tr>
+                            <tr><td>مبيعات نقدية</td><td id="s-sales">0.00</td></tr>
+                            <tr><td>إضافات نقدية</td><td id="s-cashin">0.00</td></tr>
+                            <tr><td>سحوبات نقدية</td><td id="s-cashout">0.00</td></tr>
+                            <tr class="highlight"><td>المتوقع في الدرج</td><td id="s-expected">0.00</td></tr>
+                        </table>
+
+                        <div id="variance-banner" class="variance-banner ok hidden">
+                            <div class="variance-label">الفرق</div>
+                            <div id="variance-value">0.00 ج.م</div>
+                        </div>
+
+                        <div id="variance-reason-wrapper" class="variance-reason hidden">
+                            <label class="form-label" for="variance-reason">سبب الفرق</label>
+                            <textarea id="variance-reason" class="form-input" placeholder="اكتب سبب العجز أو الفائض قبل الإغلاق"></textarea>
+                        </div>
+
+                        <button class="btn btn-danger btn-lg btn-block" id="close-btn" onclick="confirmClose()">
+                            إغلاق الدرج
+                        </button>
+                    </div>
 
                     <a class="back-link" href="/pos">← العودة لنقطة البيع</a>
                 </div>
@@ -143,6 +187,9 @@
     let actualStr = '';
     let sessionData = null;
     let expectedCash = 0;
+    let closePreview = null;
+    let closePreviewToken = null;
+    let declarationLocked = false;
 
     (async function init() {
         try {
@@ -154,18 +201,11 @@
             }
             sessionData = res.data;
 
-            // Get summary
-            const sumRes = await api(`/drawers/${sessionData.id}/summary`);
-            const s = sumRes?.data || {};
+            document.getElementById('session-reference').textContent = `رقم الجلسة: ${sessionData.session_number || '#' + sessionData.id}`;
 
-            document.getElementById('s-number').textContent = sessionData.session_number || '#' + sessionData.id;
-            document.getElementById('s-opening').textContent = parseFloat(s.opening_balance || sessionData.opening_balance || 0).toFixed(2);
-            document.getElementById('s-sales').textContent = parseFloat(s.cash_sales || 0).toFixed(2);
-            document.getElementById('s-cashin').textContent = parseFloat(s.cash_in || 0).toFixed(2);
-            document.getElementById('s-cashout').textContent = parseFloat(s.cash_out || 0).toFixed(2);
-
-            expectedCash = parseFloat(s.expected_cash || s.expected_balance || 0);
-            document.getElementById('s-expected').textContent = expectedCash.toFixed(2);
+            if (sessionData.close_reconciliation?.locked) {
+                restoreLockedPreview(sessionData.close_reconciliation);
+            }
 
         } catch (err) {
             showToast(err.message || 'خطأ', 'error');
@@ -175,39 +215,131 @@
         document.getElementById('main-content').classList.remove('hidden');
     })();
 
-    // Update variance when input changes
-    document.getElementById('actual-input').addEventListener('input', updateVariance);
-
-    function updateVariance() {
-        const actualStr = document.getElementById('actual-input').value;
-        const actual = parseFloat(actualStr || '0');
-        const diff = actual - expectedCash;
-        const banner = document.getElementById('variance-banner');
-        const valueEl = document.getElementById('variance-value');
-
-        if (!actualStr) {
-            banner.classList.add('hidden');
+    document.getElementById('actual-input').addEventListener('input', () => {
+        if (declarationLocked) {
             return;
         }
+        closePreview = null;
+        closePreviewToken = null;
+        document.getElementById('close-review-panel').classList.add('hidden');
+        document.getElementById('variance-banner').classList.add('hidden');
+    });
+
+    function setDeclarationLocked(locked) {
+        declarationLocked = locked;
+        const input = document.getElementById('actual-input');
+        const wrapper = document.querySelector('.actual-input');
+        const reviewBtn = document.getElementById('review-btn');
+        const backLink = document.querySelector('.back-link');
+
+        input.onclick = locked ? null : () => openNumPad('actual-input', 'المبلغ الفعلي');
+        input.readOnly = true;
+        input.style.cursor = locked ? 'not-allowed' : 'pointer';
+        wrapper.classList.toggle('locked', locked);
+        reviewBtn.disabled = locked;
+        reviewBtn.textContent = locked ? 'تم اعتماد المبلغ المُعلن' : 'مراجعة الإغلاق';
+        backLink.classList.toggle('disabled', locked);
+    }
+
+    function restoreLockedPreview(summary) {
+        closePreview = summary || null;
+        closePreviewToken = summary?.preview_token || null;
+        document.getElementById('actual-input').value = parseFloat(summary?.actual_cash || 0).toFixed(2);
+        renderPreview(summary || {});
+        setDeclarationLocked(true);
+        document.getElementById('close-review-panel').classList.remove('hidden');
+    }
+
+    function renderPreview(summary) {
+        document.getElementById('s-number').textContent = summary.session_number || sessionData.session_number || '#' + sessionData.id;
+        document.getElementById('s-opening').textContent = parseFloat(summary.opening_balance || sessionData.opening_balance || 0).toFixed(2);
+        document.getElementById('s-sales').textContent = parseFloat(summary.cash_sales || 0).toFixed(2);
+        document.getElementById('s-cashin').textContent = parseFloat(summary.cash_in || 0).toFixed(2);
+        document.getElementById('s-cashout').textContent = parseFloat(summary.cash_out || 0).toFixed(2);
+
+        expectedCash = parseFloat(summary.expected_cash || summary.expected_balance || 0);
+        document.getElementById('s-expected').textContent = expectedCash.toFixed(2);
+
+        const diff = parseFloat(summary.variance || 0);
+        const banner = document.getElementById('variance-banner');
+        const valueEl = document.getElementById('variance-value');
+        const closeBtn = document.getElementById('close-btn');
+        const blockMessage = document.getElementById('close-block-message');
+        const reasonWrapper = document.getElementById('variance-reason-wrapper');
 
         banner.classList.remove('hidden');
 
         if (Math.abs(diff) < 0.01) {
             banner.className = 'variance-banner ok';
             valueEl.textContent = '✅ مطابق';
+            reasonWrapper.classList.add('hidden');
         } else if (diff > 0) {
             banner.className = 'variance-banner surplus';
             valueEl.textContent = `فائض: +${diff.toFixed(2)} ج.م`;
+            reasonWrapper.classList.remove('hidden');
         } else {
             banner.className = 'variance-banner deficit';
             valueEl.textContent = `عجز: ${diff.toFixed(2)} ج.م`;
+            reasonWrapper.classList.remove('hidden');
+        }
+
+        if (Math.abs(diff) >= 0.01) {
+            closeBtn.disabled = false;
+            closeBtn.textContent = 'إغلاق الدرج مع تسجيل الفرق';
+            blockMessage.textContent = 'سيتم تسجيل الفرق على الجلسة كما هو، مع حفظ سبب الفرق.';
+            blockMessage.classList.remove('hidden');
+        } else {
+            closeBtn.disabled = false;
+            closeBtn.textContent = 'إغلاق الدرج';
+            blockMessage.classList.add('hidden');
+            blockMessage.textContent = '';
+        }
+    }
+
+    async function reviewClose() {
+        const actualStr = document.getElementById('actual-input').value;
+        if (!actualStr) {
+            showToast('أدخل المبلغ الفعلي أولاً', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('review-btn');
+        btn.disabled = true;
+        btn.textContent = 'جاري المراجعة...';
+
+        try {
+            const res = await api(`/drawers/${sessionData.id}/close-preview`, {
+                method: 'POST',
+                body: {
+                    actual_cash: parseFloat(actualStr || '0'),
+                },
+            });
+
+            closePreview = res?.data || null;
+            closePreviewToken = closePreview?.preview_token || null;
+            renderPreview(closePreview || {});
+            setDeclarationLocked(true);
+            document.getElementById('close-review-panel').classList.remove('hidden');
+        } catch (err) {
+            showToast(err.message || 'فشل في تحميل ملخص الإغلاق', 'error');
+        } finally {
+            if (!declarationLocked) {
+                btn.disabled = false;
+                btn.textContent = 'مراجعة الإغلاق';
+            }
         }
     }
 
     function confirmClose() {
         const actualStr = document.getElementById('actual-input').value;
         const actual = parseFloat(actualStr || '0');
+        const reason = document.getElementById('variance-reason').value.trim();
         if (!actualStr) { showToast('أدخل المبلغ الفعلي', 'error'); return; }
+        if (!closePreview) { showToast('راجع الإغلاق أولاً قبل التأكيد', 'error'); return; }
+        if (closePreview.requires_variance_reason && !reason) {
+            showToast('اكتب سبب الفرق قبل إغلاق الدرج', 'error');
+            return;
+        }
 
         const diff = actual - expectedCash;
         const confirmVar = document.getElementById('confirm-variance');
@@ -229,6 +361,7 @@
 
     async function doClose() {
         const actualStr = document.getElementById('actual-input').value;
+        const reason = document.getElementById('variance-reason').value.trim();
         const btn = document.getElementById('confirm-close-btn');
         btn.disabled = true;
         btn.textContent = 'جاري الإغلاق...';
@@ -238,6 +371,8 @@
                 method: 'POST',
                 body: {
                     actual_cash: parseFloat(actualStr || '0'),
+                    preview_token: closePreviewToken,
+                    notes: reason || null,
                 },
             });
             showToast('تم إغلاق الدرج بنجاح');

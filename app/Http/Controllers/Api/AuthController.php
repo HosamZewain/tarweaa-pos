@@ -45,7 +45,16 @@ class AuthController extends Controller
      */
     public function pinLogin(PinLoginRequest $request): JsonResponse
     {
-        $user = User::where('pin', $request->pin)->first();
+        $matchingUsers = User::query()
+            ->where('pin', $request->pin)
+            ->where('is_active', true)
+            ->get();
+
+        if ($matchingUsers->count() > 1) {
+            return $this->error('رمز PIN مستخدم لأكثر من حساب. يرجى استخدام كلمة المرور أو تعيين PIN مختلف لكل مستخدم.', 409);
+        }
+
+        $user = $matchingUsers->first();
 
         if (!$user) {
             return $this->error('رمز PIN غير صحيح.', 401);
@@ -99,6 +108,8 @@ class AuthController extends Controller
             'is_active'   => $user->is_active,
             'can_access_pos' => $user->canAccessPosSurface(),
             'can_access_kitchen' => $user->canAccessKitchenSurface(),
+            'can_view_live_session_stats' => $user->canViewLiveSessionFinancialStats(),
+            'must_declare_cash_before_session_stats' => $user->mustDeclareCashBeforeSeeingSessionFinancialStats(),
             'roles'       => $user->roles->map(fn ($role) => [
                 'id'           => $role->id,
                 'name'         => $role->name,

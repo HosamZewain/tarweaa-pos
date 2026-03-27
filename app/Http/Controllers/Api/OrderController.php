@@ -71,11 +71,12 @@ class OrderController extends Controller
     {
         $order->load([
             'items.modifiers',
-            'payments',
+            'payments.terminal:id,name,bank_name,code',
             'cashier:id,name',
             'customer:id,name,phone',
             'shift:id,shift_number',
             'drawerSession:id,session_number',
+            'posDevice:id,name',
         ]);
 
         return $this->success($order);
@@ -116,7 +117,7 @@ class OrderController extends Controller
      */
     public function removeItem(OrderItem $item): JsonResponse
     {
-        $this->orderLifecycleService->removeItem($item);
+        $this->orderLifecycleService->removeItem($item, request()->user());
 
         return $this->success(
             $item->order->fresh(),
