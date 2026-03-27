@@ -21,6 +21,12 @@ use Illuminate\Support\Facades\Log;
 
 class OrderCreationService
 {
+    public function __construct(
+        private readonly DiscountAuditService $discountAuditService,
+        private readonly RecipeInventoryService $recipeInventoryService,
+        private readonly RecipeService $recipeService,
+    ) {}
+
     /**
      * Create a new empty order after validating all prerequisites.
      *
@@ -30,6 +36,11 @@ class OrderCreationService
     {
         if (!$cashier->is_active) {
             throw OrderException::cashierInactive();
+        }
+
+        $hasDiscount = $data->discountType !== null || $data->discountValue > 0;
+        if ($hasDiscount && !$cashier->hasPermission('apply_discount')) {
+            throw OrderException::discountPermissionRequired();
         }
 
         $guardRow = CashierActiveSession::with([
@@ -178,6 +189,26 @@ class OrderCreationService
 
             $item->recalculate();
             $order->recalculate();
+
+            $order->refresh();
+
+            if ($order->discount_type !== null
+                && (float) $order->discount_value > 0
+                && $order->discountLogs()->where('scope', 'order')->doesntExist()
+            ) {
+                $this->discountAuditService->logOrderDiscount(
+                    order: $order,
+                    appliedBy: $actorId,
+                    action: 'configured_on_create',
+                    requestedBy: $order->cashier_id,
+                );
+            }
+
+            $this->discountAuditService->logItemDiscount($item, $actorId);
+
+            if ($this->recipeInventoryService->shouldDeductForOrder($order->fresh())) {
+                $this->recipeInventoryService->deductForOrderItem($item, $actorId);
+            }
 
             return $item->fresh(['modifiers']);
         });

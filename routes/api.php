@@ -48,6 +48,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customers', [POSController::class, 'customerStore']);
         Route::get('/devices',   [POSController::class, 'devices']);
         Route::get('/order-types', [POSController::class, 'orderTypes']);
+        Route::get('/payment-terminals', [POSController::class, 'paymentTerminals']);
+        Route::post('/payment-preview', [POSController::class, 'paymentPreview']);
+        Route::get('/discount-approvers', [POSController::class, 'discountApprovers']);
+        Route::post('/discount-approval', [POSController::class, 'authorizeDiscount']);
     });
 
     // ── Shifts ───────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales-by-item',           [ReportController::class, 'salesByItem']);
         Route::get('/sales-by-category',       [ReportController::class, 'salesByCategory']);
         Route::get('/sales-by-payment-method', [ReportController::class, 'salesByPaymentMethod']);
+        Route::get('/card-payments-by-terminal', [ReportController::class, 'cardPaymentsByTerminal']);
         Route::get('/daily-sales',             [ReportController::class, 'dailySales']);
         
         // Drawers & Shifts

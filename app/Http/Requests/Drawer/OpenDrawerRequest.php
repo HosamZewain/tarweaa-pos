@@ -6,6 +6,15 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class OpenDrawerRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->user() && !$this->filled('cashier_id')) {
+            $this->merge([
+                'cashier_id' => $this->user()->id,
+            ]);
+        }
+    }
+
     public function authorize(): bool
     {
         return true;

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Permission;
 use App\Models\PosDevice;
+use App\Models\PosOrderType;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\Role;
@@ -20,6 +21,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->seedRolesAndPermissions();
+        $this->seedOperationalDefaults();
 
         $admin = User::updateOrCreate(
             ['email' => 'admin@pos.com'],
@@ -60,6 +62,35 @@ class DatabaseSeeder extends Seeder
                 'opened_by' => $admin->id,
                 'started_at' => now(),
             ]);
+        }
+    }
+
+    private function seedOperationalDefaults(): void
+    {
+        foreach ([
+            [
+                'name' => 'تيك أواي',
+                'type' => 'takeaway',
+                'source' => 'pos',
+                'sort_order' => 1,
+            ],
+            [
+                'name' => 'استلام',
+                'type' => 'pickup',
+                'source' => 'pos',
+                'sort_order' => 2,
+            ],
+            [
+                'name' => 'توصيل',
+                'type' => 'delivery',
+                'source' => 'pos',
+                'sort_order' => 3,
+            ],
+        ] as $orderType) {
+            PosOrderType::updateOrCreate(
+                ['name' => $orderType['name']],
+                array_merge($orderType, ['is_active' => true]),
+            );
         }
     }
 

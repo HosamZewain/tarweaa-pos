@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryService
 {
+    public function __construct(
+        private readonly RecipeService $recipeService,
+    ) {}
+
     /**
      * Add stock and record the transaction.
      * Always runs inside a DB transaction with row-level lock.
@@ -33,16 +37,26 @@ class InventoryService
 
             $before = (float) $fresh->current_stock;
             $after  = $before + $quantity;
+            $currentAverageCost = (float) ($fresh->unit_cost ?? 0);
+            $appliedUnitCost = $unitCost !== null ? (float) $unitCost : $currentAverageCost;
+
+            if ($unitCost !== null) {
+                $currentStockValue = $before * $currentAverageCost;
+                $incomingStockValue = $quantity * (float) $unitCost;
+                $appliedUnitCost = $after > 0
+                    ? round(($currentStockValue + $incomingStockValue) / $after, 2)
+                    : (float) $unitCost;
+            }
 
             $fresh->update([
                 'current_stock' => $after,
-                'unit_cost'     => $unitCost ?? $fresh->unit_cost,
+                'unit_cost'     => $appliedUnitCost,
                 'updated_by'    => $actorId,
             ]);
 
             $item->refresh();
 
-            return $fresh->transactions()->create([
+            $transaction = $fresh->transactions()->create([
                 'type'            => $type,
                 'quantity'        => $quantity,
                 'quantity_before' => $before,
@@ -56,6 +70,10 @@ class InventoryService
                 'created_by'      => $actorId,
                 'updated_by'      => $actorId,
             ]);
+
+            $this->recipeService->syncMenuItemCostsForInventoryItem($fresh->fresh());
+
+            return $transaction;
         });
     }
 

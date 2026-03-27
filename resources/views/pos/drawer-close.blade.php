@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'إغلاق الدرج — طرعة POS')
+@section('title', 'إغلاق الدرج — Tarweaa POS')
 
 @section('styles')
 <style>
@@ -134,6 +134,11 @@
 @section('scripts')
 <script>
     if (!requireAuth()) throw 'no-auth';
+    if (!canAccessPosSurface()) {
+        showToast('ليس لديك صلاحية للوصول إلى نقطة البيع', 'error');
+        setTimeout(() => redirectToAuthorizedHome(), 800);
+        throw new Error('POS access denied');
+    }
 
     let actualStr = '';
     let sessionData = null;

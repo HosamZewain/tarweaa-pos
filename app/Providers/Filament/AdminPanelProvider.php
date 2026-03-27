@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Dashboard;
 use App\Http\Middleware\SetArabicLocale;
 use Filament\Http\Middleware\Authenticate;
@@ -27,8 +28,9 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
-            ->brandName('طرواء')
+            ->login(Login::class)
+            ->viteTheme('resources/css/filament/admin/theme.css')
+            ->brandName('Tarweaa')
             ->colors([
                 'primary' => Color::Amber,
                 'danger'  => Color::Red,

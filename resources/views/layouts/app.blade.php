@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'نظام نقطة البيع — طرعة')</title>
+    <title>@yield('title', 'نظام نقطة البيع — Tarweaa')</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>
@@ -71,6 +71,7 @@
         .w-full { width: 100%; }
         .h-full { height: 100%; }
         .text-center { text-align: center; }
+        .text-right { text-align: right; }
         .text-sm { font-size: 0.875rem; }
         .text-xs { font-size: 0.75rem; }
         .text-lg { font-size: 1.125rem; }
@@ -80,15 +81,47 @@
         .font-bold { font-weight: 700; }
         .font-medium { font-weight: 500; }
         .text-muted { color: var(--text-secondary); }
+        .text-secondary { color: var(--text-secondary); }
         .text-accent { color: var(--accent); }
         .text-success { color: var(--success); }
         .text-danger { color: var(--danger); }
         .text-warning { color: var(--warning); }
         .hidden { display: none !important; }
         .overflow-auto { overflow: auto; }
+        .overflow-x-auto { overflow-x: auto; }
         .flex-1 { flex: 1; }
         .shrink-0 { flex-shrink: 0; }
         .grid { display: grid; }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cursor-pointer { cursor: pointer; }
+        .transition { transition: all 0.15s ease; }
+        .rounded-lg { border-radius: var(--radius); }
+        .border-b { border-bottom: 1px solid var(--border); }
+        .border-t { border-top: 1px solid var(--border); }
+        .border-border { border-color: var(--border); }
+        .p-2 { padding: 0.5rem; }
+        .p-3 { padding: 0.75rem; }
+        .p-4 { padding: 1rem; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-4 { margin-top: 1rem; }
+        .pb-2 { padding-bottom: 0.5rem; }
+        .mx-auto { margin-left: auto; margin-right: auto; }
+        .hover-bg:hover { background: var(--bg-card-hover); }
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .max-w-\[100px\] { max-width: 100px; }
+        .bg-bg-primary { background: var(--bg-primary); }
+        .bg-bg-secondary { background: var(--bg-secondary); }
+
+        @media (min-width: 768px) {
+            .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
 
         /* ═══════════════════════════════════════
            BUTTON SYSTEM
@@ -236,9 +269,21 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.3rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
         .badge-success { background: var(--success-bg); color: var(--success); }
         .badge-danger { background: var(--danger-bg); color: var(--danger); }
         .badge-warning { background: var(--warning-bg); color: var(--warning); }
+        .badge-secondary { background: rgba(99, 102, 241, 0.16); color: var(--accent); }
+        .badge-ghost { background: rgba(156, 163, 175, 0.12); color: var(--text-secondary); }
 
         /* ═══════════════════════════════════════
            MODAL
@@ -380,6 +425,53 @@
         function setUser(user) { localStorage.setItem(USER_KEY, JSON.stringify(user)); }
         function clearAuth() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); }
         function isLoggedIn() { return !!getToken(); }
+        function hasRole(roleName, user = getUser()) {
+            return Array.isArray(user?.roles) && user.roles.some(role => role.name === roleName);
+        }
+        function hasPermission(permissionName, user = getUser()) {
+            if (hasRole('admin', user)) return true;
+
+            return Array.isArray(user?.permissions) && user.permissions.includes(permissionName);
+        }
+        function canAccessPosSurface(user = getUser()) {
+            return Boolean(
+                user?.can_access_pos ||
+                hasRole('admin', user) ||
+                hasRole('manager', user) ||
+                hasRole('cashier', user)
+            );
+        }
+        function canAccessKitchenSurface(user = getUser()) {
+            return Boolean(user?.can_access_kitchen || hasPermission('view_kitchen', user));
+        }
+        function getCurrentPathWithQuery() {
+            return `${window.location.pathname}${window.location.search}`;
+        }
+        function getSafeRedirectTarget(candidate, fallback = '/pos/drawer') {
+            if (!candidate || typeof candidate !== 'string') return fallback;
+            if (!candidate.startsWith('/')) return fallback;
+            if (candidate.startsWith('//')) return fallback;
+
+            return candidate;
+        }
+        function getAuthorizedHome(user = getUser()) {
+            if (canAccessPosSurface(user)) {
+                return '/pos/drawer';
+            }
+
+            if (canAccessKitchenSurface(user)) {
+                return '/kitchen';
+            }
+
+            return '/pos/login';
+        }
+        function redirectToAuthorizedHome(user = getUser()) {
+            window.location.href = getAuthorizedHome(user);
+        }
+        function redirectToLogin(redirectTo = getCurrentPathWithQuery()) {
+            const target = getSafeRedirectTarget(redirectTo, '/pos/drawer');
+            window.location.href = `/pos/login?redirect=${encodeURIComponent(target)}`;
+        }
 
         // API helper
         async function api(url, options = {}) {
@@ -401,7 +493,7 @@
 
                 if (res.status === 401) {
                     clearAuth();
-                    window.location.href = '/pos/login';
+                    redirectToLogin();
                     return null;
                 }
 
@@ -430,9 +522,9 @@
         }
 
         // Guard: redirect if not logged in
-        function requireAuth() {
+        function requireAuth(redirectTo = getCurrentPathWithQuery()) {
             if (!isLoggedIn()) {
-                window.location.href = '/pos/login';
+                redirectToLogin(redirectTo);
                 return false;
             }
             return true;

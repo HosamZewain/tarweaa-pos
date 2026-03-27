@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Order\AuthorizeDiscountApprovalRequest;
 use App\Models\Customer;
 use App\Models\MenuCategory;
+use App\Models\PaymentTerminal;
 use App\Models\PosDevice;
 use App\Models\PosOrderType;
+use App\Services\DiscountApprovalService;
 use App\Services\DrawerSessionService;
+use App\Services\PaymentTerminalFeeService;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,13 +22,28 @@ class POSController extends Controller
     public function __construct(
         private readonly ShiftService $shiftService,
         private readonly DrawerSessionService $drawerService,
+        private readonly DiscountApprovalService $discountApprovalService,
+        private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
     ) {}
+
+    private function authorizePosAccess(Request $request): ?JsonResponse
+    {
+        if ($request->user()->canAccessPosSurface()) {
+            return null;
+        }
+
+        return $this->error('ليس لديك صلاحية للوصول إلى نقطة البيع.', 403);
+    }
 
     /**
      * GET /api/pos/status — POS readiness status for the current cashier.
      */
     public function status(Request $request): JsonResponse
     {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
         $user = $request->user();
 
         $activeShift   = $this->shiftService->getActiveShift();
@@ -55,6 +75,10 @@ class POSController extends Controller
      */
     public function menu(): JsonResponse
     {
+        if ($response = $this->authorizePosAccess(request())) {
+            return $response;
+        }
+
         $categories = MenuCategory::with([
             'menuItems' => function ($query) {
                 $query->where('is_active', true)
@@ -80,6 +104,10 @@ class POSController extends Controller
      */
     public function customers(Request $request): JsonResponse
     {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
         $query = Customer::query()->where('is_active', true);
 
         if ($search = $request->get('search')) {
@@ -101,6 +129,10 @@ class POSController extends Controller
      */
     public function customerStore(Request $request): JsonResponse
     {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
         $validated = $request->validate([
             'name'    => ['required', 'string', 'max:255'],
             'phone'   => ['required', 'string', 'max:20', 'unique:customers,phone'],
@@ -126,6 +158,10 @@ class POSController extends Controller
      */
     public function devices(): JsonResponse
     {
+        if ($response = $this->authorizePosAccess(request())) {
+            return $response;
+        }
+
         $devices = PosDevice::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'identifier', 'location']);
@@ -138,10 +174,134 @@ class POSController extends Controller
      */
     public function orderTypes(): JsonResponse
     {
+        if ($response = $this->authorizePosAccess(request())) {
+            return $response;
+        }
+
         $types = PosOrderType::where('is_active', true)
             ->orderBy('sort_order')
             ->get(['id', 'name', 'type', 'source']);
 
         return $this->success($types);
+    }
+
+    /**
+     * GET /api/pos/payment-terminals — Active card terminals for POS.
+     */
+    public function paymentTerminals(Request $request): JsonResponse
+    {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
+        $terminals = PaymentTerminal::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get([
+                'id',
+                'name',
+                'bank_name',
+                'code',
+                'fee_type',
+                'fee_percentage',
+                'fee_fixed_amount',
+            ]);
+
+        return $this->success($terminals);
+    }
+
+    /**
+     * POST /api/pos/payment-preview — Backend fee preview for card payments.
+     */
+    public function paymentPreview(Request $request): JsonResponse
+    {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'method' => ['required', 'in:' . implode(',', array_column(PaymentMethod::cases(), 'value'))],
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'terminal_id' => ['nullable', 'integer', 'exists:payment_terminals,id'],
+        ], [
+            'method.required' => 'طريقة الدفع مطلوبة.',
+            'amount.required' => 'مبلغ الدفع مطلوب.',
+            'amount.gt' => 'مبلغ الدفع يجب أن يكون أكبر من صفر.',
+            'terminal_id.exists' => 'جهاز الدفع الإلكتروني المحدد غير موجود.',
+        ]);
+
+        $amount = round((float) $validated['amount'], 2);
+
+        if ($validated['method'] !== PaymentMethod::Card->value) {
+            return $this->success([
+                'paid_amount' => $amount,
+                'fee_amount' => 0,
+                'net_settlement_amount' => $amount,
+                'terminal' => null,
+            ]);
+        }
+
+        $terminal = $this->paymentTerminalFeeService->getActiveTerminalOrFail(
+            isset($validated['terminal_id']) ? (int) $validated['terminal_id'] : null
+        );
+
+        $preview = $this->paymentTerminalFeeService->calculate($terminal, $amount);
+
+        return $this->success([
+            'paid_amount' => $amount,
+            'fee_amount' => $preview['fee_amount'],
+            'net_settlement_amount' => $preview['net_settlement_amount'],
+            'terminal' => [
+                'id' => $terminal->id,
+                'name' => $terminal->name,
+                'bank_name' => $terminal->bank_name,
+                'code' => $terminal->code,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/pos/discount-approvers — Active managers/admins who can approve discounts.
+     */
+    public function discountApprovers(Request $request): JsonResponse
+    {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
+        if (!$request->user()->hasPermission('apply_discount')) {
+            return $this->error('ليس لديك صلاحية لطلب خصم.', 403);
+        }
+
+        return $this->success($this->discountApprovalService->listApprovers());
+    }
+
+    /**
+     * POST /api/pos/discount-approval — Validate manager approval and issue a short-lived token.
+     */
+    public function authorizeDiscount(AuthorizeDiscountApprovalRequest $request): JsonResponse
+    {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
+        $approval = $this->discountApprovalService->authorize(
+            requestedBy: $request->user(),
+            approverId: (int) $request->validated('approver_id'),
+            approverPin: $request->validated('approver_pin'),
+            type: $request->validated('type'),
+            value: (float) $request->validated('value'),
+            reason: $request->validated('reason'),
+        );
+
+        return $this->success([
+            'approval_token' => $approval['token'],
+            'expires_in_seconds' => $approval['expires_in_seconds'],
+            'approver' => [
+                'id' => $approval['approver']->id,
+                'name' => $approval['approver']->name,
+                'username' => $approval['approver']->username,
+            ],
+        ], 'تم اعتماد الخصم من المدير.');
     }
 }

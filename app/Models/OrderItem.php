@@ -26,6 +26,7 @@ class OrderItem extends Model
         'total',
         'status',
         'notes',
+        'stock_deducted_at',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class OrderItem extends Model
         'discount_amount' => 'decimal:2',
         'total'           => 'decimal:2',
         'quantity'        => 'integer',
+        'stock_deducted_at' => 'datetime',
     ];
 
     // ─────────────────────────────────────────
@@ -59,6 +61,11 @@ class OrderItem extends Model
     public function modifiers(): HasMany
     {
         return $this->hasMany(OrderItemModifier::class);
+    }
+
+    public function discountLogs(): HasMany
+    {
+        return $this->hasMany(DiscountLog::class);
     }
 
     // ─────────────────────────────────────────
@@ -91,7 +98,7 @@ class OrderItem extends Model
             'item_name'   => $item->name,
             'variant_name' => $variant?->name,
             'unit_price'  => $variant ? $variant->price : $item->base_price,
-            'cost_price'  => $variant ? $variant->cost_price : $item->cost_price,
+            'cost_price'  => $item->effectiveCostPrice($variant),
         ];
     }
 

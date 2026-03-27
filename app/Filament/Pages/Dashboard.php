@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
 use App\Filament\Widgets\CategorySalesChartWidget;
+use App\Filament\Widgets\DashboardHeroWidget;
 use App\Filament\Widgets\DashboardStatsWidget;
 use App\Filament\Widgets\OrderStatusChartWidget;
 use App\Filament\Widgets\OrderVolumeChartWidget;
@@ -47,6 +48,7 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            DashboardHeroWidget::class,
             DashboardStatsWidget::class,
             SalesChartWidget::class,
             OrderStatusChartWidget::class,

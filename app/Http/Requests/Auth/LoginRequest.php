@@ -23,7 +23,7 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'username.required'    => 'اسم المستخدم مطلوب.',
+            'username.required'    => 'اسم المستخدم أو البريد الإلكتروني مطلوب.',
             'password.required'    => 'كلمة المرور مطلوبة.',
             'device_name.required' => 'اسم الجهاز مطلوب.',
         ];

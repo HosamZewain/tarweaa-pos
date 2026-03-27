@@ -10,6 +10,16 @@ class TransitionOrderRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        $user = $this->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if (in_array($this->input('status'), [OrderStatus::Preparing->value, OrderStatus::Ready->value], true)) {
+            return $user->hasPermission('mark_order_ready');
+        }
+
         return true;
     }
 

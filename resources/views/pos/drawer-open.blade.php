@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'فتح الدرج — طرعة POS')
+@section('title', 'فتح الدرج — Tarweaa POS')
 
 @section('styles')
 <style>
@@ -136,6 +136,11 @@
 @section('scripts')
 <script>
     if (!requireAuth()) throw 'not-authed';
+    if (!canAccessPosSurface()) {
+        showToast('ليس لديك صلاحية للوصول إلى نقطة البيع', 'error');
+        setTimeout(() => redirectToAuthorizedHome(), 800);
+        throw new Error('POS access denied');
+    }
 
     let balanceStr = '';
     let shiftData = null;
@@ -215,7 +220,6 @@
             await api('/drawers/open', {
                 method: 'POST',
                 body: {
-                    cashier_id: getUser().id,
                     shift_id: shiftData.id,
                     pos_device_id: parseInt(deviceId),
                     opening_balance: parseFloat(balanceVal || '0'),

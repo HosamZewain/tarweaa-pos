@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::redirect('/', '/pos/login');
+Route::redirect('/login', '/pos/login')->name('login');
 
 Route::prefix('pos')->group(function () {
     Route::get('/login',        [PosViewController::class, 'login'])->name('pos.login');
@@ -22,5 +23,4 @@ Route::prefix('pos')->group(function () {
 });
 
 Route::get('/kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])
-    ->name('kitchen.index')
-    ->middleware(['auth:sanctum']);
+    ->name('kitchen.index');

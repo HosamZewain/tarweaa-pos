@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\Log;
 
 class OrderPaymentService
 {
+    public function __construct(
+        private readonly RecipeInventoryService $recipeInventoryService,
+        private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
+    ) {}
+
     /**
      * Process one or more payments against an order.
      *
@@ -40,11 +45,29 @@ class OrderPaymentService
 
         return DB::transaction(function () use ($order, $payments, $totalProvided, $actorId): Order {
             foreach ($payments as $paymentData) {
+                $terminal = null;
+                $feeData = [
+                    'fee_amount' => 0.0,
+                    'net_settlement_amount' => round($paymentData->amount, 2),
+                ];
+
+                if ($paymentData->method === PaymentMethod::Card) {
+                    if (blank($paymentData->referenceNumber)) {
+                        throw OrderException::paymentReferenceRequired();
+                    }
+
+                    $terminal = $this->paymentTerminalFeeService->getActiveTerminalOrFail($paymentData->terminalId);
+                    $feeData = $this->paymentTerminalFeeService->calculate($terminal, $paymentData->amount);
+                }
+
                 // Create payment record
                 $order->payments()->create([
                     'payment_method'   => $paymentData->method,
                     'amount'           => $paymentData->amount,
+                    'terminal_id'      => $terminal?->id,
                     'reference_number' => $paymentData->referenceNumber,
+                    'fee_amount'       => $feeData['fee_amount'],
+                    'net_settlement_amount' => $feeData['net_settlement_amount'],
                     'created_by'       => $actorId,
                 ]);
 
@@ -76,6 +99,7 @@ class OrderPaymentService
 
             // Transition to Confirmed once payment is fully received
             if ($order->isFullyPaid()) {
+                $this->recipeInventoryService->deductPendingForOrder($order->fresh(['items.menuItem.recipeLines.inventoryItem']), $actorId);
                 $order->transitionTo(OrderStatus::Confirmed, $actorId);
             }
 
@@ -90,6 +114,7 @@ class OrderPaymentService
                 'total'          => $order->total,
                 'paid'           => $order->paid_amount,
                 'change'         => $order->change_amount,
+                'fees_total'     => round($order->payments()->sum('fee_amount'), 2),
                 'payment_status' => $order->payment_status->value,
                 'processed_by'   => $actorId,
             ]);

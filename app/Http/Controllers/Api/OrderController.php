@@ -17,6 +17,7 @@ use App\Http\Requests\Order\RefundOrderRequest;
 use App\Http\Requests\Order\TransitionOrderRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\DiscountApprovalService;
 use App\Services\OrderCreationService;
 use App\Services\OrderPaymentService;
 use App\Services\OrderLifecycleService;
@@ -29,6 +30,7 @@ class OrderController extends Controller
         private readonly OrderCreationService $orderCreationService,
         private readonly OrderPaymentService $orderPaymentService,
         private readonly OrderLifecycleService $orderLifecycleService,
+        private readonly DiscountApprovalService $discountApprovalService,
     ) {}
 
     /**
@@ -131,10 +133,21 @@ class OrderController extends Controller
             return $this->error('ليس لديك صلاحية لتطبيق الخصم.', 403);
         }
 
-        $order = $this->orderLifecycleService->applyDiscount(
-            order: $order,
+        $approvedBy = $this->discountApprovalService->consume(
+            requestedBy: $request->user(),
+            token: $request->validated('approval_token'),
             type: $request->validated('type'),
             value: (float) $request->validated('value'),
+            reason: $request->validated('reason'),
+        );
+
+        $order = $this->orderLifecycleService->applyDiscount(
+            order: $order,
+            by: $approvedBy,
+            type: $request->validated('type'),
+            value: (float) $request->validated('value'),
+            requestedBy: $request->user(),
+            reason: $request->validated('reason'),
         );
 
         return $this->success($order, 'تم تطبيق الخصم بنجاح');

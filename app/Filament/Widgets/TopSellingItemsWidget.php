@@ -24,6 +24,9 @@ class TopSellingItemsWidget extends Widget
             ->limit(20)
             ->get();
 
-        return ['items' => $items];
+        return [
+            'items' => $items,
+            'maxQuantity' => max((float) ($items->max('total_qty') ?? 0), 1),
+        ];
     }
 }

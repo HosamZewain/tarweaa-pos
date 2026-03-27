@@ -7,7 +7,19 @@ use App\Models\Shift;
 use App\Models\PosDevice;
 use App\Models\InventoryItem;
 use App\Models\CashierDrawerSession;
+use App\Models\DiscountLog;
+use App\Models\MenuCategory;
+use App\Models\MenuItem;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\PaymentTerminal;
+use App\Models\PosOrderType;
 use App\Models\Role;
+use App\Enums\OrderType;
+use App\Enums\OrderSource;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
+use App\Enums\OrderItemStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Livewire\Livewire;
@@ -77,6 +89,101 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_order_details_with_discount_audit_information()
+    {
+        $shift = Shift::query()->first() ?? Shift::create([
+            'shift_number' => 'SHIFT-VIEW-001',
+            'status' => 'open',
+            'opened_by' => $this->adminUser->id,
+            'started_at' => now(),
+        ]);
+
+        $device = PosDevice::query()->first() ?? PosDevice::create([
+            'name' => 'POS 1',
+            'identifier' => 'POS-1',
+            'is_active' => true,
+        ]);
+
+        $drawer = CashierDrawerSession::query()->create([
+            'session_number' => 'DRAWER-VIEW-001',
+            'cashier_id' => $this->adminUser->id,
+            'shift_id' => $shift->id,
+            'pos_device_id' => $device->id,
+            'opened_by' => $this->adminUser->id,
+            'opening_balance' => 100,
+            'status' => 'open',
+            'started_at' => now(),
+        ]);
+
+        $category = MenuCategory::query()->first() ?? MenuCategory::create([
+            'name' => 'وجبات',
+            'is_active' => true,
+        ]);
+
+        $item = MenuItem::query()->create([
+            'category_id' => $category->id,
+            'name' => 'برجر',
+            'type' => 'simple',
+            'base_price' => 120,
+            'is_available' => true,
+            'is_active' => true,
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'ORD-VIEW-DISCOUNT-001',
+            'type' => OrderType::Takeaway,
+            'status' => OrderStatus::Pending,
+            'source' => OrderSource::Pos,
+            'cashier_id' => $this->adminUser->id,
+            'shift_id' => $shift->id,
+            'drawer_session_id' => $drawer->id,
+            'pos_device_id' => $device->id,
+            'subtotal' => 120,
+            'discount_type' => 'fixed',
+            'discount_value' => 15,
+            'discount_amount' => 15,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'delivery_fee' => 0,
+            'total' => 105,
+            'payment_status' => PaymentStatus::Unpaid,
+            'paid_amount' => 0,
+            'change_amount' => 0,
+            'refund_amount' => 0,
+        ]);
+
+        OrderItem::query()->create([
+            'order_id' => $order->id,
+            'menu_item_id' => $item->id,
+            'item_name' => 'برجر',
+            'unit_price' => 120,
+            'cost_price' => 40,
+            'quantity' => 1,
+            'discount_amount' => 0,
+            'total' => 120,
+            'status' => OrderItemStatus::Pending,
+        ]);
+
+        DiscountLog::query()->create([
+            'order_id' => $order->id,
+            'applied_by' => $this->adminUser->id,
+            'requested_by' => $this->adminUser->id,
+            'scope' => 'order',
+            'action' => 'applied',
+            'discount_type' => 'fixed',
+            'discount_value' => 15,
+            'discount_amount' => 15,
+            'reason' => 'خصم رضا عميل',
+        ]);
+
+        $this->actingAs($this->adminUser)
+            ->get("/admin/orders/{$order->id}")
+            ->assertSuccessful()
+            ->assertSee('تفاصيل الخصم')
+            ->assertSee('خصم رضا عميل')
+            ->assertSee($this->adminUser->name);
+    }
+
     public function test_admin_can_view_users_resource()
     {
         $this->actingAs($this->adminUser)
@@ -126,6 +233,13 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_payment_terminals_resource()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/payment-terminals')
+             ->assertSuccessful();
+    }
+
     public function test_admin_can_view_menu_categories_resource()
     {
         $this->actingAs($this->adminUser)
@@ -140,10 +254,63 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_edit_menu_item_page()
+    {
+        $category = MenuCategory::query()->first() ?? MenuCategory::create([
+            'name' => 'مشروبات',
+            'is_active' => true,
+        ]);
+
+        $menuItem = MenuItem::query()->create([
+            'category_id' => $category->id,
+            'name' => 'قهوة',
+            'type' => 'simple',
+            'base_price' => 35,
+            'is_available' => true,
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($this->adminUser)
+             ->get("/admin/menu-items/{$menuItem->id}/edit")
+             ->assertSuccessful();
+    }
+
     public function test_admin_can_view_sales_report_page()
     {
         $this->actingAs($this->adminUser)
              ->get('/admin/sales-report')
+             ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_discounts_report_page()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/discounts-report')
+             ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_card_terminal_report_page()
+    {
+        PaymentTerminal::create([
+            'name' => 'CIB Main',
+            'bank_name' => 'CIB',
+            'code' => 'CIB-FILAMENT-1',
+            'fee_type' => 'percentage',
+            'fee_percentage' => 2.5,
+            'fee_fixed_amount' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->adminUser)
+             ->get('/admin/card-terminal-report')
+             ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_drawer_reconciliation_report_page()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/drawer-reconciliation-report')
              ->assertSuccessful();
     }
 

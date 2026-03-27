@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InventoryTransactionType;
+use App\Services\InventoryService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -68,8 +69,10 @@ class PurchaseItem extends Model
         $this->increment('quantity_received', $quantity);
 
         // Update inventory stock
-        $this->inventoryItem->addStock(
+        app(InventoryService::class)->addStock(
+            item:        $this->inventoryItem,
             quantity:    $quantity,
+            actorId:     $this->purchase->updated_by ?? $this->purchase->created_by ?? 1,
             type:        InventoryTransactionType::Purchase,
             unitCost:    (float) $this->unit_price,
             refType:     'purchase',

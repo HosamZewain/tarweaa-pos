@@ -95,6 +95,16 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Expense::class, 'created_by');
     }
 
+    public function appliedDiscountLogs(): HasMany
+    {
+        return $this->hasMany(DiscountLog::class, 'applied_by');
+    }
+
+    public function requestedDiscountLogs(): HasMany
+    {
+        return $this->hasMany(DiscountLog::class, 'requested_by');
+    }
+
     // ─────────────────────────────────────────
     // RBAC Helpers
     // ─────────────────────────────────────────
@@ -158,6 +168,21 @@ class User extends Authenticatable implements FilamentUser
     public function isManager(): bool
     {
         return $this->hasRole('manager');
+    }
+
+    public function canAccessPosSurface(): bool
+    {
+        return $this->is_active && $this->hasRole(['admin', 'manager', 'cashier']);
+    }
+
+    public function canAccessKitchenSurface(): bool
+    {
+        return $this->is_active && $this->hasPermission('view_kitchen');
+    }
+
+    public function canApproveDiscounts(): bool
+    {
+        return $this->is_active && $this->hasRole(['admin', 'manager']);
     }
 
     // ─────────────────────────────────────────

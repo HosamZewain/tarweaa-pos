@@ -15,6 +15,10 @@ use Illuminate\Support\Facades\Log;
 
 class OrderLifecycleService
 {
+    public function __construct(
+        private readonly DiscountAuditService $discountAuditService,
+    ) {}
+
     /**
      * Cancel a single order item and recalculate order totals.
      */
@@ -35,11 +39,20 @@ class OrderLifecycleService
     /**
      * Apply or update an order-level discount and recalculate totals.
      */
-    public function applyDiscount(Order $order, string $type, float $value): Order
+    public function applyDiscount(
+        Order $order,
+        User $by,
+        string $type,
+        float $value,
+        ?User $requestedBy = null,
+        ?string $reason = null,
+    ): Order
     {
         if ($order->status->isFinal()) {
             throw OrderException::invalidTransition($order->status, $order->status);
         }
+
+        $previousDiscountAmount = (float) $order->discount_amount;
 
         DB::transaction(function () use ($order, $type, $value): void {
             $order->update([
@@ -50,7 +63,20 @@ class OrderLifecycleService
             $order->recalculate();
         });
 
-        return $order->fresh();
+        $order = $order->fresh();
+
+        $this->discountAuditService->logOrderDiscount(
+            order: $order,
+            appliedBy: $by->id,
+            action: (float) $order->discount_amount <= 0 && $previousDiscountAmount > 0
+                ? 'removed'
+                : ($previousDiscountAmount > 0 ? 'updated' : 'applied'),
+            previousDiscountAmount: $previousDiscountAmount,
+            requestedBy: $requestedBy?->id ?? $by->id,
+            reason: $reason,
+        );
+
+        return $order;
     }
 
     /**

@@ -1,115 +1,173 @@
 <x-filament-panels::page>
-    <form wire:submit="generateReport">
-        {{ $this->form }}
-        <div class="mt-4">
-            <x-filament::button type="submit" icon="heroicon-o-funnel">
-                عرض التقرير
-            </x-filament::button>
-        </div>
-    </form>
+    @php
+        $paymentMethods = [
+            'cash' => 'نقد',
+            'bank_transfer' => 'تحويل بنكي',
+            'credit_card' => 'بطاقة ائتمان',
+        ];
+    @endphp
 
-    @if($reportData)
-        {{-- Summary Cards --}}
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-            <x-filament::section>
-                <div class="text-center">
-                    <p class="text-sm text-gray-500">عدد المصروفات</p>
-                    <p class="text-2xl font-bold text-primary-600">{{ number_format($reportData['totals']['total_expenses']) }}</p>
+    <div class="admin-page-shell">
+        <x-admin.report-header
+            title="تقرير المصروفات"
+            description="تحليل المصروفات حسب الفئة والحالة وطريقة الدفع مع عرض تفصيلي للمبالغ المعتمدة والمعلقة."
+            :from="$date_from"
+            :to="$date_to"
+            :meta="['متابعة الاعتماد المالي', 'العملة الموحدة: ج.م']"
+        />
+
+        <div class="admin-filter-card">
+            <div class="admin-filter-card__header">
+                <div>
+                    <h3 class="admin-filter-card__title">فلاتر التقرير</h3>
+                    <p class="admin-filter-card__description">اختر الفترة الزمنية لعرض ملخص المصروفات وتفاصيلها بصورة أوضح.</p>
                 </div>
-            </x-filament::section>
-            <x-filament::section>
-                <div class="text-center">
-                    <p class="text-sm text-gray-500">الإجمالي الكلي</p>
-                    <p class="text-2xl font-bold text-danger-600">{{ number_format($reportData['totals']['total_amount'], 2) }} ج.م</p>
+
+                <x-admin.badge tone="danger">متابعة مالية</x-admin.badge>
+            </div>
+
+            <form wire:submit="generateReport">
+                {{ $this->form }}
+
+                <div class="admin-filter-card__actions">
+                    <x-filament::button type="submit" icon="heroicon-o-funnel">
+                        عرض التقرير
+                    </x-filament::button>
                 </div>
-            </x-filament::section>
-            <x-filament::section>
-                <div class="text-center">
-                    <p class="text-sm text-gray-500">المعتمد</p>
-                    <p class="text-2xl font-bold text-success-600">{{ number_format($reportData['totals']['approved_amount'], 2) }} ج.م</p>
-                </div>
-            </x-filament::section>
-            <x-filament::section>
-                <div class="text-center">
-                    <p class="text-sm text-gray-500">بانتظار الاعتماد</p>
-                    <p class="text-2xl font-bold text-warning-600">{{ number_format($reportData['totals']['pending_amount'], 2) }} ج.م</p>
-                </div>
-            </x-filament::section>
+            </form>
         </div>
 
-        {{-- By Category --}}
-        @if($reportData['byCategory']->count() > 0)
-            <x-filament::section class="mt-6" heading="توزيع المصروفات حسب التصنيف">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-right py-2 px-3">التصنيف</th>
-                            <th class="text-right py-2 px-3">عدد المعاملات</th>
-                            <th class="text-right py-2 px-3">الإجمالي</th>
-                            <th class="text-right py-2 px-3">النسبة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($reportData['byCategory'] as $category => $data)
-                            <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
-                                <td class="py-2 px-3 font-medium">{{ $category }}</td>
-                                <td class="py-2 px-3">{{ number_format($data['count']) }}</td>
-                                <td class="py-2 px-3">{{ number_format($data['total'], 2) }} ج.م</td>
-                                <td class="py-2 px-3 text-gray-500">
-                                    @if($reportData['totals']['total_amount'] > 0)
-                                        {{ number_format($data['total'] / $reportData['totals']['total_amount'] * 100, 1) }}%
-                                    @else
-                                        —
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </x-filament::section>
+        @if ($reportData)
+            <div class="admin-metric-grid">
+                <x-admin.metric-card
+                    title="عدد المصروفات"
+                    :value="number_format($reportData['totals']['total_expenses'])"
+                    hint="عدد الحركات المسجلة"
+                    tone="primary"
+                />
+
+                <x-admin.metric-card
+                    title="الإجمالي الكلي"
+                    :value="number_format($reportData['totals']['total_amount'], 2) . ' ج.م'"
+                    hint="إجمالي المصروفات في الفترة"
+                    tone="danger"
+                />
+
+                <x-admin.metric-card
+                    title="المعتمد"
+                    :value="number_format($reportData['totals']['approved_amount'], 2) . ' ج.م'"
+                    hint="مصروفات تم اعتمادها"
+                    tone="success"
+                />
+
+                <x-admin.metric-card
+                    title="بانتظار الاعتماد"
+                    :value="number_format($reportData['totals']['pending_amount'], 2) . ' ج.م'"
+                    hint="يتطلب مراجعة واعتماد"
+                    tone="warning"
+                />
+            </div>
+
+            @if ($reportData['byCategory']->count() > 0)
+                <x-admin.table-card
+                    heading="توزيع المصروفات حسب التصنيف"
+                    description="يعرض نسبة مساهمة كل فئة من فئات المصروفات في الإجمالي الكلي."
+                    :count="$reportData['byCategory']->count()"
+                >
+                    <div class="admin-table-scroll">
+                        <table class="admin-data-table">
+                            <thead>
+                                <tr>
+                                    <th>التصنيف</th>
+                                    <th>عدد المعاملات</th>
+                                    <th>الإجمالي</th>
+                                    <th>النسبة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($reportData['byCategory'] as $category => $data)
+                                    @php
+                                        $share = $reportData['totals']['total_amount'] > 0
+                                            ? round(($data['total'] / $reportData['totals']['total_amount']) * 100, 1)
+                                            : 0;
+                                    @endphp
+                                    <tr>
+                                        <td class="font-semibold text-gray-900 dark:text-white">{{ $category }}</td>
+                                        <td>{{ number_format($data['count']) }}</td>
+                                        <td>{{ number_format($data['total'], 2) }} ج.م</td>
+                                        <td class="min-w-52">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <span class="font-semibold text-gray-700 dark:text-gray-200">{{ number_format($share, 1) }}%</span>
+                                                <div class="admin-progress flex-1" aria-hidden="true">
+                                                    <span style="width: {{ $share }}%"></span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </x-admin.table-card>
+            @endif
+
+            <x-admin.table-card
+                heading="تفاصيل المصروفات"
+                description="سجل تفصيلي للمصروفات مع الحالة وطريقة الدفع والتاريخ."
+                :count="$reportData['expenses']->count()"
+            >
+                @if ($reportData['expenses']->isEmpty())
+                    <x-admin.empty-state title="لا توجد مصروفات في هذه الفترة" />
+                @else
+                    <div class="admin-table-scroll">
+                        <table class="admin-data-table">
+                            <thead>
+                                <tr>
+                                    <th>رقم المصروف</th>
+                                    <th>التصنيف</th>
+                                    <th>الوصف</th>
+                                    <th>المبلغ</th>
+                                    <th>طريقة الدفع</th>
+                                    <th>التاريخ</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($reportData['expenses'] as $expense)
+                                    <tr>
+                                        @php
+                                            $expensePaymentKey = $expense->payment_method instanceof \BackedEnum
+                                                ? $expense->payment_method->value
+                                                : $expense->payment_method;
+                                        @endphp
+                                        <td class="font-mono font-semibold text-gray-900 dark:text-white">{{ $expense->expense_number }}</td>
+                                        <td>{{ $expense->category->name ?? '—' }}</td>
+                                        <td>
+                                            <div class="max-w-xs truncate" title="{{ $expense->description }}">
+                                                {{ $expense->description }}
+                                            </div>
+                                        </td>
+                                        <td class="font-bold">{{ number_format($expense->amount, 2) }} ج.م</td>
+                                        <td>
+                                            <x-admin.badge tone="info">
+                                                {{ method_exists($expense->payment_method, 'label') ? $expense->payment_method->label() : ($paymentMethods[$expensePaymentKey] ?? $expensePaymentKey) }}
+                                            </x-admin.badge>
+                                        </td>
+                                        <td class="text-gray-500 dark:text-gray-400">{{ $expense->expense_date->format('Y-m-d') }}</td>
+                                        <td>
+                                            @if ($expense->approved_by)
+                                                <x-admin.badge tone="success">معتمد</x-admin.badge>
+                                            @else
+                                                <x-admin.badge tone="warning">بانتظار الاعتماد</x-admin.badge>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-admin.table-card>
         @endif
-
-        {{-- Expense List --}}
-        <x-filament::section class="mt-6" heading="تفاصيل المصروفات">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b">
-                        <th class="text-right py-2 px-3">رقم المصروف</th>
-                        <th class="text-right py-2 px-3">التصنيف</th>
-                        <th class="text-right py-2 px-3">الوصف</th>
-                        <th class="text-right py-2 px-3">المبلغ</th>
-                        <th class="text-right py-2 px-3">طريقة الدفع</th>
-                        <th class="text-right py-2 px-3">التاريخ</th>
-                        <th class="text-right py-2 px-3">الحالة</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($reportData['expenses'] as $expense)
-                        <tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <td class="py-2 px-3 font-mono">{{ $expense->expense_number }}</td>
-                            <td class="py-2 px-3">{{ $expense->category->name ?? '—' }}</td>
-                            <td class="py-2 px-3 max-w-xs truncate">{{ $expense->description }}</td>
-                            <td class="py-2 px-3 font-bold">{{ number_format($expense->amount, 2) }} ج.م</td>
-                            <td class="py-2 px-3">
-                                @php $methods = ['cash' => 'نقد', 'bank_transfer' => 'تحويل بنكي', 'credit_card' => 'بطاقة ائتمان']; @endphp
-                                {{ $methods[$expense->payment_method] ?? $expense->payment_method }}
-                            </td>
-                            <td class="py-2 px-3 text-gray-500">{{ $expense->expense_date->format('Y-m-d') }}</td>
-                            <td class="py-2 px-3">
-                                @if($expense->approved_by)
-                                    <span class="text-success-600 text-xs font-medium">✓ معتمد</span>
-                                @else
-                                    <span class="text-warning-600 text-xs font-medium">⏳ بانتظار</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="py-6 text-center text-gray-400">لا توجد مصروفات في هذه الفترة</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </x-filament::section>
-    @endif
+    </div>
 </x-filament-panels::page>

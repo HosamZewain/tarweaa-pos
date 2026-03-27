@@ -50,6 +50,9 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "test:safe": [
+            "bash scripts/test-safe.sh"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi",

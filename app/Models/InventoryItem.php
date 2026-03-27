@@ -55,6 +55,11 @@ class InventoryItem extends Model
         return $this->hasMany(PurchaseItem::class);
     }
 
+    public function recipeLines(): HasMany
+    {
+        return $this->hasMany(MenuItemRecipeLine::class);
+    }
+
     // ─────────────────────────────────────────
     // Stock Status Helpers
     // ─────────────────────────────────────────

@@ -43,6 +43,8 @@ class UserResource extends Resource
                 Forms\Components\TextInput::make('email')
                     ->label('البريد الإلكتروني')
                     ->email()
+                    ->helperText('اختياري')
+                    ->placeholder('اختياري')
                     ->unique(ignoreRecord: true)
                     ->maxLength(255),
                 Forms\Components\TextInput::make('phone')
@@ -59,8 +61,10 @@ class UserResource extends Resource
                 Forms\Components\TextInput::make('pin')
                     ->label('رمز PIN')
                     ->password()
-                    ->maxLength(4)
-                    ->dehydrateStateUsing(fn ($state) => !empty($state) ? Hash::make($state) : null)
+                    ->helperText('اختياري. يستخدم لتسجيل دخول الكاشير من شاشة الـ POS ويجب أن يكون من 4 إلى 6 أرقام.')
+                    ->minLength(4)
+                    ->maxLength(6)
+                    ->rule('regex:/^[0-9]{4,6}$/')
                     ->dehydrated(fn ($state) => filled($state)),
                 Forms\Components\Toggle::make('is_active')
                     ->label('نشط')
@@ -82,7 +86,7 @@ class UserResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('username')->label('اسم المستخدم')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('email')->label('البريد')->searchable(),
+                Tables\Columns\TextColumn::make('email')->label('البريد')->searchable()->placeholder('—'),
                 Tables\Columns\TextColumn::make('roles.display_name')->label('الأدوار')->badge(),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
                 Tables\Columns\TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),

@@ -68,6 +68,11 @@ class MenuItem extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function recipeLines(): HasMany
+    {
+        return $this->hasMany(MenuItemRecipeLine::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     // ─────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────
@@ -89,6 +94,55 @@ class MenuItem extends Model
     public function effectivePrice(): string
     {
         return $this->base_price;
+    }
+
+    public function hasRecipe(): bool
+    {
+        return $this->recipeLines()->exists();
+    }
+
+    public function recipeCost(): float
+    {
+        $this->loadMissing('recipeLines.inventoryItem');
+
+        return round($this->recipeLines->sum(fn (MenuItemRecipeLine $line) => $line->lineCost()), 2);
+    }
+
+    public function effectiveCostPrice(?MenuItemVariant $variant = null): float
+    {
+        if ($variant && $variant->cost_price !== null) {
+            return (float) $variant->cost_price;
+        }
+
+        $recipeCost = $this->recipeCost();
+        if ($recipeCost > 0) {
+            return $recipeCost;
+        }
+
+        return (float) ($this->cost_price ?? 0);
+    }
+
+    public function foodCostPercentage(): float
+    {
+        if ((float) $this->base_price <= 0) {
+            return 0.0;
+        }
+
+        return round(($this->recipeCost() / (float) $this->base_price) * 100, 2);
+    }
+
+    public function profitMarginAmount(): float
+    {
+        return round((float) $this->base_price - $this->recipeCost(), 2);
+    }
+
+    public function profitMarginPercentage(): float
+    {
+        if ((float) $this->base_price <= 0) {
+            return 0.0;
+        }
+
+        return round(($this->profitMarginAmount() / (float) $this->base_price) * 100, 2);
     }
 
     public function getPriceAttribute()

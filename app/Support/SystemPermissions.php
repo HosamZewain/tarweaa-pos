@@ -49,6 +49,7 @@ class SystemPermissions
             'expenses' => ['group' => 'المالية', 'singular' => 'مصروف', 'plural' => 'المصروفات'],
             'expense_categories' => ['group' => 'المالية', 'singular' => 'فئة مصروف', 'plural' => 'فئات المصروفات'],
             'pos_devices' => ['group' => 'الإعدادات', 'singular' => 'جهاز POS', 'plural' => 'أجهزة POS'],
+            'payment_terminals' => ['group' => 'الإعدادات', 'singular' => 'جهاز دفع', 'plural' => 'أجهزة الدفع'],
         ];
 
         $permissions = [];
@@ -74,10 +75,12 @@ class SystemPermissions
             ['name' => 'dashboard.view', 'display_name' => 'عرض لوحة التحكم', 'group' => 'لوحة التحكم'],
             ['name' => 'reports.sales.view', 'display_name' => 'عرض تقرير المبيعات', 'group' => 'التقارير'],
             ['name' => 'reports.sales_breakdown.view', 'display_name' => 'عرض تفصيل المبيعات', 'group' => 'التقارير'],
+            ['name' => 'reports.discounts.view', 'display_name' => 'عرض تقرير الخصومات', 'group' => 'التقارير'],
             ['name' => 'reports.drawer_reconciliation.view', 'display_name' => 'عرض تسوية الأدراج', 'group' => 'التقارير'],
             ['name' => 'reports.expenses.view', 'display_name' => 'عرض تقرير المصروفات', 'group' => 'التقارير'],
             ['name' => 'reports.inventory.view', 'display_name' => 'عرض تقرير المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.inventory_movements.view', 'display_name' => 'عرض حركة المخزون', 'group' => 'التقارير'],
+            ['name' => 'reports.card_terminals.view', 'display_name' => 'عرض تقرير أجهزة الدفع', 'group' => 'التقارير'],
         ];
     }
 

@@ -345,7 +345,15 @@ class DrawerSessionService
     private function authoriseOpen(User $actor, OpenDrawerData $data): void
     {
         if ($actor->id === $data->cashierId) {
-            return;
+            if ($actor->canAccessPosSurface()) {
+                return;
+            }
+
+            throw DrawerException::unauthorized('استخدام نقطة البيع');
+        }
+
+        if (!$actor->canAccessPosSurface()) {
+            throw DrawerException::unauthorized('استخدام نقطة البيع');
         }
 
         if ($actor->hasPermission('drawers.open')) {

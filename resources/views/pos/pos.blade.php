@@ -49,6 +49,26 @@
     }
     .cat-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+    .items-toolbar {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-secondary);
+        flex-shrink: 0;
+    }
+    .items-search {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--text-primary);
+        padding: 0.75rem 1rem;
+        outline: none;
+    }
+    .items-search:focus {
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
     /* ═══ Items Grid ═══ */
     .items-grid {
         flex: 1; overflow-y: auto; padding: 1rem;
@@ -65,6 +85,7 @@
     .item-card:active { transform: scale(0.96); background: var(--bg-card-hover); border-color: var(--accent); }
     .item-name { font-size: 0.9rem; font-weight: 600; line-height: 1.3; }
     .item-price { font-size: 0.85rem; color: var(--accent); font-weight: 700; direction: ltr; }
+    .item-meta { font-size: 0.72rem; color: var(--text-muted); }
 
     /* ═══ Cart ═══ */
     .cart-header {
@@ -113,9 +134,177 @@
     }
     .pay-method.active { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); }
     .pay-amount-section { margin-bottom: 1rem; }
+    .pay-card-section {
+        margin-bottom: 1rem;
+        padding: 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-card);
+    }
+    .pay-preview-card {
+        margin-top: 0.75rem;
+        padding: 0.85rem;
+        border-radius: var(--radius);
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        display: grid;
+        gap: 0.5rem;
+    }
+    .pay-preview-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.88rem;
+    }
+    .pay-preview-row strong {
+        color: var(--text-primary);
+        direction: ltr;
+        white-space: nowrap;
+    }
+    .pay-preview-row.muted strong { color: var(--text-secondary); }
+    .pay-preview-row.emphasis {
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border);
+        font-weight: 700;
+    }
+    .pay-preview-help {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
     .change-display { text-align: center; padding: 0.75rem; border-radius: var(--radius); margin-bottom: 1rem; }
     .change-display.positive { background: var(--success-bg); color: var(--success); }
     .change-display.zero { background: var(--bg-card); color: var(--text-secondary); }
+    .pay-shortcuts {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .pay-shortcut {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        padding: 0.65rem 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .pay-shortcut:hover { background: var(--bg-card-hover); }
+
+    .config-section {
+        margin-bottom: 1rem;
+        padding: 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-primary);
+    }
+    .config-section-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+    .config-help {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-top: -0.3rem;
+        margin-bottom: 0.75rem;
+    }
+    .config-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .config-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.8rem 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-card);
+        cursor: pointer;
+    }
+    .config-option:hover { background: var(--bg-card-hover); }
+    .config-option-info {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+        flex: 1;
+    }
+    .config-option input { accent-color: var(--accent); }
+    .config-option-price {
+        color: var(--accent);
+        font-weight: 700;
+        direction: ltr;
+        white-space: nowrap;
+    }
+    .config-qty {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.3rem;
+    }
+    .config-qty button {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: var(--bg-card);
+        color: var(--text-primary);
+        font-size: 1rem;
+        cursor: pointer;
+    }
+    .config-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        border-radius: var(--radius);
+        background: rgba(99, 102, 241, 0.08);
+        border: 1px solid rgba(99, 102, 241, 0.18);
+        margin-bottom: 1rem;
+    }
+    .config-summary-price {
+        color: var(--accent);
+        font-size: 1.2rem;
+        font-weight: 800;
+        direction: ltr;
+    }
+    .discount-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: rgba(34, 197, 94, 0.14);
+        color: var(--success);
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+
+    @media (max-width: 960px) {
+        .pos-container { flex-direction: column; }
+        .pos-topbar { flex-wrap: wrap; }
+        .topbar-info, .topbar-actions { width: 100%; justify-content: space-between; }
+        .type-bar { overflow-x: auto; }
+        .type-tab { min-width: 140px; flex: none; }
+        .pos-cart {
+            width: 100%;
+            max-height: 48dvh;
+            border-right: none;
+            border-top: 1px solid var(--border);
+        }
+        .pay-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
 </style>
 @endsection
 
@@ -154,6 +343,10 @@
         {{-- Categories --}}
         <div class="cat-bar" id="cat-bar"></div>
 
+        <div class="items-toolbar">
+            <input type="search" id="item-search" class="items-search" placeholder="ابحث عن منتج أو صنف...">
+        </div>
+
         {{-- Items grid --}}
         <div class="items-grid" id="items-grid">
             <div class="cart-empty">جاري تحميل القائمة...</div>
@@ -168,7 +361,8 @@
                 <span>🛒 الطلب الحالي</span>
             </div>
             <div class="flex items-center gap-2">
-                <span class="text-accent cursor-pointer text-xs font-bold" onclick="openDiscountModal()">🏷️ خصم</span>
+                <span class="text-accent cursor-pointer text-xs font-bold" id="cart-discount-action" onclick="openDiscountModal()">🏷️ خصم</span>
+                <span id="cart-discount-state" class="discount-pill hidden"></span>
                 <span class="text-sm text-muted" id="cart-count">0 منتج</span>
             </div>
         </div>
@@ -180,7 +374,6 @@
         <div class="cart-footer">
             <div class="cart-totals">
                 <div class="cart-total-row"><span>المجموع الفرعي</span><span class="val" id="t-subtotal">0.00 ج.م</span></div>
-                <div class="cart-total-row"><span>الضريبة (15%)</span><span class="val" id="t-tax">0.00 ج.م</span></div>
                 <div class="cart-total-row grand"><span>الإجمالي</span><span class="val" id="t-total">0.00 ج.م</span></div>
             </div>
             <div class="flex gap-2">
@@ -210,12 +403,52 @@
                 <input type="text" id="pay-amount" class="form-input form-input-lg" 
                        readonly onclick="openNumPad('pay-amount', 'المبلغ المدفوع')" placeholder="0.00">
             </div>
+            <div class="pay-shortcuts" id="pay-shortcuts"></div>
             <div class="change-display zero" id="change-display">الباقي: 0.00 ج.م</div>
+        </div>
+
+        <div class="pay-card-section hidden" id="pay-card-section">
+            <div class="form-group mb-3">
+                <label class="form-label">جهاز الدفع</label>
+                <select id="pay-terminal" class="form-input" onchange="handleCardTerminalChange()">
+                    <option value="">اختر جهاز الدفع</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">رقم المرجع / الإيصال</label>
+                <input type="text" id="pay-reference-number" class="form-input form-input-lg" placeholder="مثال: 123456 أو RCP-001">
+            </div>
+            <div class="pay-preview-card">
+                <div class="pay-preview-row">
+                    <span>المبلغ المدفوع</span>
+                    <strong id="card-paid-preview">0.00 ج.م</strong>
+                </div>
+                <div class="pay-preview-row muted">
+                    <span>رسوم الجهاز</span>
+                    <strong id="card-fee-preview">—</strong>
+                </div>
+                <div class="pay-preview-row emphasis">
+                    <span>صافي التسوية</span>
+                    <strong id="card-net-preview">—</strong>
+                </div>
+            </div>
+            <div class="pay-preview-help" id="card-preview-help">اختر جهاز الدفع لعرض الرسوم وصافي التسوية.</div>
         </div>
 
         <div class="flex gap-2">
             <button class="btn btn-secondary flex-1" onclick="closePayModal()">إلغاء</button>
             <button class="btn btn-success flex-1" id="btn-confirm-pay" onclick="confirmPayment()" style="flex:2">تأكيد الدفع</button>
+        </div>
+    </div>
+</div>
+
+{{-- ═══ Order Type Modal ═══ --}}
+<div id="type-modal" class="modal-overlay hidden" onclick="event.target===this && closeTypeModal()">
+    <div class="modal-content" style="max-width:520px">
+        <div class="modal-title">🧾 اختر نوع الطلب</div>
+        <div class="config-options" id="type-options-list"></div>
+        <div class="flex gap-2" style="margin-top:1rem;">
+            <button class="btn btn-secondary flex-1" onclick="closeTypeModal()">إغلاق</button>
         </div>
     </div>
 </div>
@@ -267,6 +500,37 @@
     </div>
 </div>
 
+{{-- ═══ Item Config Modal ═══ --}}
+<div id="item-config-modal" class="modal-overlay hidden" onclick="event.target===this && closeItemConfigModal()">
+    <div class="modal-content" style="max-width:720px; width:95%;">
+        <div class="modal-title" id="config-item-title">تخصيص المنتج</div>
+
+        <div class="config-summary">
+            <div>
+                <div class="text-sm text-muted">الإجمالي الحالي</div>
+                <div class="config-summary-price" id="config-total-price">0.00 ج.م</div>
+            </div>
+            <div class="config-qty">
+                <button type="button" onclick="changeConfigQty(-1)">−</button>
+                <strong id="config-qty-value">1</strong>
+                <button type="button" onclick="changeConfigQty(1)">+</button>
+            </div>
+        </div>
+
+        <div id="item-config-body"></div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">ملاحظة الطلب</label>
+            <textarea id="config-note-input" class="form-input" rows="3" placeholder="مثلاً: بدون بصل، زيادة شطة..."></textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button class="btn btn-secondary flex-1" onclick="closeItemConfigModal()">إلغاء</button>
+            <button class="btn btn-primary flex-1" onclick="confirmItemConfig()" style="flex:2">إضافة إلى السلة</button>
+        </div>
+    </div>
+</div>
+
 {{-- ═══ Item Note Modal ═══ --}}
 <div id="note-modal" class="modal-overlay hidden" onclick="event.target===this && closeNoteModal()">
     <div class="modal-content">
@@ -286,6 +550,7 @@
 <div id="discount-modal" class="modal-overlay hidden" onclick="event.target===this && closeDiscountModal()">
     <div class="modal-content">
         <div class="modal-title">📉 تطبيق خصم</div>
+        <div class="text-sm text-muted mb-4">يتطلب تطبيق الخصم اعتماد مدير أو أدمن باستخدام رمز PIN.</div>
         <div class="form-group">
             <label class="form-label">نوع الخصم</label>
             <select id="disc-type" class="form-input">
@@ -298,9 +563,26 @@
             <input type="text" id="disc-value" class="form-input form-input-lg" 
                    readonly onclick="openNumPad('disc-value', 'القيمة')" placeholder="0.00">
         </div>
+        <div class="form-group">
+            <label class="form-label">سبب الخصم</label>
+            <textarea id="disc-reason" class="form-input" rows="3" maxlength="1000"
+                      placeholder="اكتب سبب الخصم ليظهر في سجل الطلب"></textarea>
+        </div>
+        <div class="form-group">
+            <label class="form-label">اعتماد بواسطة</label>
+            <select id="disc-approver" class="form-input">
+                <option value="">اختر المدير / الأدمن</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">رمز اعتماد المدير</label>
+            <input type="password" id="disc-approver-pin" class="form-input form-input-lg"
+                   readonly onclick="openNumPad('disc-approver-pin', 'رمز اعتماد المدير')" placeholder="••••">
+        </div>
+        <div id="discount-approval-hint" class="text-xs text-muted mb-4">لن يتم تطبيق الخصم قبل اعتماد المدير.</div>
         <div class="flex gap-2">
             <button class="btn btn-secondary flex-1" onclick="closeDiscountModal()">إلغاء</button>
-            <button class="btn btn-primary flex-1" onclick="applyDiscount()">تطبيق</button>
+            <button class="btn btn-primary flex-1" id="discount-apply-btn" onclick="applyDiscount()">اعتماد وتطبيق</button>
         </div>
     </div>
 </div>
@@ -376,7 +658,7 @@
             <button class="btn btn-primary flex-1" id="move-btn" onclick="processMovement()">تأكيد</button>
         </div>
         <div class="mt-4 pt-4 border-t border-border text-center">
-            <a href="/pos/drawer/close" class="text-danger text-sm font-bold">⚠️ إغلاق الوردية والدرج</a>
+            <a href="/pos/close-drawer" class="text-danger text-sm font-bold">⚠️ إغلاق الوردية والدرج</a>
         </div>
     </div>
 </div>
@@ -386,90 +668,260 @@
 @section('scripts')
 <script>
     if (!requireAuth()) throw 'no-auth';
+    if (!canAccessPosSurface()) {
+        showToast('ليس لديك صلاحية للوصول إلى نقطة البيع', 'error');
+        setTimeout(() => redirectToAuthorizedHome(), 800);
+        throw new Error('POS access denied');
+    }
 
-    // ═══ State ═══
+    const TAX_RATE = 0;
+    const currentUser = getUser() || {};
+
     let menuData = [];
     let orderTypes = [];
-    let selectedOrderType = null; // {id, name, type, source}
-    let selectedCustomer = null;  // {id, name, ...}
+    let selectedOrderType = null;
+    let selectedCustomer = null;
     let activeCatId = null;
+    let itemSearch = '';
     let cart = [];
+    let cartLineCounter = 0;
     let currentOrder = null;
+    let currentOrderDiscount = null;
     let selectedPayMethod = 'cash';
     let drawerSession = null;
     let activeShift = null;
+    let searchResults = [];
+    let customerSearchTimer = null;
+    let currentNoteLineId = null;
+    let currentConfigItem = null;
+    let currentItemConfig = null;
+    let activeMoveTab = 'in';
+    let discountApprovers = [];
+    let paymentTerminals = [];
+    let currentCardPreview = null;
 
-    const TAX_RATE = 0;
+    function userHasPermission(permission) {
+        if (Array.isArray(currentUser.roles) && currentUser.roles.some((role) => role.name === 'admin')) {
+            return true;
+        }
 
-    // ═══ Init ═══
+        return Array.isArray(currentUser.permissions) && currentUser.permissions.includes(permission);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function moneyValue(amount) {
+        return Number.parseFloat(amount || 0).toFixed(2);
+    }
+
+    function getSubtotal() {
+        return cart.reduce((sum, item) => sum + item.lineTotal, 0);
+    }
+
+    function getDiscountAmount() {
+        const subtotal = getSubtotal();
+        if (!currentOrderDiscount || subtotal <= 0) {
+            return 0;
+        }
+
+        if (currentOrderDiscount.type === 'percentage') {
+            return Math.min(subtotal, subtotal * (currentOrderDiscount.value / 100));
+        }
+
+        return Math.min(subtotal, currentOrderDiscount.value);
+    }
+
+    function getTaxAmount() {
+        const taxable = Math.max(0, getSubtotal() - getDiscountAmount());
+        return taxable * TAX_RATE / 100;
+    }
+
+    function getTotal() {
+        return Math.max(0, getSubtotal() - getDiscountAmount()) + getTaxAmount();
+    }
+
+    function updateDiscountDisplay() {
+        const action = document.getElementById('cart-discount-action');
+        const state = document.getElementById('cart-discount-state');
+
+        if (!userHasPermission('apply_discount')) {
+            action.classList.add('hidden');
+            state.classList.add('hidden');
+            return;
+        }
+
+        action.classList.remove('hidden');
+        action.textContent = currentOrderDiscount ? '🏷️ تعديل الخصم' : '🏷️ خصم';
+
+        if (!currentOrderDiscount) {
+            state.classList.add('hidden');
+            state.textContent = '';
+            return;
+        }
+
+        const suffix = currentOrderDiscount.type === 'percentage'
+            ? `${currentOrderDiscount.value}%`
+            : money(currentOrderDiscount.value);
+
+        const approverLabel = currentOrderDiscount.approver?.name
+            ? ` · اعتماد: ${currentOrderDiscount.approver.name}`
+            : '';
+
+        state.textContent = `خصم ${suffix}${approverLabel}`;
+        state.classList.remove('hidden');
+    }
+
+    function updateCustomerDisplay() {
+        const el = document.getElementById('tp-customer');
+        if (!selectedCustomer) {
+            el.textContent = selectedOrderType?.type === 'delivery' ? 'اختر عميل التوصيل' : 'نقدي (تغيير)';
+            return;
+        }
+
+        const addressFlag = selectedOrderType?.type === 'delivery' && !selectedCustomer.address
+            ? ' - بدون عنوان'
+            : '';
+
+        el.textContent = `${selectedCustomer.name} (${selectedCustomer.phone})${addressFlag}`;
+    }
+
+    function bindUiEvents() {
+        document.getElementById('item-search')?.addEventListener('input', (event) => {
+            itemSearch = event.target.value.trim().toLowerCase();
+            renderItems(activeCatId);
+        });
+
+        document.getElementById('pay-amount')?.addEventListener('input', calcChange);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            [
+                ['item-config-modal', closeItemConfigModal],
+                ['type-modal', closeTypeModal],
+                ['pay-modal', closePayModal],
+                ['customer-modal', closeCustomerModal],
+                ['note-modal', closeNoteModal],
+                ['discount-modal', closeDiscountModal],
+                ['session-modal', closeSessionModal],
+                ['movement-modal', closeMovementModal],
+            ].forEach(([id, closer]) => {
+                const modal = document.getElementById(id);
+                if (modal && !modal.classList.contains('hidden')) {
+                    closer();
+                }
+            });
+        });
+    }
+
     (async function init() {
+        bindUiEvents();
+        updateDiscountDisplay();
+
         try {
-            // Check active drawer
-            const res = await api('/drawers/active');
-            if (!res?.data) {
+            const drawerRes = await api('/drawers/active');
+            if (!drawerRes?.data) {
                 window.location.href = '/pos/drawer';
                 return;
             }
-            window.currentDrawerSessionId = res.data.id;
-            drawerSession = res.data;
 
-            // Get status
-            const sRes = await api('/pos/status');
-            if (sRes?.data) {
-                document.getElementById('tp-cashier').textContent = sRes.data.cashier?.name || '—';
-                document.getElementById('tp-shift').textContent = sRes.data.shift?.shift_number || '#' + (sRes.data.shift?.id || '—');
-                activeShift = sRes.data.shift;
+            window.currentDrawerSessionId = drawerRes.data.id;
+            drawerSession = drawerRes.data;
+
+            const statusRes = await api('/pos/status');
+            if (statusRes?.data) {
+                document.getElementById('tp-cashier').textContent = statusRes.data.cashier?.name || currentUser.name || '—';
+                document.getElementById('tp-shift').textContent = statusRes.data.shift?.shift_number || '#' + (statusRes.data.shift?.id || '—');
+                activeShift = statusRes.data.shift;
+            } else {
+                document.getElementById('tp-cashier').textContent = currentUser.name || '—';
             }
 
-            // Load Order Types
-            const tRes = await api('/pos/order-types');
-            if (tRes?.data) {
-                orderTypes = tRes.data;
-                renderOrderTypes();
-                // Auto-select first type
-                if (orderTypes.length > 0) selectType(orderTypes[0].id);
+            const typeRes = await api('/pos/order-types');
+            orderTypes = typeRes?.data || [];
+            renderOrderTypes();
+
+            if (userHasPermission('apply_discount')) {
+                await loadDiscountApprovers();
             }
 
-            // Load menu
-            const mRes = await api('/pos/menu');
-            if (mRes?.data) {
-                menuData = mRes.data;
-                renderCategories();
+            if (orderTypes.length > 0) {
+                selectType(orderTypes[0].id, { silent: true, closeModal: false });
             }
+
+            const menuRes = await api('/pos/menu');
+            menuData = menuRes?.data || [];
+            renderCategories();
+            updateCustomerDisplay();
         } catch (err) {
             showToast(err.message || 'خطأ في تحميل البيانات', 'error');
+        } finally {
+            document.getElementById('pos-loading').classList.add('hidden');
+            document.getElementById('pos-app').classList.remove('hidden');
         }
-
-        document.getElementById('pos-loading').classList.add('hidden');
-        document.getElementById('pos-app').classList.remove('hidden');
     })();
 
-    // ═══ Order Types ═══
     function renderOrderTypes() {
         const bar = document.getElementById('type-bar');
-        bar.innerHTML = orderTypes.map(t => `
-            <div class="type-tab ${selectedOrderType?.id === t.id ? 'active' : ''}" 
-                 id="type-tab-${t.id}"
-                 onclick="selectType(${t.id})">
-                ${t.name}
+        const list = document.getElementById('type-options-list');
+
+        bar.innerHTML = orderTypes.map((type) => `
+            <div class="type-tab ${selectedOrderType?.id === type.id ? 'active' : ''}"
+                 id="type-tab-${type.id}"
+                 onclick="selectType(${type.id})">
+                ${escapeHtml(type.name)}
             </div>
+        `).join('');
+
+        list.innerHTML = orderTypes.map((type) => `
+            <label class="config-option">
+                <div class="config-option-info">
+                    <input type="radio" name="order-type" ${selectedOrderType?.id === type.id ? 'checked' : ''}
+                           onclick="selectType(${type.id})">
+                    <div>
+                        <div class="font-bold">${escapeHtml(type.name)}</div>
+                        <div class="text-xs text-muted">${escapeHtml(type.type)} / ${escapeHtml(type.source)}</div>
+                    </div>
+                </div>
+            </label>
         `).join('');
     }
 
-    function selectType(id) {
-        selectedOrderType = orderTypes.find(t => t.id === id);
-        
-        // UI Update
-        document.querySelectorAll('.type-tab').forEach(el => el.classList.remove('active'));
-        document.getElementById(`type-tab-${id}`)?.classList.add('active');
-        
-        const cartLabel = document.getElementById('cart-order-type');
-        if (cartLabel) cartLabel.textContent = selectedOrderType.name;
-        
-        showToast(`نوع الطلب: ${selectedOrderType.name}`);
+    function openTypeModal() {
+        document.getElementById('type-modal').classList.remove('hidden');
     }
 
-    // ═══ Customers ═══
+    function closeTypeModal() {
+        document.getElementById('type-modal').classList.add('hidden');
+    }
+
+    function selectType(id, { silent = false, closeModal = true } = {}) {
+        selectedOrderType = orderTypes.find((type) => type.id === id) || null;
+        renderOrderTypes();
+
+        if (selectedOrderType) {
+            document.getElementById('cart-order-type').textContent = selectedOrderType.name;
+            updateCustomerDisplay();
+
+            if (!silent) {
+                showToast(`نوع الطلب: ${selectedOrderType.name}`);
+            }
+        }
+
+        if (closeModal) {
+            closeTypeModal();
+        }
+    }
+
     function openCustomerModal() {
         document.getElementById('customer-modal').classList.remove('hidden');
         document.getElementById('cust-search-input').focus();
@@ -486,59 +938,78 @@
         document.getElementById('tab-new').classList.toggle('active', tab === 'new');
     }
 
-    let searchResults = [];
+    function searchCustomers() {
+        clearTimeout(customerSearchTimer);
+        customerSearchTimer = setTimeout(runCustomerSearch, 250);
+    }
 
-    async function searchCustomers() {
-        const search = document.getElementById('cust-search-input').value;
-        if (search.length < 2) return;
+    async function runCustomerSearch() {
+        const search = document.getElementById('cust-search-input').value.trim();
+        const results = document.getElementById('cust-results');
+
+        if (search.length < 2) {
+            results.innerHTML = '<div class="text-center p-4 text-muted">اكتب حرفين على الأقل للبحث...</div>';
+            return;
+        }
 
         try {
             const res = await api(`/pos/customers?search=${encodeURIComponent(search)}`);
-            const results = document.getElementById('cust-results');
-            searchResults = res.data;
-            if (!res.data.length) {
+            searchResults = res?.data || [];
+
+            if (!searchResults.length) {
                 results.innerHTML = '<div class="text-center p-4 text-muted">لا يوجد نتائج</div>';
                 return;
             }
-            results.innerHTML = res.data.map((c, i) => `
-                <div class="p-3 border-bottom cursor-pointer hover-bg" onclick="selectCustomerByIndex(${i})">
-                    <div class="font-bold">${c.name}</div>
-                    <div class="text-sm text-secondary">${c.phone}</div>
+
+            results.innerHTML = searchResults.map((customer, index) => `
+                <div class="p-3 border-b cursor-pointer hover-bg" onclick="selectCustomerByIndex(${index})">
+                    <div class="font-bold">${escapeHtml(customer.name)}</div>
+                    <div class="text-sm text-secondary">${escapeHtml(customer.phone || '—')}</div>
+                    ${customer.address ? `<div class="text-xs text-muted mt-1">${escapeHtml(customer.address)}</div>` : ''}
                 </div>
             `).join('');
-        } catch (err) {}
+        } catch (err) {
+            results.innerHTML = '<div class="text-center p-4 text-danger">فشل البحث عن العملاء</div>';
+        }
     }
 
-    function selectCustomerByIndex(idx) {
-        selectCustomer(searchResults[idx]);
+    function selectCustomerByIndex(index) {
+        selectCustomer(searchResults[index]);
     }
 
     function selectCustomer(customer) {
         selectedCustomer = customer;
-        const el = document.getElementById('tp-customer');
+        updateCustomerDisplay();
+
         if (customer) {
-            el.textContent = `${customer.name} (${customer.phone})`;
             showToast(`تم اختيار العميل: ${customer.name}`);
-        } else {
-            el.textContent = 'نقدي (تغيير)';
         }
+
         closeCustomerModal();
     }
 
     async function createNewCustomer() {
-        const name = document.getElementById('nc-name').value;
-        const phone = document.getElementById('nc-phone').value;
-        const address = document.getElementById('nc-address').value;
+        const name = document.getElementById('nc-name').value.trim();
+        const phone = document.getElementById('nc-phone').value.trim();
+        const address = document.getElementById('nc-address').value.trim();
 
-        if (!name || !phone) { showToast('الاسم ورقم الهاتف مطلوبان', 'error'); return; }
+        if (!name || !phone) {
+            showToast('الاسم ورقم الهاتف مطلوبان', 'error');
+            return;
+        }
+
+        if (selectedOrderType?.type === 'delivery' && !address) {
+            showToast('عنوان التوصيل مطلوب لطلبات التوصيل', 'error');
+            return;
+        }
 
         try {
             const res = await api('/pos/customers', {
                 method: 'POST',
-                body: { name, phone, address }
+                body: { name, phone, address },
             });
+
             selectCustomer(res.data);
-            // Clear inputs
             document.getElementById('nc-name').value = '';
             document.getElementById('nc-phone').value = '';
             document.getElementById('nc-address').value = '';
@@ -547,125 +1018,418 @@
         }
     }
 
-    // ═══ Categories ═══
     function renderCategories() {
         const bar = document.getElementById('cat-bar');
         bar.innerHTML = '';
 
-        // "All" button
         const allBtn = document.createElement('button');
-        allBtn.className = 'cat-btn active';
+        allBtn.className = `cat-btn ${activeCatId === null ? 'active' : ''}`;
         allBtn.textContent = 'الكل';
         allBtn.onclick = () => selectCategory(null, allBtn);
         bar.appendChild(allBtn);
 
-        menuData.forEach(cat => {
+        menuData.forEach((category) => {
             const btn = document.createElement('button');
-            btn.className = 'cat-btn';
-            btn.textContent = cat.name;
-            btn.onclick = () => selectCategory(cat.id, btn);
+            btn.className = `cat-btn ${activeCatId === category.id ? 'active' : ''}`;
+            btn.textContent = category.name;
+            btn.onclick = () => selectCategory(category.id, btn);
             bar.appendChild(btn);
         });
 
-        renderItems(null);
+        renderItems(activeCatId);
     }
 
-    function selectCategory(catId, btn) {
-        activeCatId = catId;
-        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    function selectCategory(categoryId, btn) {
+        activeCatId = categoryId;
+        document.querySelectorAll('.cat-btn').forEach((item) => item.classList.remove('active'));
         btn.classList.add('active');
-        renderItems(catId);
+        renderItems(categoryId);
     }
 
-    // ═══ Items ═══
-    function renderItems(catId) {
-        const grid = document.getElementById('items-grid');
-        grid.innerHTML = '';
-
+    function getVisibleItems(categoryId) {
         let items = [];
-        if (catId === null) {
-            menuData.forEach(cat => {
-                (cat.menu_items || []).forEach(item => items.push(item));
+
+        if (categoryId === null) {
+            menuData.forEach((category) => {
+                (category.menu_items || []).forEach((item) => items.push(item));
             });
         } else {
-            const cat = menuData.find(c => c.id === catId);
-            items = cat?.menu_items || [];
+            const category = menuData.find((item) => item.id === categoryId);
+            items = category?.menu_items || [];
         }
 
-        if (!items.length) {
-            grid.innerHTML = '<div class="cart-empty">لا توجد منتجات</div>';
-            return;
+        if (!itemSearch) {
+            return items;
         }
 
-        items.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'item-card';
-            card.onclick = () => addToCart(item);
-
-            const price = item.variants?.length
-                ? item.variants[0].price
-                : (item.price || item.base_price || 0);
-
-            card.innerHTML = `
-                <div class="item-name">${item.name}</div>
-                <div class="item-price">${parseFloat(price).toFixed(2)} ج.م</div>
-            `;
-            grid.appendChild(card);
+        return items.filter((item) => {
+            const haystack = `${item.name} ${item.description || ''}`.toLowerCase();
+            return haystack.includes(itemSearch);
         });
     }
 
-    // ═══ Cart Logic ═══
-    function addToCart(item) {
-        const variant = item.variants?.length ? item.variants[0] : null;
-        const key = `${item.id}-${variant?.id || 0}`;
+    function renderItems(categoryId) {
+        const grid = document.getElementById('items-grid');
+        const items = getVisibleItems(categoryId);
 
-        const existing = cart.find(c => c.key === key);
+        if (!items.length) {
+            grid.innerHTML = `<div class="cart-empty">${itemSearch ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد منتجات'}</div>`;
+            return;
+        }
+
+        grid.innerHTML = items.map((item) => {
+            const variants = Array.isArray(item.variants) ? item.variants : [];
+            const firstVariantPrice = variants.length ? Number.parseFloat(variants[0].price || 0) : null;
+            const basePrice = firstVariantPrice ?? Number.parseFloat(item.price || item.base_price || 0);
+            const hasOptions = itemRequiresConfiguration(item);
+
+            return `
+                <div class="item-card" onclick="addToCartById(${item.id})">
+                    <div class="item-name">${escapeHtml(item.name)}</div>
+                    <div class="item-price">${moneyValue(basePrice)} ج.م</div>
+                    <div class="item-meta">${hasOptions ? 'خيارات متاحة' : 'إضافة مباشرة'}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function findMenuItemById(itemId) {
+        for (const category of menuData) {
+            const item = (category.menu_items || []).find((menuItem) => menuItem.id === itemId);
+            if (item) {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    function itemRequiresConfiguration(item) {
+        const variants = Array.isArray(item.variants) ? item.variants : [];
+        const modifierGroups = Array.isArray(item.modifier_groups) ? item.modifier_groups : [];
+
+        return variants.length > 1 || modifierGroups.length > 0;
+    }
+
+    function getDefaultVariant(item) {
+        return Array.isArray(item.variants) && item.variants.length ? item.variants[0] : null;
+    }
+
+    function buildModifierSelection(groups) {
+        const selection = {};
+
+        (groups || []).forEach((group) => {
+            const modifiers = Array.isArray(group.modifiers) ? group.modifiers : [];
+
+            if (group.is_required && group.selection_type === 'single' && modifiers.length) {
+                selection[modifiers[0].id] = 1;
+            }
+        });
+
+        return selection;
+    }
+
+    function addToCartById(itemId) {
+        const item = findMenuItemById(itemId);
+        if (item) {
+            addToCart(item);
+        }
+    }
+
+    function addToCart(item) {
+        if (itemRequiresConfiguration(item)) {
+            openItemConfigModal(item);
+            return;
+        }
+
+        const variant = getDefaultVariant(item);
+        addConfiguredItem(item, {
+            quantity: 1,
+            variantId: variant?.id || null,
+            modifiers: {},
+            notes: '',
+        });
+    }
+
+    function openItemConfigModal(item) {
+        currentConfigItem = item;
+        currentItemConfig = {
+            quantity: 1,
+            variantId: getDefaultVariant(item)?.id || null,
+            modifiers: buildModifierSelection(item.modifier_groups),
+            notes: '',
+        };
+
+        document.getElementById('config-item-title').textContent = item.name;
+        document.getElementById('config-note-input').value = '';
+        renderItemConfigBody();
+        updateConfigSummary();
+        document.getElementById('item-config-modal').classList.remove('hidden');
+    }
+
+    function closeItemConfigModal() {
+        document.getElementById('item-config-modal').classList.add('hidden');
+        currentConfigItem = null;
+        currentItemConfig = null;
+    }
+
+    function renderItemConfigBody() {
+        if (!currentConfigItem || !currentItemConfig) {
+            return;
+        }
+
+        const body = document.getElementById('item-config-body');
+        const sections = [];
+        const variants = Array.isArray(currentConfigItem.variants) ? currentConfigItem.variants : [];
+        const modifierGroups = Array.isArray(currentConfigItem.modifier_groups) ? currentConfigItem.modifier_groups : [];
+
+        if (variants.length) {
+            sections.push(`
+                <div class="config-section">
+                    <div class="config-section-title">الحجم / النوع</div>
+                    <div class="config-options">
+                        ${variants.map((variant) => `
+                            <label class="config-option">
+                                <div class="config-option-info">
+                                    <input type="radio"
+                                           name="config-variant"
+                                           ${currentItemConfig.variantId === variant.id ? 'checked' : ''}
+                                           onclick="setConfigVariant(${variant.id})">
+                                    <div>${escapeHtml(variant.name)}</div>
+                                </div>
+                                <div class="config-option-price">${money(variant.price)}</div>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+        }
+
+        modifierGroups.forEach((group) => {
+            const modifiers = Array.isArray(group.modifiers) ? group.modifiers : [];
+            const selectionType = group.selection_type === 'single' ? 'radio' : 'checkbox';
+
+            sections.push(`
+                <div class="config-section">
+                    <div class="config-section-title">${escapeHtml(group.name)}</div>
+                    <div class="config-help">
+                        ${group.is_required ? 'اختيار مطلوب' : 'اختياري'}
+                        ${group.max_selections ? ` - حتى ${group.max_selections} اختيار` : ''}
+                    </div>
+                    <div class="config-options">
+                        ${modifiers.map((modifier) => `
+                            <label class="config-option">
+                                <div class="config-option-info">
+                                    <input type="${selectionType}"
+                                           name="modifier-group-${group.id}"
+                                           ${currentItemConfig.modifiers[modifier.id] ? 'checked' : ''}
+                                           onclick="toggleModifier(${group.id}, ${modifier.id}, '${group.selection_type}', this.checked)">
+                                    <div>${escapeHtml(modifier.name)}</div>
+                                </div>
+                                <div class="config-option-price">${modifier.price > 0 ? `+ ${money(modifier.price)}` : 'مجاني'}</div>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+        });
+
+        body.innerHTML = sections.join('');
+    }
+
+    function setConfigVariant(variantId) {
+        currentItemConfig.variantId = variantId;
+        updateConfigSummary();
+    }
+
+    function toggleModifier(groupId, modifierId, selectionType, checked) {
+        const group = (currentConfigItem?.modifier_groups || []).find((item) => item.id === groupId);
+        const groupModifierIds = (group?.modifiers || []).map((item) => item.id);
+
+        if (selectionType === 'single') {
+            groupModifierIds.forEach((id) => delete currentItemConfig.modifiers[id]);
+            if (checked) {
+                currentItemConfig.modifiers[modifierId] = 1;
+            }
+        } else if (checked) {
+            if (group?.max_selections) {
+                const selectedInGroup = groupModifierIds.filter((id) => currentItemConfig.modifiers[id]).length;
+                if (!currentItemConfig.modifiers[modifierId] && selectedInGroup >= group.max_selections) {
+                    showToast(`الحد الأقصى لمجموعة ${group.name} هو ${group.max_selections}`, 'error');
+                    renderItemConfigBody();
+                    return;
+                }
+            }
+
+            currentItemConfig.modifiers[modifierId] = 1;
+        } else {
+            delete currentItemConfig.modifiers[modifierId];
+        }
+
+        updateConfigSummary();
+    }
+
+    function changeConfigQty(delta) {
+        if (!currentItemConfig) {
+            return;
+        }
+
+        currentItemConfig.quantity = Math.max(1, currentItemConfig.quantity + delta);
+        updateConfigSummary();
+    }
+
+    function getSelectedModifierEntries(item, modifierMap) {
+        const entries = [];
+
+        (item.modifier_groups || []).forEach((group) => {
+            (group.modifiers || []).forEach((modifier) => {
+                if (modifierMap[modifier.id]) {
+                    entries.push({
+                        id: modifier.id,
+                        name: modifier.name,
+                        price: Number.parseFloat(modifier.price || 0),
+                        quantity: modifierMap[modifier.id],
+                    });
+                }
+            });
+        });
+
+        return entries;
+    }
+
+    function getConfigUnitPrice(item, config) {
+        const selectedVariant = (item.variants || []).find((variant) => variant.id === config.variantId) || null;
+        const basePrice = selectedVariant
+            ? Number.parseFloat(selectedVariant.price || 0)
+            : Number.parseFloat(item.price || item.base_price || 0);
+
+        const modifiersTotal = getSelectedModifierEntries(item, config.modifiers)
+            .reduce((sum, modifier) => sum + (modifier.price * modifier.quantity), 0);
+
+        return {
+            basePrice,
+            modifiersTotal,
+            unitPrice: basePrice + modifiersTotal,
+            variant: selectedVariant,
+        };
+    }
+
+    function validateCurrentConfig() {
+        const groups = currentConfigItem?.modifier_groups || [];
+
+        for (const group of groups) {
+            const selectedCount = (group.modifiers || []).filter((modifier) => currentItemConfig.modifiers[modifier.id]).length;
+
+            if (group.is_required && selectedCount < Math.max(1, group.min_selections || 1)) {
+                showToast(`يرجى اختيار ${group.name}`, 'error');
+                return false;
+            }
+
+            if (group.max_selections && selectedCount > group.max_selections) {
+                showToast(`تجاوزت الحد الأقصى لمجموعة ${group.name}`, 'error');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function updateConfigSummary() {
+        if (!currentConfigItem || !currentItemConfig) {
+            return;
+        }
+
+        const summary = getConfigUnitPrice(currentConfigItem, currentItemConfig);
+        const total = summary.unitPrice * currentItemConfig.quantity;
+
+        document.getElementById('config-qty-value').textContent = currentItemConfig.quantity;
+        document.getElementById('config-total-price').textContent = money(total);
+    }
+
+    function buildCartSignature(itemId, variantId, modifiers, notes) {
+        const modifiersKey = modifiers
+            .map((modifier) => `${modifier.id}:${modifier.quantity}`)
+            .sort()
+            .join('|');
+
+        return [itemId, variantId || 0, modifiersKey, (notes || '').trim()].join('::');
+    }
+
+    function addConfiguredItem(item, config) {
+        const summary = getConfigUnitPrice(item, config);
+        const modifiers = getSelectedModifierEntries(item, config.modifiers);
+        const notes = (config.notes || '').trim();
+        const signature = buildCartSignature(item.id, summary.variant?.id || null, modifiers, notes);
+
+        const existing = cart.find((line) => line.signature === signature);
         if (existing) {
-            existing.qty++;
+            existing.qty += config.quantity;
             existing.lineTotal = existing.qty * existing.unitPrice;
         } else {
-            const unitPrice = parseFloat(variant?.price || item.price || item.base_price || 0);
             cart.push({
-                key,
+                lineId: ++cartLineCounter,
+                signature,
                 menuItem: item,
-                variant,
-                qty: 1,
-                unitPrice,
-                lineTotal: unitPrice,
+                variant: summary.variant,
+                modifiers,
+                qty: config.quantity,
+                unitPrice: summary.unitPrice,
+                lineTotal: summary.unitPrice * config.quantity,
+                notes,
             });
         }
+
         renderCart();
+        closeItemConfigModal();
+        showToast(`تمت إضافة ${item.name}`);
     }
 
-    function changeQty(key, delta) {
-        const idx = cart.findIndex(c => c.key === key);
-        if (idx < 0) return;
-
-        cart[idx].qty += delta;
-        if (cart[idx].qty <= 0) {
-            cart.splice(idx, 1);
-        } else {
-            cart[idx].lineTotal = cart[idx].qty * cart[idx].unitPrice;
+    function confirmItemConfig() {
+        if (!currentConfigItem || !currentItemConfig) {
+            return;
         }
+
+        if (!validateCurrentConfig()) {
+            return;
+        }
+
+        currentItemConfig.notes = document.getElementById('config-note-input').value.trim();
+        addConfiguredItem(currentConfigItem, currentItemConfig);
+    }
+
+    function changeQty(lineId, delta) {
+        const line = cart.find((item) => item.lineId === lineId);
+        if (!line) {
+            return;
+        }
+
+        line.qty += delta;
+        if (line.qty <= 0) {
+            cart = cart.filter((item) => item.lineId !== lineId);
+        } else {
+            line.lineTotal = line.qty * line.unitPrice;
+        }
+
         renderCart();
     }
 
-    function removeFromCart(key) {
-        cart = cart.filter(c => c.key !== key);
+    function removeFromCart(lineId) {
+        cart = cart.filter((item) => item.lineId !== lineId);
         renderCart();
     }
 
     function clearCart() {
         cart = [];
         currentOrder = null;
+        currentOrderDiscount = null;
         renderCart();
     }
 
     function renderCart() {
         const container = document.getElementById('cart-items');
-        const countEl   = document.getElementById('cart-count');
-        const btnClear  = document.getElementById('btn-clear');
-        const btnPay    = document.getElementById('btn-pay');
+        const countEl = document.getElementById('cart-count');
+        const btnClear = document.getElementById('btn-clear');
+        const btnPay = document.getElementById('btn-pay');
 
         if (!cart.length) {
             container.innerHTML = '<div class="cart-empty">لا توجد منتجات بعد</div>';
@@ -673,90 +1437,181 @@
             btnClear.disabled = true;
             btnPay.disabled = true;
         } else {
-            const totalQty = cart.reduce((s, c) => s + c.qty, 0);
+            const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
             countEl.textContent = `${totalQty} منتج`;
             btnClear.disabled = false;
             btnPay.disabled = false;
 
-            container.innerHTML = cart.map(c => `
-                <div class="cart-item">
-                    <div class="cart-qty">
-                        <button onclick="changeQty('${c.key}', -1)">−</button>
-                        <span>${c.qty}</span>
-                        <button onclick="changeQty('${c.key}', 1)">+</button>
-                    </div>
-                    <div class="cart-item-info">
-                        <div class="cart-item-name">${c.menuItem.name}</div>
-                        ${c.variant ? `<div class="cart-item-detail">${c.variant.name}</div>` : ''}
-                        <div class="flex gap-2 items-center mt-1">
-                            <span class="text-xs text-accent cursor-pointer" onclick="openNoteModal('${c.key}')">📝 ملاحظة</span>
-                            ${c.notes ? `<span class="text-xs text-muted truncate max-w-[100px]">(${c.notes})</span>` : ''}
+            container.innerHTML = cart.map((item) => {
+                const details = [
+                    item.variant?.name ? escapeHtml(item.variant.name) : '',
+                    ...(item.modifiers || []).map((modifier) => escapeHtml(modifier.name)),
+                ].filter(Boolean);
+
+                return `
+                    <div class="cart-item">
+                        <div class="cart-qty">
+                            <button onclick="changeQty(${item.lineId}, -1)">−</button>
+                            <span>${item.qty}</span>
+                            <button onclick="changeQty(${item.lineId}, 1)">+</button>
                         </div>
+                        <div class="cart-item-info">
+                            <div class="cart-item-name">${escapeHtml(item.menuItem.name)}</div>
+                            ${details.length ? `<div class="cart-item-detail">${details.join(' • ')}</div>` : ''}
+                            <div class="flex gap-2 items-center mt-1">
+                                <span class="text-xs text-accent cursor-pointer" onclick="openNoteModal(${item.lineId})">📝 ملاحظة</span>
+                                ${item.notes ? `<span class="text-xs text-muted truncate max-w-[100px]">(${escapeHtml(item.notes)})</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="cart-item-price">${money(item.lineTotal)}</div>
+                        <span class="cart-remove" onclick="removeFromCart(${item.lineId})">✕</span>
                     </div>
-                    <div class="cart-item-price">${c.lineTotal.toFixed(2)}</div>
-                    <span class="cart-remove" onclick="removeFromCart('${c.key}')">✕</span>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
-        // Totals
-        let subtotal = cart.reduce((s, c) => s + c.lineTotal, 0);
-        let discount = 0;
+        const subtotal = getSubtotal();
+        const discount = getDiscountAmount();
+        const tax = getTaxAmount();
+        const total = getTotal();
 
-        if (window.currentOrderDiscount) {
-            if (window.currentOrderDiscount.type === 'percentage') {
-                discount = subtotal * window.currentOrderDiscount.value / 100;
-            } else {
-                discount = window.currentOrderDiscount.value;
-            }
-        }
+        let totalsHtml = `<div class="cart-total-row"><span>المجموع الفرعي</span><span class="val">${money(subtotal)}</span></div>`;
 
-        const taxable = subtotal - discount;
-        const tax = taxable * TAX_RATE / 100;
-        const total = taxable + tax;
-
-
-        
-        let totalsHtml = `
-            <div class="cart-total-row"><span>المجموع الفرعي</span><span class="val">${money(subtotal)}</span></div>
-        `;
         if (discount > 0) {
-            totalsHtml += `<div class="cart-total-row text-danger"><span>خصم</span><span class="val">-${money(discount)}</span></div>`;
+            totalsHtml += `<div class="cart-total-row text-danger"><span>خصم</span><span class="val">- ${money(discount)}</span></div>`;
         }
+
         if (TAX_RATE > 0) {
-            totalsHtml += `
-                <div class="cart-total-row"><span>الضريبة (${TAX_RATE}%)</span><span class="val">${money(tax)}</span></div>
-            `;
+            totalsHtml += `<div class="cart-total-row"><span>الضريبة (${TAX_RATE}%)</span><span class="val">${money(tax)}</span></div>`;
         }
-        totalsHtml += `
-            <div class="cart-total-row grand"><span>الإجمالي</span><span class="val">${money(total)}</span></div>
-        `;
+
+        totalsHtml += `<div class="cart-total-row grand"><span>الإجمالي</span><span class="val">${money(total)}</span></div>`;
         document.querySelector('.cart-totals').innerHTML = totalsHtml;
+        updateDiscountDisplay();
     }
 
-    function getTotal() {
-        let subtotal = cart.reduce((s, c) => s + c.lineTotal, 0);
-        let discount = 0;
+    function buildPayShortcutAmounts(total) {
+        const rounded5 = Math.ceil(total / 5) * 5;
+        const rounded10 = Math.ceil(total / 10) * 10;
+        const rounded20 = Math.ceil(total / 20) * 20;
 
-        if (window.currentOrderDiscount) {
-            if (window.currentOrderDiscount.type === 'percentage') {
-                discount = subtotal * window.currentOrderDiscount.value / 100;
-            } else {
-                discount = window.currentOrderDiscount.value;
-            }
+        return [total, rounded5, rounded10, rounded20]
+            .filter((amount, index, array) => amount > 0 && array.indexOf(amount) === index);
+    }
+
+    function renderPayShortcuts() {
+        const shortcuts = document.getElementById('pay-shortcuts');
+        const total = getTotal();
+
+        shortcuts.innerHTML = buildPayShortcutAmounts(total).map((amount, index) => `
+            <button type="button" class="pay-shortcut" onclick="setPayAmount(${amount})">
+                ${index === 0 ? 'المطلوب' : money(amount)}
+            </button>
+        `).join('');
+    }
+
+    function setPayAmount(amount) {
+        const payInput = document.getElementById('pay-amount');
+        payInput.value = moneyValue(amount);
+        payInput.dispatchEvent(new Event('input'));
+    }
+
+    function resetCardPaymentPreview() {
+        currentCardPreview = null;
+        document.getElementById('card-paid-preview').textContent = money(getTotal());
+        document.getElementById('card-fee-preview').textContent = '—';
+        document.getElementById('card-net-preview').textContent = '—';
+        document.getElementById('card-preview-help').textContent = 'اختر جهاز الدفع لعرض الرسوم وصافي التسوية.';
+    }
+
+    function resetCardPaymentForm() {
+        document.getElementById('pay-terminal').value = '';
+        document.getElementById('pay-reference-number').value = '';
+        resetCardPaymentPreview();
+    }
+
+    async function loadPaymentTerminals(force = false) {
+        if (!force && paymentTerminals.length) {
+            renderPaymentTerminals();
+            return paymentTerminals;
         }
 
-        const taxable = subtotal - discount;
-        return taxable + taxable * TAX_RATE / 100;
+        const response = await api('/pos/payment-terminals');
+        paymentTerminals = response?.data || [];
+        renderPaymentTerminals();
+
+        return paymentTerminals;
     }
 
-    // ═══ Payment ═══
+    function renderPaymentTerminals() {
+        const select = document.getElementById('pay-terminal');
+        if (!select) {
+            return;
+        }
+
+        const currentValue = select.value;
+
+        select.innerHTML = `
+            <option value="">اختر جهاز الدفع</option>
+            ${paymentTerminals.map((terminal) => `
+                <option value="${terminal.id}">
+                    ${escapeHtml(terminal.name)}${terminal.bank_name ? ` - ${escapeHtml(terminal.bank_name)}` : ''}
+                </option>
+            `).join('')}
+        `;
+
+        if (currentValue && paymentTerminals.some((terminal) => String(terminal.id) === currentValue)) {
+            select.value = currentValue;
+        }
+    }
+
+    async function refreshCardPaymentPreview() {
+        const terminalId = Number.parseInt(document.getElementById('pay-terminal').value || '0', 10);
+
+        document.getElementById('card-paid-preview').textContent = money(getTotal());
+
+        if (!terminalId) {
+            resetCardPaymentPreview();
+            return;
+        }
+
+        try {
+            const response = await api('/pos/payment-preview', {
+                method: 'POST',
+                body: {
+                    method: 'card',
+                    amount: getTotal(),
+                    terminal_id: terminalId,
+                },
+            });
+
+            currentCardPreview = response.data;
+            document.getElementById('card-paid-preview').textContent = money(response.data.paid_amount);
+            document.getElementById('card-fee-preview').textContent = money(response.data.fee_amount);
+            document.getElementById('card-net-preview').textContent = money(response.data.net_settlement_amount);
+            document.getElementById('card-preview-help').textContent = 'الرسوم وصافي التسوية محسوبان من إعدادات الجهاز في النظام.';
+        } catch (err) {
+            currentCardPreview = null;
+            document.getElementById('card-fee-preview').textContent = '—';
+            document.getElementById('card-net-preview').textContent = '—';
+            document.getElementById('card-preview-help').textContent = err.message || 'تعذر حساب رسوم البطاقة حالياً.';
+        }
+    }
+
+    function handleCardTerminalChange() {
+        refreshCardPaymentPreview();
+    }
+
     function showPayModal() {
-        if (!cart.length) return;
+        if (!cart.length) {
+            return;
+        }
+
         document.getElementById('pm-total').textContent = money(getTotal());
-        document.getElementById('pay-amount').value = '';
         document.getElementById('change-display').textContent = 'الباقي: 0.00 ج.م';
         document.getElementById('change-display').className = 'change-display zero';
+        resetCardPaymentForm();
+        renderPayShortcuts();
         selectPayMethod('cash');
         document.getElementById('pay-modal').classList.remove('hidden');
     }
@@ -767,52 +1622,114 @@
 
     function selectPayMethod(method) {
         selectedPayMethod = method;
-        document.querySelectorAll('.pay-method').forEach(m => {
-            m.classList.toggle('active', m.dataset.method === method);
+        document.querySelectorAll('.pay-method').forEach((item) => {
+            item.classList.toggle('active', item.dataset.method === method);
         });
-        // Hide cash section for card
+
         document.getElementById('pay-cash-section').style.display = method === 'cash' ? 'block' : 'none';
+        document.getElementById('pay-card-section').classList.toggle('hidden', method !== 'card');
+
+        if (method === 'cash') {
+            renderPayShortcuts();
+            setPayAmount(getTotal());
+            return;
+        }
+
+        document.getElementById('card-paid-preview').textContent = money(getTotal());
+        loadPaymentTerminals().then(() => refreshCardPaymentPreview()).catch((err) => {
+            showToast(err.message || 'تعذر تحميل أجهزة الدفع', 'error');
+        });
     }
 
     function calcChange() {
-        const paid = parseFloat(document.getElementById('pay-amount').value) || 0;
+        const paid = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
         const total = getTotal();
         const change = paid - total;
         const el = document.getElementById('change-display');
 
         if (change >= 0) {
-            el.textContent = `الباقي: ${change.toFixed(2)} ج.م`;
+            el.textContent = `الباقي: ${moneyValue(change)} ج.م`;
             el.className = 'change-display positive';
         } else {
-            el.textContent = `المتبقي: ${Math.abs(change).toFixed(2)} ج.م`;
+            el.textContent = `المتبقي: ${moneyValue(Math.abs(change))} ج.م`;
             el.className = 'change-display zero';
         }
     }
 
+    function validateDeliveryRequirements() {
+        if (selectedOrderType?.type !== 'delivery') {
+            return true;
+        }
+
+        if (!selectedCustomer) {
+            showToast('يجب اختيار عميل لتوصيل الطلب', 'error');
+            openCustomerModal();
+            return false;
+        }
+
+        if (!selectedCustomer.address) {
+            showToast('عنوان التوصيل مطلوب للعميل المختار', 'error');
+            openCustomerModal();
+            return false;
+        }
+
+        return true;
+    }
+
     async function confirmPayment() {
+        if (!validateDeliveryRequirements()) {
+            return;
+        }
+
         const btn = document.getElementById('btn-confirm-pay');
         const total = getTotal();
         let paidAmount = total;
+        let paymentPayload = {
+            method: selectedPayMethod,
+            amount: paidAmount,
+        };
 
         if (selectedPayMethod === 'cash') {
-            paidAmount = parseFloat(document.getElementById('pay-amount').value) || 0;
+            paidAmount = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
             if (paidAmount < total) {
                 showToast('المبلغ المدفوع أقل من الإجمالي', 'error');
                 return;
             }
-        }
 
-        if (selectedOrderType?.type === 'delivery' && !selectedCustomer) {
-            showToast('يجب اختيار عميل لتوصيل الطلب', 'error');
-            openCustomerModal();
-            return;
+            paymentPayload.amount = paidAmount;
+        } else if (selectedPayMethod === 'card') {
+            const terminalId = Number.parseInt(document.getElementById('pay-terminal').value || '0', 10);
+            const referenceNumber = document.getElementById('pay-reference-number').value.trim();
+
+            if (!terminalId) {
+                showToast('اختر جهاز الدفع قبل تأكيد الدفع بالبطاقة', 'error');
+                return;
+            }
+
+            if (!referenceNumber) {
+                showToast('أدخل رقم المرجع أو الإيصال قبل تأكيد الدفع', 'error');
+                return;
+            }
+
+            await refreshCardPaymentPreview();
+
+            if (!currentCardPreview) {
+                showToast('تعذر التحقق من رسوم البطاقة حالياً', 'error');
+                return;
+            }
+
+            paymentPayload = {
+                method: selectedPayMethod,
+                amount: total,
+                terminal_id: terminalId,
+                reference_number: referenceNumber,
+            };
         }
 
         btn.disabled = true;
         btn.textContent = 'جاري المعالجة...';
 
         try {
-            // 1. Create the order
             const orderRes = await api('/orders', {
                 method: 'POST',
                 body: {
@@ -823,43 +1740,49 @@
                     customer_phone: selectedCustomer?.phone || null,
                     delivery_address: selectedCustomer?.address || null,
                     tax_rate: TAX_RATE,
-                    discount_type: window.currentOrderDiscount?.type || null,
-                    discount_value: window.currentOrderDiscount?.value || null,
                 },
             });
+
             currentOrder = orderRes.data;
 
-            // 2. Add items
-            for (const c of cart) {
+            for (const item of cart) {
+                const modifiers = Object.fromEntries((item.modifiers || []).map((modifier) => [modifier.id, modifier.quantity]));
+
                 await api(`/orders/${currentOrder.id}/items`, {
                     method: 'POST',
                     body: {
-                        menu_item_id: c.menuItem.id,
-                        quantity: c.qty,
-                        variant_id: c.variant?.id || null,
-                        notes: c.notes || null,
+                        menu_item_id: item.menuItem.id,
+                        quantity: item.qty,
+                        variant_id: item.variant?.id || null,
+                        modifiers,
+                        notes: item.notes || null,
                     },
                 });
             }
 
-            // 3. Process payment
+            if (currentOrderDiscount) {
+                await api(`/orders/${currentOrder.id}/discount`, {
+                    method: 'POST',
+                    body: {
+                        type: currentOrderDiscount.type,
+                        value: currentOrderDiscount.value,
+                        reason: currentOrderDiscount.reason,
+                        approval_token: currentOrderDiscount.approval_token,
+                    },
+                });
+            }
+
             await api(`/orders/${currentOrder.id}/pay`, {
                 method: 'POST',
                 body: {
-                    payments: [{
-                        method: selectedPayMethod,
-                        amount: paidAmount,
-                    }],
+                    payments: [paymentPayload],
                 },
             });
 
-            // Success
             closePayModal();
             showToast('تم الدفع بنجاح ✅');
             clearCart();
             selectCustomer(null);
-            if (window.currentOrderDiscount) window.currentOrderDiscount = null;
-
         } catch (err) {
             showToast(err.message || 'فشل في إتمام العملية', 'error');
         } finally {
@@ -868,13 +1791,15 @@
         }
     }
 
-    // ═══ Note Management ═══
-    let currentNoteKey = null;
-    function openNoteModal(key) {
-        currentNoteKey = key;
-        const item = cart.find(c => c.key === key);
-        document.getElementById('note-item-name').textContent = item.menuItem.name;
-        document.getElementById('item-note-input').value = item.notes || '';
+    function openNoteModal(lineId) {
+        currentNoteLineId = lineId;
+        const line = cart.find((item) => item.lineId === lineId);
+        if (!line) {
+            return;
+        }
+
+        document.getElementById('note-item-name').textContent = line.menuItem.name;
+        document.getElementById('item-note-input').value = line.notes || '';
         document.getElementById('note-modal').classList.remove('hidden');
     }
 
@@ -883,40 +1808,161 @@
     }
 
     function saveItemNote() {
-        const item = cart.find(c => c.key === currentNoteKey);
-        if (item) {
-            item.notes = document.getElementById('item-note-input').value;
+        const line = cart.find((item) => item.lineId === currentNoteLineId);
+        if (line) {
+            line.notes = document.getElementById('item-note-input').value.trim();
+            line.signature = buildCartSignature(line.menuItem.id, line.variant?.id || null, line.modifiers || [], line.notes);
             showToast('تم حفظ الملاحظة');
             renderCart();
         }
+
         closeNoteModal();
     }
 
-    // ═══ Discount Management ═══
     function openDiscountModal() {
-        document.getElementById('disc-value').value = '';
-        document.getElementById('discount-modal').classList.remove('hidden');
+        if (!userHasPermission('apply_discount')) {
+            showToast('ليس لديك صلاحية لتطبيق الخصم', 'error');
+            return;
+        }
+
+        if (!cart.length) {
+            showToast('أضف منتجات أولاً قبل تطبيق الخصم', 'error');
+            return;
+        }
+
+        prepareDiscountModal().catch((err) => {
+            showToast(err.message || 'تعذر تحميل بيانات اعتماد الخصم', 'error');
+        });
     }
 
     function closeDiscountModal() {
         document.getElementById('discount-modal').classList.add('hidden');
+        document.getElementById('disc-approver-pin').value = '';
+    }
+
+    async function prepareDiscountModal() {
+        await loadDiscountApprovers();
+
+        if (!discountApprovers.length) {
+            showToast('لا يوجد مدير أو أدمن متاح لاعتماد الخصم', 'error');
+            return;
+        }
+
+        document.getElementById('disc-type').value = currentOrderDiscount?.type || 'percentage';
+        document.getElementById('disc-value').value = currentOrderDiscount ? moneyValue(currentOrderDiscount.value) : '';
+        document.getElementById('disc-reason').value = currentOrderDiscount?.reason || '';
+        document.getElementById('disc-approver').value = String(currentOrderDiscount?.approver?.id || '');
+        document.getElementById('disc-approver-pin').value = '';
+        document.getElementById('discount-modal').classList.remove('hidden');
+    }
+
+    async function loadDiscountApprovers(force = false) {
+        if (!force && discountApprovers.length) {
+            renderDiscountApproverOptions();
+            return discountApprovers;
+        }
+
+        const response = await api('/pos/discount-approvers');
+        discountApprovers = response?.data || [];
+        renderDiscountApproverOptions();
+
+        return discountApprovers;
+    }
+
+    function renderDiscountApproverOptions() {
+        const select = document.getElementById('disc-approver');
+        if (!select) {
+            return;
+        }
+
+        const previousValue = select.value;
+
+        select.innerHTML = `
+            <option value="">اختر المدير / الأدمن</option>
+            ${discountApprovers.map((approver) => `
+                <option value="${approver.id}">
+                    ${escapeHtml(approver.name)}${approver.username ? ` (${escapeHtml(approver.username)})` : ''}
+                </option>
+            `).join('')}
+        `;
+
+        if (previousValue && discountApprovers.some((approver) => String(approver.id) === previousValue)) {
+            select.value = previousValue;
+        }
     }
 
     async function applyDiscount() {
         const type = document.getElementById('disc-type').value;
-        const value = parseFloat(document.getElementById('disc-value').value) || 0;
+        const value = Number.parseFloat(document.getElementById('disc-value').value) || 0;
+        const reason = document.getElementById('disc-reason').value.trim();
+        const approverId = Number.parseInt(document.getElementById('disc-approver').value || '0', 10);
+        const approverPin = document.getElementById('disc-approver-pin').value.trim();
+        const btn = document.getElementById('discount-apply-btn');
 
-        if (value <= 0) { showToast('القيمة غير صالحة', 'error'); return; }
+        if (value <= 0) {
+            showToast('القيمة غير صالحة', 'error');
+            return;
+        }
 
-        showToast('جاري تطبيق الخصم...');
-        closeDiscountModal();
-        // In a real app, we might call backend here or just store it for order creation
-        // For now, we'll store it in a global state
-        window.currentOrderDiscount = { type, value };
-        renderCart();
+        if (type === 'percentage' && value > 100) {
+            showToast('النسبة لا يمكن أن تتجاوز 100%', 'error');
+            return;
+        }
+
+        if (type === 'fixed' && value > getSubtotal()) {
+            showToast('الخصم الثابت لا يمكن أن يتجاوز المجموع الفرعي', 'error');
+            return;
+        }
+
+        if (!approverId) {
+            showToast('اختر المدير أو الأدمن لاعتماد الخصم', 'error');
+            return;
+        }
+
+        if (!reason) {
+            showToast('اكتب سبب الخصم قبل طلب الاعتماد', 'error');
+            return;
+        }
+
+        if (!approverPin) {
+            showToast('أدخل رمز اعتماد المدير', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'جاري الاعتماد...';
+
+        try {
+            const approvalRes = await api('/pos/discount-approval', {
+                method: 'POST',
+                body: {
+                    type,
+                    value,
+                    reason,
+                    approver_id: approverId,
+                    approver_pin: approverPin,
+                },
+            });
+
+            currentOrderDiscount = {
+                type,
+                value,
+                reason,
+                approval_token: approvalRes.data.approval_token,
+                approver: approvalRes.data.approver,
+            };
+
+            closeDiscountModal();
+            renderCart();
+            showToast(`تم اعتماد الخصم بواسطة ${approvalRes.data.approver.name}`);
+        } catch (err) {
+            showToast(err.message || 'فشل اعتماد الخصم', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'اعتماد وتطبيق';
+        }
     }
 
-    // ═══ Session Information ═══
     function openSessionModal() {
         document.getElementById('session-modal').classList.remove('hidden');
         showSessionTab('orders');
@@ -931,25 +1977,36 @@
         document.getElementById('session-stats-content').classList.toggle('hidden', tab !== 'stats');
         document.getElementById('tab-session-orders').classList.toggle('active', tab === 'orders');
         document.getElementById('tab-session-stats').classList.toggle('active', tab === 'stats');
-        
-        if (tab === 'orders') fetchSessionOrders();
-        else fetchSessionStats();
+
+        if (tab === 'orders') {
+            fetchSessionOrders();
+        } else {
+            fetchSessionStats();
+        }
     }
 
     async function fetchSessionOrders() {
         document.getElementById('session-orders-loading').classList.remove('hidden');
         document.getElementById('session-orders-list').innerHTML = '';
+
         try {
             const res = await api(`/orders?drawer_session_id=${window.currentDrawerSessionId}&per_page=50`);
             const list = document.getElementById('session-orders-list');
-            list.innerHTML = res.data.map(o => `
-                <tr class="hover:bg-bg-primary transition">
-                    <td class="p-2 border-b">${o.order_number.split('-').pop()}</td>
-                    <td class="p-2 border-b">${new Date(o.created_at).toLocaleTimeString('ar-EG')}</td>
-                    <td class="p-2 border-b text-xs">${o.type_label || o.type}</td>
-                    <td class="p-2 border-b"><span class="badge-status ${getStatusColor(o.status)}">${o.status_label || o.status}</span></td>
-                    <td class="p-2 border-b"><span class="text-xs ${o.payment_status === 'paid' ? 'text-success' : 'text-warning'}">${o.payment_status_label || o.payment_status}</span></td>
-                    <td class="p-2 border-b font-bold">${money(o.total)}</td>
+            const orders = res?.data || [];
+
+            if (!orders.length) {
+                list.innerHTML = '<tr><td class="p-4 text-center text-muted" colspan="6">لا توجد طلبات في هذه الجلسة حتى الآن</td></tr>';
+                return;
+            }
+
+            list.innerHTML = orders.map((order) => `
+                <tr class="hover-bg transition">
+                    <td class="p-2 border-b">${escapeHtml(order.order_number.split('-').pop())}</td>
+                    <td class="p-2 border-b">${new Date(order.created_at).toLocaleTimeString('ar-EG')}</td>
+                    <td class="p-2 border-b text-xs">${escapeHtml(order.type_label || order.type)}</td>
+                    <td class="p-2 border-b"><span class="badge-status ${getStatusColor(order.status)}">${escapeHtml(order.status_label || order.status)}</span></td>
+                    <td class="p-2 border-b"><span class="text-xs ${order.payment_status === 'paid' ? 'text-success' : 'text-warning'}">${escapeHtml(order.payment_status_label || order.payment_status)}</span></td>
+                    <td class="p-2 border-b font-bold">${money(order.total)}</td>
                 </tr>
             `).join('');
         } catch (err) {
@@ -962,25 +2019,27 @@
     async function fetchSessionStats() {
         document.getElementById('session-stats-loading').classList.remove('hidden');
         document.getElementById('session-stats-grid').innerHTML = '';
+
         try {
             const res = await api(`/drawers/${window.currentDrawerSessionId}/summary`);
-            const s = res.data;
+            const summary = res.data;
             const grid = document.getElementById('session-stats-grid');
             const stats = [
-                { label: 'إجمالي المبيعات', val: money(s.cash_sales + s.non_cash_sales), color: 'text-primary' },
-                { label: 'مبيعات نقدية', val: money(s.cash_sales), color: 'text-success' },
-                { label: 'مبيعات أخرى (بطاقة)', val: money(s.non_cash_sales), color: 'text-accent' },
-                { label: 'الرصيد المتوقع بالدرج', val: money(s.expected_cash), color: 'text-warning' },
-                { label: 'إيداع نقدي', val: money(s.cash_in), color: 'text-success' },
-                { label: 'سحب نقدي', val: money(s.cash_out), color: 'text-danger' },
-                { label: 'إجمالي الطلبات', val: s.order_count, color: 'text-primary' },
-                { label: 'طلبات مدفوعة', val: s.paid_orders_count, color: 'text-success' },
-                { label: 'طلبات معلقة', val: s.pending_orders_count, color: 'text-warning' },
+                { label: 'إجمالي المبيعات', val: money(summary.cash_sales + summary.non_cash_sales), color: 'text-primary' },
+                { label: 'مبيعات نقدية', val: money(summary.cash_sales), color: 'text-success' },
+                { label: 'مبيعات أخرى (بطاقة)', val: money(summary.non_cash_sales), color: 'text-accent' },
+                { label: 'الرصيد المتوقع بالدرج', val: money(summary.expected_cash), color: 'text-warning' },
+                { label: 'إيداع نقدي', val: money(summary.cash_in), color: 'text-success' },
+                { label: 'سحب نقدي', val: money(summary.cash_out), color: 'text-danger' },
+                { label: 'إجمالي الطلبات', val: summary.order_count, color: 'text-primary' },
+                { label: 'طلبات مدفوعة', val: summary.paid_orders_count, color: 'text-success' },
+                { label: 'طلبات معلقة', val: summary.pending_orders_count, color: 'text-warning' },
             ];
-            grid.innerHTML = stats.map(st => `
+
+            grid.innerHTML = stats.map((stat) => `
                 <div class="bg-bg-primary p-3 rounded-lg border border-border">
-                    <div class="text-xs text-muted mb-1">${st.label}</div>
-                    <div class="text-lg font-bold ${st.color}">${st.val}</div>
+                    <div class="text-xs text-muted mb-1">${stat.label}</div>
+                    <div class="text-lg font-bold ${stat.color}">${stat.val}</div>
                 </div>
             `).join('');
         } catch (err) {
@@ -991,25 +2050,25 @@
     }
 
     function getStatusColor(status) {
-        switch(status) {
+        switch (status) {
             case 'confirmed': return 'badge-secondary';
             case 'preparing': return 'badge-warning';
-            case 'ready': return 'badge-success';
+            case 'ready':
             case 'delivered': return 'badge-success';
             case 'cancelled': return 'badge-danger';
             default: return 'badge-ghost';
         }
     }
 
-    // ═══ Cash Movements ═══
-    let activeMoveTab = 'in';
     function openMovementModal() {
         document.getElementById('movement-modal').classList.remove('hidden');
         showMoveTab('in');
     }
+
     function closeMovementModal() {
         document.getElementById('movement-modal').classList.add('hidden');
     }
+
     function showMoveTab(tab) {
         activeMoveTab = tab;
         document.getElementById('tab-cashin').classList.toggle('active', tab === 'in');
@@ -1017,10 +2076,15 @@
         document.getElementById('move-amount').value = '';
         document.getElementById('move-reason').value = '';
     }
+
     async function processMovement() {
-        const amount = parseFloat(document.getElementById('move-amount').value) || 0;
-        const reason = document.getElementById('move-reason').value;
-        if (amount <= 0) { showToast('المبلغ غير صالح', 'error'); return; }
+        const amount = Number.parseFloat(document.getElementById('move-amount').value) || 0;
+        const reason = document.getElementById('move-reason').value.trim();
+
+        if (amount <= 0) {
+            showToast('المبلغ غير صالح', 'error');
+            return;
+        }
 
         const btn = document.getElementById('move-btn');
         btn.disabled = true;
@@ -1029,8 +2093,9 @@
         try {
             await api(`/drawers/${window.currentDrawerSessionId}/${activeMoveTab === 'in' ? 'cash-in' : 'cash-out'}`, {
                 method: 'POST',
-                body: { amount, notes: reason }
+                body: { amount, notes: reason || null },
             });
+
             showToast('تمت العملية بنجاح');
             closeMovementModal();
         } catch (err) {
@@ -1041,7 +2106,6 @@
         }
     }
 
-    // ═══ Logout ═══
     function logout() {
         api('/auth/logout', { method: 'POST' }).catch(() => {});
         clearAuth();

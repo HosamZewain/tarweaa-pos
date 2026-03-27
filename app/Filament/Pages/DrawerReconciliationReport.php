@@ -26,13 +26,11 @@ class DrawerReconciliationReport extends Page implements HasForms
 
     public ?string $date_from = null;
     public ?string $date_to = null;
-    public ?array $reportData = null;
 
     public function mount(): void
     {
         $this->date_from = today()->startOfMonth()->toDateString();
         $this->date_to = today()->toDateString();
-        $this->generateReport();
     }
 
     public function form(Schema $form): Schema
@@ -45,20 +43,28 @@ class DrawerReconciliationReport extends Page implements HasForms
 
     public function generateReport(): void
     {
+        // The report is derived from the selected filters during render so the
+        // paginator never has to live inside Livewire component state.
+    }
+
+    protected function getViewData(): array
+    {
         $service = app(ReportService::class);
 
         $sessions = $service->getDrawersReconciliation($this->date_from, $this->date_to, 100);
         $variance = $service->getCashVarianceReport($this->date_from, $this->date_to);
 
-        $this->reportData = [
-            'sessions' => $sessions,
-            'variance' => $variance,
-            'totals'   => [
-                'total_sessions'     => $sessions->total(),
-                'total_opening'      => round($sessions->getCollection()->sum('opening_balance'), 2),
-                'total_closing'      => round($sessions->getCollection()->sum('closing_balance'), 2),
-                'total_difference'   => round($sessions->getCollection()->sum('cash_difference'), 2),
-                'sessions_with_diff' => $sessions->getCollection()->filter(fn ($s) => abs((float) $s->cash_difference) > 0)->count(),
+        return [
+            'reportData' => [
+                'sessions' => $sessions,
+                'variance' => $variance,
+                'totals'   => [
+                    'total_sessions'     => $sessions->total(),
+                    'total_opening'      => round($sessions->getCollection()->sum('opening_balance'), 2),
+                    'total_closing'      => round($sessions->getCollection()->sum('closing_balance'), 2),
+                    'total_difference'   => round($sessions->getCollection()->sum('cash_difference'), 2),
+                    'sessions_with_diff' => $sessions->getCollection()->filter(fn ($s) => abs((float) $s->cash_difference) > 0)->count(),
+                ],
             ],
         ];
     }

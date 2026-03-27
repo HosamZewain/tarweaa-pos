@@ -50,6 +50,31 @@ class OrderException extends \RuntimeException
         return new self('الكمية يجب أن تكون 1 على الأقل.');
     }
 
+    public static function discountPermissionRequired(): self
+    {
+        return new self('ليس لديك صلاحية لتطبيق الخصم على الطلب.', 403);
+    }
+
+    public static function discountApprovalRequired(): self
+    {
+        return new self('يلزم اعتماد المدير قبل تطبيق الخصم.', 403);
+    }
+
+    public static function discountApproverInvalid(): self
+    {
+        return new self('المستخدم المحدد لا يمكنه اعتماد الخصم.', 403);
+    }
+
+    public static function discountApproverPinInvalid(): self
+    {
+        return new self('رمز اعتماد المدير غير صحيح.', 403);
+    }
+
+    public static function invalidPaymentTerminal(): self
+    {
+        return new self('جهاز الدفع الإلكتروني المحدد غير صالح أو غير نشط.', 422);
+    }
+
     // ─── Status Transitions ─────────────────────────────────────────────────
 
     public static function invalidTransition(OrderStatus $from, OrderStatus $to): self
@@ -108,5 +133,10 @@ class OrderException extends \RuntimeException
     public static function orderAlreadyPaid(): self
     {
         return new self('هذا الطلب مدفوع بالكامل بالفعل.');
+    }
+
+    public static function paymentReferenceRequired(): self
+    {
+        return new self('رقم المرجع أو الإيصال مطلوب لعمليات البطاقة.', 422);
     }
 }

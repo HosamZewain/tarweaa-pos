@@ -3,10 +3,13 @@
 namespace App\Filament\Resources;
 
 use App\Enums\OrderSource;
+use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentMethod;
 use App\Filament\Resources\OrderResource\Pages;
+use App\Models\DiscountLog;
 use App\Models\Order;
 use App\Services\OrderLifecycleService;
 use Filament\Forms;
@@ -52,6 +55,7 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('source')->label('المصدر')
                     ->formatStateUsing(fn (OrderSource $state) => $state->label()),
                 Tables\Columns\TextColumn::make('cashier.name')->label('الكاشير')->searchable(),
+                Tables\Columns\TextColumn::make('discount_amount')->label('الخصم')->money('EGP')->sortable(),
                 Tables\Columns\TextColumn::make('total')->label('المجموع')->money('EGP')->sortable(),
                 Tables\Columns\TextColumn::make('payment_status')->label('الدفع')->badge()
                     ->color(fn (PaymentStatus $state) => match($state) {
@@ -76,6 +80,9 @@ class OrderResource extends Resource
                     ->relationship('cashier', 'name')->searchable()->preload(),
                 Tables\Filters\SelectFilter::make('shift_id')->label('الوردية')
                     ->relationship('shift', 'shift_number')->searchable()->preload(),
+                Tables\Filters\Filter::make('discounted')
+                    ->label('الطلبات المخصومة فقط')
+                    ->query(fn ($query) => $query->where('discount_amount', '>', 0)),
                 Tables\Filters\Filter::make('created_at')
                     ->form([
                         Forms\Components\DatePicker::make('from')->label('من'),
@@ -117,8 +124,13 @@ class OrderResource extends Resource
                 Infolists\Components\TextEntry::make('source')->label('المصدر')->formatStateUsing(fn (OrderSource $state) => $state->label()),
                 Infolists\Components\TextEntry::make('cashier.name')->label('الكاشير'),
                 Infolists\Components\TextEntry::make('shift.shift_number')->label('الوردية'),
+                Infolists\Components\TextEntry::make('drawerSession.session_number')->label('جلسة الدرج')->placeholder('—'),
+                Infolists\Components\TextEntry::make('posDevice.name')->label('جهاز نقطة البيع')->placeholder('—'),
                 Infolists\Components\TextEntry::make('customer_name')->label('العميل')->placeholder('—'),
                 Infolists\Components\TextEntry::make('customer_phone')->label('هاتف العميل')->placeholder('—'),
+                Infolists\Components\TextEntry::make('delivery_address')->label('عنوان التوصيل')->placeholder('—')->columnSpan(2),
+                Infolists\Components\TextEntry::make('external_order_number')->label('رقم الطلب الخارجي')->placeholder('—'),
+                Infolists\Components\TextEntry::make('external_order_id')->label('المعرف الخارجي')->placeholder('—'),
             ])->columns(4),
             \Filament\Schemas\Components\Section::make('المبالغ')->schema([
                 Infolists\Components\TextEntry::make('subtotal')->label('المجموع الفرعي')->money('EGP'),
@@ -137,24 +149,140 @@ class OrderResource extends Resource
                 Infolists\Components\TextEntry::make('delivered_at')->label('وقت التسليم')->dateTime()->placeholder('—'),
                 Infolists\Components\TextEntry::make('cancelled_at')->label('وقت الإلغاء')->dateTime()->placeholder('—'),
                 Infolists\Components\TextEntry::make('cancellation_reason')->label('سبب الإلغاء')->placeholder('—'),
+                Infolists\Components\TextEntry::make('refunded_at')->label('وقت الاسترجاع')->dateTime()->placeholder('—'),
+                Infolists\Components\TextEntry::make('refunder.name')->label('تم الاسترجاع بواسطة')->placeholder('—'),
+                Infolists\Components\TextEntry::make('refund_reason')->label('سبب الاسترجاع')->placeholder('—'),
             ])->columns(3),
+            \Filament\Schemas\Components\Section::make('تفاصيل الخصم')->schema([
+                Infolists\Components\TextEntry::make('discount_type')
+                    ->label('نوع الخصم الحالي')
+                    ->state(fn (Order $record) => $record->discount_type === 'percentage' ? 'نسبة مئوية' : ($record->discount_type === 'fixed' ? 'مبلغ ثابت' : null))
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('discount_value')
+                    ->label('قيمة الخصم')
+                    ->state(function (Order $record): ?string {
+                        if ($record->discount_type === 'percentage' && $record->discount_value !== null) {
+                            return number_format((float) $record->discount_value, 2) . '%';
+                        }
+
+                        if ($record->discount_type === 'fixed' && $record->discount_value !== null) {
+                            return number_format((float) $record->discount_value, 2) . ' ج.م';
+                        }
+
+                        return null;
+                    })
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('discount_amount')
+                    ->label('قيمة الخصم الفعلية')
+                    ->money('EGP'),
+                Infolists\Components\TextEntry::make('latest_order_discount_requester')
+                    ->label('طلب الخصم بواسطة')
+                    ->state(fn (Order $record) => $record->latestOrderDiscountLog?->requestedBy?->name)
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('latest_order_discount_approver')
+                    ->label('اعتمد / طبق الخصم')
+                    ->state(fn (Order $record) => $record->latestOrderDiscountLog?->appliedBy?->name)
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('latest_order_discount_reason')
+                    ->label('سبب الخصم')
+                    ->state(fn (Order $record) => $record->latestOrderDiscountLog?->reason)
+                    ->placeholder('—')
+                    ->columnSpan(2),
+                Infolists\Components\TextEntry::make('latest_order_discount_action')
+                    ->label('آخر إجراء')
+                    ->state(function (Order $record): ?string {
+                        return match ($record->latestOrderDiscountLog?->action) {
+                            'applied' => 'تم التطبيق',
+                            'updated' => 'تم التحديث',
+                            'removed' => 'تمت الإزالة',
+                            'configured_on_create' => 'تمت التهيئة عند الإنشاء',
+                            'backfilled_existing_order' => 'تم ترحيله من بيانات سابقة',
+                            default => $record->latestOrderDiscountLog?->action,
+                        };
+                    })
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('latest_order_discount_created_at')
+                    ->label('وقت اعتماد الخصم')
+                    ->state(fn (Order $record) => $record->latestOrderDiscountLog?->created_at)
+                    ->dateTime()
+                    ->placeholder('—'),
+            ])
+                ->columns(4)
+                ->visible(fn (Order $record) => (float) $record->discount_amount > 0 || $record->orderDiscountLogs->isNotEmpty()),
             \Filament\Schemas\Components\Section::make('الأصناف المطلوبة')->schema([
                 Infolists\Components\RepeatableEntry::make('items')->label('')->schema([
                     Infolists\Components\TextEntry::make('item_name')->label('الصنف'),
+                    Infolists\Components\TextEntry::make('variant_name')->label('الصنف الفرعي')->placeholder('—'),
                     Infolists\Components\TextEntry::make('quantity')->label('الكمية')->numeric(),
                     Infolists\Components\TextEntry::make('unit_price')->label('سعر الوحدة')->money('EGP'),
+                    Infolists\Components\TextEntry::make('discount_amount')->label('خصم السطر')->money('EGP'),
                     Infolists\Components\TextEntry::make('total')->label('الإجمالي')->money('EGP'),
+                    Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()
+                        ->formatStateUsing(fn (?OrderItemStatus $state) => $state?->label() ?? '—'),
+                    Infolists\Components\TextEntry::make('modifiers_summary')
+                        ->label('الإضافات')
+                        ->state(function ($record): ?string {
+                            $modifiers = $record->modifiers ?? collect();
+
+                            if ($modifiers->isEmpty()) {
+                                return null;
+                            }
+
+                            return $modifiers->map(function ($modifier) {
+                                $suffix = (int) $modifier->quantity > 1 ? ' × ' . $modifier->quantity : '';
+
+                                return $modifier->modifier_name . $suffix;
+                            })->implode('، ');
+                        })
+                        ->placeholder('—')
+                        ->columnSpan(2),
                     Infolists\Components\TextEntry::make('notes')->label('ملاحظات')->placeholder('—'),
-                ])->columns(5),
+                ])->columns(4),
             ]),
             \Filament\Schemas\Components\Section::make('المدفوعات')->schema([
                 Infolists\Components\RepeatableEntry::make('payments')->label('')->schema([
-                    Infolists\Components\TextEntry::make('payment_method')->label('طريقة الدفع'),
+                    Infolists\Components\TextEntry::make('payment_method')->label('طريقة الدفع')
+                        ->formatStateUsing(fn (PaymentMethod|string|null $state) => $state instanceof PaymentMethod ? $state->label() : ($state ?: '—')),
                     Infolists\Components\TextEntry::make('amount')->label('المبلغ')->money('EGP'),
                     Infolists\Components\TextEntry::make('reference_number')->label('مرجع')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('notes')->label('ملاحظات الدفع')->placeholder('—'),
                     Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime(),
-                ])->columns(4),
+                ])->columns(5),
             ]),
+            \Filament\Schemas\Components\Section::make('سجل الخصومات')->schema([
+                Infolists\Components\RepeatableEntry::make('orderDiscountLogs')
+                    ->label('')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime(),
+                        Infolists\Components\TextEntry::make('requestedBy.name')->label('طلب بواسطة')->placeholder('—'),
+                        Infolists\Components\TextEntry::make('appliedBy.name')->label('اعتمد بواسطة')->placeholder('—'),
+                        Infolists\Components\TextEntry::make('action')->label('الإجراء')
+                            ->formatStateUsing(fn (?string $state) => match ($state) {
+                                'applied' => 'تم التطبيق',
+                                'updated' => 'تم التحديث',
+                                'removed' => 'تمت الإزالة',
+                                'configured_on_create' => 'تمت التهيئة عند الإنشاء',
+                                'backfilled_existing_order' => 'تم ترحيله من بيانات سابقة',
+                                default => $state ?: '—',
+                            }),
+                        Infolists\Components\TextEntry::make('discount_type')->label('نوع الخصم')
+                            ->formatStateUsing(fn (?string $state) => $state === 'percentage' ? 'نسبة مئوية' : ($state === 'fixed' ? 'مبلغ ثابت' : '—')),
+                        Infolists\Components\TextEntry::make('discount_value')->label('القيمة')
+                            ->state(function (DiscountLog $record): string {
+                                if ($record->discount_type === 'percentage') {
+                                    return number_format((float) $record->discount_value, 2) . '%';
+                                }
+
+                                return number_format((float) $record->discount_value, 2) . ' ج.م';
+                            }),
+                        Infolists\Components\TextEntry::make('discount_amount')->label('الخصم الفعلي')->money('EGP'),
+                        Infolists\Components\TextEntry::make('reason')->label('السبب')->placeholder('—')->columnSpan(2),
+                    ])
+                    ->columns(4),
+            ])
+                ->collapsible()
+                ->collapsed()
+                ->visible(fn (Order $record) => $record->orderDiscountLogs->isNotEmpty()),
             \Filament\Schemas\Components\Section::make('ملاحظات الطلب')->schema([
                 Infolists\Components\TextEntry::make('notes')->label('')->placeholder('لا توجد ملاحظات')->columnSpanFull(),
             ])->collapsible()->collapsed(),

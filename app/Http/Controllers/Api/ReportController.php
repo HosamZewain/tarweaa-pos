@@ -178,6 +178,19 @@ class ReportController extends Controller
     }
 
     /**
+     * GET /api/reports/card-payments-by-terminal — Card totals, fees, and net settlement by terminal
+     */
+    public function cardPaymentsByTerminal(Request $request): JsonResponse
+    {
+        $report = $this->reportService->getCardPaymentsByTerminal(
+            $request->date_from,
+            $request->date_to
+        );
+
+        return $this->success($report);
+    }
+
+    /**
      * GET /api/reports/drawers-reconciliation — Paginated list of closed drawers for auditing
      */
     public function drawersReconciliation(Request $request): JsonResponse

@@ -8,8 +8,10 @@ use Filament\Widgets\ChartWidget;
 
 class OrderStatusChartWidget extends ChartWidget
 {
-    protected ?string $heading = 'توزيع حالات الطلبات (هذا الشهر)';
+    protected ?string $heading = 'حالات الطلبات هذا الشهر';
+    protected ?string $description = 'مقارنة سريعة لتوزيع الطلبات حسب حالة المعالجة.';
     protected int | string | array $columnSpan = 4;
+    protected ?string $maxHeight = '320px';
 
     protected function getData(): array
     {
@@ -44,9 +46,32 @@ class OrderStatusChartWidget extends ChartWidget
                     'label' => 'الطلبات',
                     'data' => $data,
                     'backgroundColor' => $backgroundColor,
+                    'borderWidth' => 0,
                 ],
             ],
             'labels' => $labels,
+        ];
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'maintainAspectRatio' => false,
+            'cutout' => '68%',
+            'plugins' => [
+                'legend' => [
+                    'position' => 'bottom',
+                    'rtl' => true,
+                    'labels' => [
+                        'usePointStyle' => true,
+                        'padding' => 18,
+                        'boxWidth' => 10,
+                    ],
+                ],
+                'tooltip' => [
+                    'rtl' => true,
+                ],
+            ],
         ];
     }
 

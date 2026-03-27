@@ -9,6 +9,7 @@ readonly class ProcessPaymentData
     public function __construct(
         public PaymentMethod $method,
         public float         $amount,
+        public ?int          $terminalId = null,
         public ?string       $referenceNumber = null,
     ) {}
 
@@ -17,6 +18,7 @@ readonly class ProcessPaymentData
         return new self(
             method:          PaymentMethod::from($data['method']),
             amount:          (float) $data['amount'],
+            terminalId:      isset($data['terminal_id']) ? (int) $data['terminal_id'] : null,
             referenceNumber: $data['reference_number'] ?? null,
         );
     }

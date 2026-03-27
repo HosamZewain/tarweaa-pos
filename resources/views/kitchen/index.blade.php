@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'شاشة المطبخ — طرعة')
+@section('title', 'شاشة المطبخ — Tarweaa')
 
 @section('styles')
 <style>
@@ -124,7 +124,7 @@
         <div class="flex items-center gap-2">
             <div id="order-count" class="text-sm font-medium bg-bg-card px-3 py-1 rounded-full border border-border">0 طلب نشط</div>
             <button class="btn btn-sm btn-secondary" onclick="fetchOrders()">🔄 تحديث</button>
-            <button class="btn btn-sm btn-ghost" onclick="location.href='/pos'">نقطة البيع</button>
+            <button id="kitchen-pos-link" class="btn btn-sm btn-ghost hidden" onclick="location.href='/pos'">نقطة البيع</button>
         </div>
     </div>
 
@@ -141,6 +141,7 @@
 @section('scripts')
 <script>
     let activeOrders = [];
+    let canMarkKitchenOrders = false;
 
     async function fetchOrders() {
         try {
@@ -208,6 +209,11 @@
     }
 
     async function markReady(orderId, status) {
+        if (!canMarkKitchenOrders) {
+            showToast('ليس لديك صلاحية لتحديث حالة الطلبات من شاشة المطبخ', 'error');
+            return;
+        }
+
         const btn = event.currentTarget;
         const originalText = btn.textContent;
         btn.disabled = true;
@@ -251,8 +257,19 @@
     }
 
     // Auth check
-    if (!requireAuth()) {
-        window.location.href = '/pos/login';
+    if (!requireAuth('/kitchen')) {
+        throw new Error('Unauthenticated');
+    }
+
+    if (!canAccessKitchenSurface()) {
+        showToast('ليس لديك صلاحية لعرض شاشة المطبخ', 'error');
+        setTimeout(() => redirectToAuthorizedHome(), 800);
+        throw new Error('Forbidden');
+    }
+
+    canMarkKitchenOrders = hasPermission('mark_order_ready');
+    if (canAccessPosSurface()) {
+        document.getElementById('kitchen-pos-link')?.classList.remove('hidden');
     }
 
     // Initial load

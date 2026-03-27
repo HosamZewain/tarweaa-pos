@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
@@ -130,6 +131,25 @@ class Order extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(OrderPayment::class);
+    }
+
+    public function discountLogs(): HasMany
+    {
+        return $this->hasMany(DiscountLog::class);
+    }
+
+    public function orderDiscountLogs(): HasMany
+    {
+        return $this->hasMany(DiscountLog::class)
+            ->where('scope', 'order')
+            ->latest('created_at');
+    }
+
+    public function latestOrderDiscountLog(): HasOne
+    {
+        return $this->hasOne(DiscountLog::class)
+            ->where('scope', 'order')
+            ->latestOfMany();
     }
 
     public function refunder(): BelongsTo

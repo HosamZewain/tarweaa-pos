@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\InventoryTransactionType;
 use App\Filament\Resources\InventoryItemResource\Pages;
 use App\Models\InventoryItem;
+use App\Services\RecipeService;
 use App\Services\InventoryService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
@@ -41,8 +42,9 @@ class InventoryItemResource extends Resource
                 Forms\Components\TextInput::make('name')->label('الاسم')->required()->maxLength(255),
                 Forms\Components\TextInput::make('sku')->label('SKU')->maxLength(50)->unique(ignoreRecord: true),
                 Forms\Components\TextInput::make('category')->label('التصنيف')->maxLength(100),
-                Forms\Components\TextInput::make('unit')->label('الوحدة')->required()->maxLength(20)->placeholder('كجم, لتر, قطعة'),
-                Forms\Components\TextInput::make('unit_cost')->label('تكلفة الوحدة')->numeric()->prefix('ج.م'),
+                Forms\Components\TextInput::make('unit')->label('وحدة الأساس')->required()->maxLength(20)->placeholder('كجم, لتر, قطعة'),
+                Forms\Components\TextInput::make('unit_cost')->label('متوسط تكلفة الوحدة')->numeric()->prefix('ج.م')
+                    ->helperText('تُستخدم هذه التكلفة في حساب تكلفة الوصفات وخصم المخزون.'),
                 Forms\Components\TextInput::make('current_stock')->label('المخزون الحالي')->numeric()->disabled()->dehydrated(false),
                 Forms\Components\TextInput::make('minimum_stock')->label('الحد الأدنى')->numeric(),
                 Forms\Components\TextInput::make('maximum_stock')->label('الحد الأقصى')->numeric(),
@@ -62,9 +64,9 @@ class InventoryItemResource extends Resource
                 Tables\Columns\TextColumn::make('category')->label('التصنيف')->sortable(),
                 Tables\Columns\TextColumn::make('current_stock')->label('المخزون')->sortable()
                     ->color(fn (InventoryItem $record) => $record->isLowStock() ? 'danger' : ($record->isOutOfStock() ? 'danger' : 'success')),
-                Tables\Columns\TextColumn::make('unit')->label('الوحدة'),
+                Tables\Columns\TextColumn::make('unit')->label('وحدة الأساس'),
                 Tables\Columns\TextColumn::make('minimum_stock')->label('الحد الأدنى'),
-                Tables\Columns\TextColumn::make('unit_cost')->label('التكلفة')->money('EGP'),
+                Tables\Columns\TextColumn::make('unit_cost')->label('متوسط التكلفة')->money('EGP'),
                 Tables\Columns\TextColumn::make('defaultSupplier.name')->label('المورد')->placeholder('—'),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
             ])

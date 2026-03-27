@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'تسجيل الدخول — طرعة POS')
+@section('title', 'تسجيل الدخول — Tarweaa POS')
 
 @section('styles')
     <style>
@@ -93,6 +93,13 @@
             min-height: 1.25rem;
             margin-top: 0.5rem;
         }
+
+        .pin-help {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
     </style>
 @endsection
 
@@ -119,7 +126,11 @@
                             <div class="pin-dot"></div>
                             <div class="pin-dot"></div>
                             <div class="pin-dot"></div>
+                            <div class="pin-dot"></div>
+                            <div class="pin-dot"></div>
                         </div>
+
+                        <div class="pin-help">أدخل رمز PIN من 4 إلى 6 أرقام ثم اضغط دخول</div>
 
                         <div class="numpad">
                             <button class="numpad-key" onclick="pinAdd('1')">١</button>
@@ -136,6 +147,11 @@
                             <button class="numpad-key numpad-back" onclick="pinBack()">⌫</button>
                         </div>
 
+                        <button class="btn btn-primary btn-lg btn-block" id="pin-submit" onclick="pinLogin()" style="margin-top: 1rem;"
+                            disabled>
+                            دخول
+                        </button>
+
                         <div class="login-error" id="pin-error"></div>
                     </div>
 
@@ -143,8 +159,8 @@
                     <div id="tab-password" class="hidden">
                         <form onsubmit="passwordLogin(event)" class="flex flex-col gap-4">
                             <div class="form-group">
-                                <label class="form-label">اسم المستخدم</label>
-                                <input type="text" id="username" class="form-input" placeholder="أدخل اسم المستخدم"
+                                <label class="form-label">اسم المستخدم أو البريد الإلكتروني</label>
+                                <input type="text" id="username" class="form-input" placeholder="أدخل اسم المستخدم أو البريد الإلكتروني"
                                     autocomplete="username">
                             </div>
                             <div class="form-group">
@@ -171,7 +187,23 @@
 
         let currentTab = 'pin';
         let pinValue = '';
-        const PIN_LENGTH = 4;
+        const PIN_MIN_LENGTH = 4;
+        const PIN_MAX_LENGTH = 6;
+
+        function getPostLoginRedirect(user) {
+            const params = new URLSearchParams(window.location.search);
+            const target = getSafeRedirectTarget(params.get('redirect'), getAuthorizedHome(user));
+
+            if (target.startsWith('/kitchen')) {
+                return canAccessKitchenSurface(user) ? target : getAuthorizedHome(user);
+            }
+
+            if (target.startsWith('/pos')) {
+                return canAccessPosSurface(user) ? target : getAuthorizedHome(user);
+            }
+
+            return getAuthorizedHome(user);
+        }
 
         function switchTab(tab) {
             currentTab = tab;
@@ -189,15 +221,17 @@
             document.querySelectorAll('#pin-dots .pin-dot').forEach((dot, i) => {
                 dot.classList.toggle('filled', i < pinValue.length);
             });
+
+            const submit = document.getElementById('pin-submit');
+            if (submit) {
+                submit.disabled = pinValue.length < PIN_MIN_LENGTH;
+            }
         }
 
         function pinAdd(digit) {
-            if (pinValue.length >= PIN_LENGTH) return;
+            if (pinValue.length >= PIN_MAX_LENGTH) return;
             pinValue += digit;
             updateDots();
-            if (pinValue.length === PIN_LENGTH) {
-                pinLogin();
-            }
         }
 
         function pinBack() {
@@ -214,7 +248,16 @@
 
         async function pinLogin() {
             const errEl = document.getElementById('pin-error');
+            const btn = document.getElementById('pin-submit');
             errEl.textContent = '';
+
+            if (pinValue.length < PIN_MIN_LENGTH) {
+                errEl.textContent = 'رمز PIN يجب أن يكون 4 أرقام على الأقل';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'جاري الدخول...';
 
             try {
                 const data = await api('/auth/pin-login', {
@@ -223,10 +266,13 @@
                 });
                 setToken(data.data.token);
                 setUser(data.data.user);
-                window.location.href = '/pos/drawer';
+                window.location.href = getPostLoginRedirect(data.data.user);
             } catch (err) {
                 errEl.textContent = err.message || 'خطأ في تسجيل الدخول';
                 pinClear();
+            } finally {
+                btn.disabled = pinValue.length < PIN_MIN_LENGTH;
+                btn.textContent = 'دخول';
             }
         }
 
@@ -249,7 +295,7 @@
                 });
                 setToken(data.data.token);
                 setUser(data.data.user);
-                window.location.href = '/pos/drawer';
+                window.location.href = getPostLoginRedirect(data.data.user);
             } catch (err) {
                 errEl.textContent = err.message || 'خطأ في تسجيل الدخول';
             } finally {

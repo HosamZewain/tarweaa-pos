@@ -2,15 +2,15 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\MenuCategory;
-use App\Models\OrderItem;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Facades\DB;
 
 class CategorySalesChartWidget extends ChartWidget
 {
-    protected ?string $heading = 'المبيعات حسب الفئة (هذا الشهر)';
+    protected ?string $heading = 'المبيعات حسب الفئة هذا الشهر';
+    protected ?string $description = 'أفضل الفئات أداءً بحسب صافي الإيراد في الشهر الحالي.';
     protected int | string | array $columnSpan = 4;
+    protected ?string $maxHeight = '320px';
 
     protected function getData(): array
     {
@@ -30,12 +30,40 @@ class CategorySalesChartWidget extends ChartWidget
                 [
                     'label' => 'المبيعات (ج.م)',
                     'data' => $stats->values()->toArray(),
+                    'borderRadius' => 10,
+                    'borderSkipped' => false,
+                    'maxBarThickness' => 26,
                     'backgroundColor' => [
                         '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'
                     ],
                 ],
             ],
             'labels' => $stats->keys()->toArray(),
+        ];
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'maintainAspectRatio' => false,
+            'plugins' => [
+                'legend' => ['display' => false],
+                'tooltip' => [
+                    'rtl' => true,
+                    'displayColors' => false,
+                ],
+            ],
+            'scales' => [
+                'x' => [
+                    'grid' => ['display' => false],
+                ],
+                'y' => [
+                    'beginAtZero' => true,
+                    'grid' => [
+                        'color' => 'rgba(148, 163, 184, 0.12)',
+                    ],
+                ],
+            ],
         ];
     }
 

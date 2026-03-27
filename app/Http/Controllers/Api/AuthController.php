@@ -17,7 +17,12 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where('username', $request->username)->first();
+        $identifier = $request->validated('username');
+
+        $user = User::query()
+            ->where('username', $identifier)
+            ->orWhere('email', $identifier)
+            ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return $this->error('بيانات الدخول غير صحيحة.', 401);
@@ -92,6 +97,8 @@ class AuthController extends Controller
             'email'       => $user->email,
             'phone'       => $user->phone,
             'is_active'   => $user->is_active,
+            'can_access_pos' => $user->canAccessPosSurface(),
+            'can_access_kitchen' => $user->canAccessKitchenSurface(),
             'roles'       => $user->roles->map(fn ($role) => [
                 'id'           => $role->id,
                 'name'         => $role->name,

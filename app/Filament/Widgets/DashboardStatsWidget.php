@@ -16,6 +16,12 @@ class DashboardStatsWidget extends StatsOverviewWidget
 {
     protected static ?int $sort = 1;
     protected int | string | array $columnSpan = 'full';
+    protected ?string $heading = 'مؤشرات التشغيل السريعة';
+    protected ?string $description = 'ملخص لحظي للمبيعات، المخزون، الوردية، والأدراج خلال اليوم والشهر الحالي.';
+    protected int | array | null $columns = [
+        'md' => 2,
+        'xl' => 3,
+    ];
 
     protected function getStats(): array
     {
@@ -31,6 +37,18 @@ class DashboardStatsWidget extends StatsOverviewWidget
 
         $todayRevenue    = (float) $todayOrders->sum('total');
         $todayOrderCount = $todayOrders->count();
+
+        $weeklyRevenueTrend = collect(range(6, 0))
+            ->map(fn (int $offset): float => (float) Order::whereDate('created_at', today()->subDays($offset))
+                ->whereNotIn('status', ['cancelled'])
+                ->sum('total'))
+            ->all();
+
+        $weeklyOrderTrend = collect(range(6, 0))
+            ->map(fn (int $offset): int => (int) Order::whereDate('created_at', today()->subDays($offset))
+                ->whereNotIn('status', ['cancelled'])
+                ->count())
+            ->all();
 
         $activeShift   = Shift::where('status', ShiftStatus::Open)->first();
         $openDrawers   = CashierDrawerSession::where('status', DrawerSessionStatus::Open)->count();
@@ -84,7 +102,9 @@ class DashboardStatsWidget extends StatsOverviewWidget
                 ->description($revenueDesc)
                 ->descriptionIcon($todayRevenue >= $yesterdayRevenue ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
                 ->color($revenueColor)
-                ->icon('heroicon-o-banknotes'),
+                ->icon('heroicon-o-banknotes')
+                ->chart($weeklyRevenueTrend)
+                ->chartColor($revenueColor),
 
             Stat::make('متوسط الطلب (اليوم)', number_format($todayAOV, 2) . ' ج.م')
                 ->description('متوسط قيمة الفاتورة')
@@ -104,7 +124,9 @@ class DashboardStatsWidget extends StatsOverviewWidget
             Stat::make('طلبات اليوم', number_format($todayOrderCount))
                 ->description('طلبات مكتملة ونشطة')
                 ->color('info')
-                ->icon('heroicon-o-shopping-cart'),
+                ->icon('heroicon-o-shopping-cart')
+                ->chart($weeklyOrderTrend)
+                ->chartColor('info'),
 
             Stat::make('مخزون منخفض', $lowStockCount)
                 ->description($lowStockCount > 0 ? "{$lowStockCount} مادة تحت الحد الأدنى" : 'المخزون في الوضع الطبيعي')
