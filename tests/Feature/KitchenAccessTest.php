@@ -14,7 +14,9 @@ class KitchenAccessTest extends TestCase
         $this->get('/kitchen')
             ->assertSuccessful()
             ->assertSee('رقم الطلب')
-            ->assertSee('اضغط Enter للتجهيز');
+            ->assertSee('اضغط Enter للتجهيز')
+            ->assertSee('Totals')
+            ->assertSee('فاتح');
     }
 
     public function test_kitchen_login_page_accepts_redirect_target(): void

@@ -8,13 +8,33 @@
 
 @section('styles')
 <style>
+    .theme-toggle-btn {
+        min-width: 110px;
+        font-weight: 700;
+    }
     .counter-shell {
         display: flex;
         flex-direction: column;
         height: 100vh;
+        color: var(--text-primary);
         background:
             radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 35%),
             linear-gradient(180deg, #11141c 0%, #0d1016 100%);
+    }
+    .counter-shell.theme-light {
+        --bg-primary: #f4f7fb;
+        --bg-secondary: #ffffff;
+        --bg-card: #ffffff;
+        --bg-card-hover: #eef2ff;
+        --bg-input: #ffffff;
+        --border: #d7deea;
+        --text-primary: #111827;
+        --text-secondary: #4b5563;
+        --text-muted: #6b7280;
+        --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        background:
+            radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 32%),
+            linear-gradient(180deg, #fbfdff 0%, #edf3fb 100%);
     }
     .counter-topbar {
         display: flex;
@@ -25,6 +45,9 @@
         border-bottom: 1px solid var(--border);
         background: rgba(19, 23, 31, 0.92);
         backdrop-filter: blur(12px);
+    }
+    .counter-shell.theme-light .counter-topbar {
+        background: rgba(255, 255, 255, 0.94);
     }
     .counter-title {
         display: flex;
@@ -64,6 +87,9 @@
         border-radius: 999px;
         padding: 0.45rem 0.8rem;
         min-width: 340px;
+    }
+    .counter-shell.theme-light .counter-keypad-box {
+        background: #ffffff;
     }
     .counter-keypad-label {
         color: var(--text-secondary);
@@ -105,6 +131,9 @@
         padding: 1rem 1.1rem;
         box-shadow: var(--shadow);
     }
+    .counter-shell.theme-light .counter-stat {
+        background: rgba(255, 255, 255, 0.96);
+    }
     .counter-stat__label {
         color: var(--text-secondary);
         font-size: 0.85rem;
@@ -140,6 +169,13 @@
         overflow: hidden;
         box-shadow: var(--shadow);
     }
+    .counter-shell.theme-light .counter-card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(244, 247, 251, 0.98));
+    }
+    .counter-shell.theme-light .counter-lane-badge {
+        color: #4338ca;
+        background: rgba(79, 70, 229, 0.12);
+    }
     .counter-card.ready {
         border-color: rgba(34, 197, 94, 0.55);
         box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.16), var(--shadow);
@@ -163,12 +199,19 @@
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         background: rgba(255, 255, 255, 0.02);
     }
+    .counter-shell.theme-light .counter-card__header {
+        border-bottom-color: rgba(15, 23, 42, 0.08);
+        background: rgba(79, 70, 229, 0.04);
+    }
     .counter-number {
         font-size: 3.3rem;
         font-weight: 900;
         line-height: 1;
         color: #ffffff;
         letter-spacing: 0.02em;
+    }
+    .counter-shell.theme-light .counter-number {
+        color: #111827;
     }
     .counter-order-ref {
         margin-top: 0.35rem;
@@ -250,6 +293,10 @@
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 14px;
     }
+    .counter-shell.theme-light .counter-meta-cell {
+        background: rgba(15, 23, 42, 0.03);
+        border-color: rgba(15, 23, 42, 0.06);
+    }
     .counter-meta-cell__label {
         color: var(--text-secondary);
         font-size: 0.78rem;
@@ -284,6 +331,15 @@
         border: 1px solid rgba(255, 255, 255, 0.06);
         font-size: 0.82rem;
         font-weight: 700;
+    }
+    .counter-shell.theme-light .counter-item-chip {
+        background: rgba(15, 23, 42, 0.04);
+        color: #1f2937;
+        border-color: rgba(15, 23, 42, 0.08);
+    }
+    .counter-shell.theme-light .counter-priority-badge {
+        color: #b45309;
+        background: rgba(245, 158, 11, 0.18);
     }
     .counter-item-chip__qty {
         color: var(--accent-hover);
@@ -374,6 +430,7 @@
                 <span class="w-2 h-2 rounded-full bg-success"></span>
                 متصل
             </div>
+            <button id="counter-theme-toggle" type="button" class="btn btn-sm btn-ghost theme-toggle-btn">☀️ فاتح</button>
             <button class="btn btn-sm btn-secondary" onclick="fetchCounterOrders(true)">🔄 تحديث</button>
             <button id="counter-pos-link" class="btn btn-sm btn-ghost hidden" onclick="location.href='/pos'">نقطة البيع</button>
         </div>
@@ -410,6 +467,7 @@
 
 @section('scripts')
 <script>
+    const OPS_THEME_KEY = 'tarweaa_ops_surface_theme';
     const COUNTER_LANE = @json($lane);
     const COUNTER_REDIRECT = `/counter-screen/${COUNTER_LANE}`;
     let counterOrders = [];
@@ -417,8 +475,26 @@
     let counterRefreshTimer = null;
     let selectedCounterOrderId = null;
 
+    const counterScreen = document.querySelector('.counter-shell');
     const counterOrderInput = document.getElementById('counter-order-input');
     const counterKeypadStatus = document.getElementById('counter-keypad-status');
+    const counterThemeToggle = document.getElementById('counter-theme-toggle');
+
+    function applyCounterTheme(theme) {
+        const isLight = theme === 'light';
+
+        counterScreen.classList.toggle('theme-light', isLight);
+        document.body.style.background = isLight ? '#edf3fb' : '#0f1117';
+        document.body.style.color = isLight ? '#111827' : '#e4e6eb';
+        counterThemeToggle.textContent = isLight ? '🌙 داكن' : '☀️ فاتح';
+        counterThemeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+    }
+
+    function toggleCounterTheme() {
+        const nextTheme = counterScreen.classList.contains('theme-light') ? 'dark' : 'light';
+        localStorage.setItem(OPS_THEME_KEY, nextTheme);
+        applyCounterTheme(nextTheme);
+    }
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -727,6 +803,8 @@
     if (canAccessPosSurface()) {
         document.getElementById('counter-pos-link')?.classList.remove('hidden');
     }
+    applyCounterTheme(localStorage.getItem(OPS_THEME_KEY) || 'dark');
+    counterThemeToggle?.addEventListener('click', toggleCounterTheme);
 
     counterOrderInput?.addEventListener('input', () => {
         counterOrderInput.value = counterOrderInput.value.replace(/[^\d]/g, '');

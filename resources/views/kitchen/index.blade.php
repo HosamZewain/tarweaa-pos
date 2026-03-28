@@ -4,14 +4,144 @@
 
 @section('styles')
 <style>
+    .theme-toggle-btn {
+        min-width: 110px;
+        font-weight: 700;
+    }
+    .kitchen-screen {
+        color: var(--text-primary);
+        min-height: 100dvh;
+    }
+    .kitchen-screen.theme-light {
+        --bg-primary: #f4f7fb;
+        --bg-secondary: #ffffff;
+        --bg-card: #ffffff;
+        --bg-card-hover: #eef2ff;
+        --bg-input: #ffffff;
+        --border: #d7deea;
+        --border-focus: rgba(99, 102, 241, 0.45);
+        --text-primary: #111827;
+        --text-secondary: #4b5563;
+        --text-muted: #6b7280;
+        --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        --danger-bg: #fef2f2;
+    }
+    .kitchen-screen.theme-light {
+        background:
+            radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 32%),
+            linear-gradient(180deg, #f8fbff 0%, #eef3f9 100%);
+    }
+    .kitchen-screen.theme-light .order-header {
+        background: rgba(79, 70, 229, 0.04);
+    }
+    .kitchen-screen.theme-light .order-footer {
+        background: rgba(15, 23, 42, 0.04);
+    }
+    .kitchen-screen.theme-light .order-card,
+    .kitchen-screen.theme-light .kitchen-totals,
+    .kitchen-screen.theme-light .kitchen-keypad-box {
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    .kitchen-screen.theme-light .item-note {
+        color: #b91c1c;
+        border-color: rgba(239, 68, 68, 0.12);
+    }
+    .kitchen-screen.theme-light .item-main,
+    .kitchen-screen.theme-light .kitchen-totals__title,
+    .kitchen-screen.theme-light .kitchen-total-row__name {
+        color: #111827;
+    }
+    .kitchen-screen.theme-light .order-priority-badge {
+        color: #b45309;
+        background: rgba(245, 158, 11, 0.18);
+    }
+    .kitchen-screen.theme-light #order-count {
+        background: #ffffff;
+        color: #1f2937;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    .kitchen-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .kitchen-main {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
     .kitchen-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 1.5rem;
         padding: 1.5rem;
-        height: calc(100vh - 80px);
+        height: 100%;
         overflow-y: auto;
         align-content: start;
+    }
+    .kitchen-totals {
+        border-inline-start: 1px solid var(--border);
+        background: var(--bg-secondary);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .kitchen-totals__header {
+        padding: 1.2rem 1rem 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .kitchen-totals__title {
+        font-size: 1rem;
+        font-weight: 800;
+        margin: 0;
+    }
+    .kitchen-totals__subtitle {
+        margin-top: 0.35rem;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
+    .kitchen-totals__list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.85rem 0.85rem 1rem;
+    }
+    .kitchen-totals__empty {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        text-align: center;
+        padding: 1rem 0.5rem;
+    }
+    .kitchen-total-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-card);
+    }
+    .kitchen-total-row + .kitchen-total-row {
+        margin-top: 0.55rem;
+    }
+    .kitchen-total-row__name {
+        font-size: 0.92rem;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+    .kitchen-total-row__qty {
+        min-width: 42px;
+        text-align: center;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(99, 102, 241, 0.14);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        color: var(--accent);
+        font-size: 0.95rem;
+        font-weight: 800;
     }
     .order-card {
         background: var(--bg-card);
@@ -183,6 +313,22 @@
         font-weight: 800;
     }
     @media (max-width: 960px) {
+        .kitchen-layout {
+            grid-template-columns: 1fr;
+            overflow: auto;
+        }
+        .kitchen-main {
+            overflow: visible;
+        }
+        .kitchen-grid {
+            height: auto;
+            overflow: visible;
+        }
+        .kitchen-totals {
+            border-inline-start: none;
+            border-top: 1px solid var(--border);
+            min-height: 260px;
+        }
         .kitchen-topbar {
             height: auto;
             align-items: stretch;
@@ -198,7 +344,7 @@
 @endsection
 
 @section('content')
-<div class="flex flex-col h-screen">
+<div id="kitchen-screen" class="kitchen-screen flex flex-col h-screen">
     <div class="kitchen-topbar">
         <div class="kitchen-toolbar">
             <h1 class="text-xl font-bold">👨‍🍳 شاشة المطبخ</h1>
@@ -223,29 +369,63 @@
         </div>
         <div class="flex items-center gap-2">
             <div id="order-count" class="text-sm font-medium bg-bg-card px-3 py-1 rounded-full border border-border">0 طلب نشط</div>
+            <button id="kitchen-theme-toggle" type="button" class="btn btn-sm btn-ghost theme-toggle-btn">☀️ فاتح</button>
             <button class="btn btn-sm btn-secondary" onclick="fetchOrders()">🔄 تحديث</button>
             <button id="kitchen-pos-link" class="btn btn-sm btn-ghost hidden" onclick="location.href='/pos'">نقطة البيع</button>
         </div>
     </div>
 
-    <div id="orders-container" class="kitchen-grid">
-        {{-- Filled by JS --}}
-        <div class="empty-state">
-            <div class="spinner mb-4"></div>
-            <p>جاري تحميل الطلبات...</p>
+    <div class="kitchen-layout">
+        <div class="kitchen-main">
+            <div id="orders-container" class="kitchen-grid">
+                {{-- Filled by JS --}}
+                <div class="empty-state">
+                    <div class="spinner mb-4"></div>
+                    <p>جاري تحميل الطلبات...</p>
+                </div>
+            </div>
         </div>
+        <aside class="kitchen-totals">
+            <div class="kitchen-totals__header">
+                <h2 class="kitchen-totals__title">Totals</h2>
+                <p class="kitchen-totals__subtitle">إجمالي كميات الأصناف الموجودة حاليًا في جميع طلبات المطبخ.</p>
+            </div>
+            <div id="kitchen-totals-list" class="kitchen-totals__list">
+                <div class="kitchen-totals__empty">جاري حساب الإجماليات...</div>
+            </div>
+        </aside>
     </div>
 </div>
 @endsection
 
 @section('scripts')
 <script>
+    const OPS_THEME_KEY = 'tarweaa_ops_surface_theme';
     let activeOrders = [];
     let canMarkKitchenOrders = false;
     let selectedKitchenOrderId = null;
 
+    const kitchenScreen = document.getElementById('kitchen-screen');
     const orderInput = document.getElementById('kitchen-order-input');
     const keypadStatus = document.getElementById('kitchen-keypad-status');
+    const kitchenTotalsList = document.getElementById('kitchen-totals-list');
+    const kitchenThemeToggle = document.getElementById('kitchen-theme-toggle');
+
+    function applyKitchenTheme(theme) {
+        const isLight = theme === 'light';
+
+        kitchenScreen.classList.toggle('theme-light', isLight);
+        document.body.style.background = isLight ? '#eef3f9' : '#0f1117';
+        document.body.style.color = isLight ? '#111827' : '#e4e6eb';
+        kitchenThemeToggle.textContent = isLight ? '🌙 داكن' : '☀️ فاتح';
+        kitchenThemeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+    }
+
+    function toggleKitchenTheme() {
+        const nextTheme = kitchenScreen.classList.contains('theme-light') ? 'dark' : 'light';
+        localStorage.setItem(OPS_THEME_KEY, nextTheme);
+        applyKitchenTheme(nextTheme);
+    }
 
     async function fetchOrders() {
         try {
@@ -281,6 +461,7 @@
                     <p class="text-sm opacity-50">سيظهر أي طلب جديد هنا فور تأكيده</p>
                 </div>
             `;
+            renderKitchenTotals([]);
             return;
         }
 
@@ -326,12 +507,59 @@
             </div>
         `).join('');
 
+        renderKitchenTotals(activeOrders);
+
         if (selectedKitchenOrderId) {
             document.getElementById(`order-${selectedKitchenOrderId}`)?.scrollIntoView({
                 behavior: 'smooth',
                 block: 'center',
             });
         }
+    }
+
+    function getKitchenItemTotals(orders) {
+        const totals = new Map();
+
+        orders.forEach((order) => {
+            (order.items || []).forEach((item) => {
+                const label = `${item.item_name || ''}${item.variant_name ? ` (${item.variant_name})` : ''}`.trim();
+                const quantity = Number(item.quantity || 0);
+
+                if (!label || quantity <= 0) {
+                    return;
+                }
+
+                totals.set(label, (totals.get(label) || 0) + quantity);
+            });
+        });
+
+        return Array.from(totals.entries())
+            .map(([name, quantity]) => ({ name, quantity }))
+            .sort((left, right) => {
+                if (right.quantity === left.quantity) {
+                    return left.name.localeCompare(right.name, 'ar');
+                }
+
+                return right.quantity - left.quantity;
+            });
+    }
+
+    function renderKitchenTotals(orders) {
+        const totals = getKitchenItemTotals(orders);
+
+        if (totals.length === 0) {
+            kitchenTotalsList.innerHTML = `
+                <div class="kitchen-totals__empty">لا توجد أصناف نشطة في المطبخ حاليًا.</div>
+            `;
+            return;
+        }
+
+        kitchenTotalsList.innerHTML = totals.map((item) => `
+            <div class="kitchen-total-row">
+                <div class="kitchen-total-row__name">${item.name}</div>
+                <div class="kitchen-total-row__qty">${item.quantity}</div>
+            </div>
+        `).join('');
     }
 
     function getKitchenOrderById(orderId) {
@@ -494,6 +722,8 @@
     if (canAccessPosSurface()) {
         document.getElementById('kitchen-pos-link')?.classList.remove('hidden');
     }
+    applyKitchenTheme(localStorage.getItem(OPS_THEME_KEY) || 'dark');
+    kitchenThemeToggle?.addEventListener('click', toggleKitchenTheme);
 
     orderInput?.addEventListener('input', () => {
         orderInput.value = orderInput.value.replace(/[^\d]/g, '');

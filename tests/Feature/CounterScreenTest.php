@@ -30,7 +30,8 @@ class CounterScreenTest extends TestCase
             ->assertSee('شاشة التسليم والاستلام')
             ->assertSee('شاشة الفردية')
             ->assertSee('رقم الطلب')
-            ->assertSee('اضغط Enter للتسليم');
+            ->assertSee('اضغط Enter للتسليم')
+            ->assertSee('فاتح');
 
         $this->get('/pos/login?redirect=%2Fcounter-screen%2Fodd')
             ->assertSuccessful();
