@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Order\AddItemRequest;
 use App\Http\Requests\Order\ApplyDiscountRequest;
+use App\Http\Requests\Order\ApplyOrderSettlementRequest;
 use App\Http\Requests\Order\CancelOrderRequest;
 use App\Http\Requests\Order\CreateExternalOrderRequest;
 use App\Http\Requests\Order\CreateOrderRequest;
@@ -19,6 +20,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Services\DiscountApprovalService;
 use App\Services\OrderCreationService;
+use App\Services\OrderSettlementService;
 use App\Services\OrderPaymentService;
 use App\Services\OrderLifecycleService;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +31,7 @@ class OrderController extends Controller
     public function __construct(
         private readonly OrderCreationService $orderCreationService,
         private readonly OrderPaymentService $orderPaymentService,
+        private readonly OrderSettlementService $orderSettlementService,
         private readonly OrderLifecycleService $orderLifecycleService,
         private readonly DiscountApprovalService $discountApprovalService,
     ) {}
@@ -77,6 +80,10 @@ class OrderController extends Controller
             'shift:id,shift_number',
             'drawerSession:id,session_number',
             'posDevice:id,name',
+            'settlement.lines.orderItem:id,order_id,item_name,quantity,total',
+            'settlement.lines.menuItem:id,name',
+            'settlement.beneficiaryUser:id,name',
+            'settlement.chargeAccountUser:id,name',
         ]);
 
         return $this->success($order);
@@ -166,6 +173,35 @@ class OrderController extends Controller
         $order = $this->orderPaymentService->processPayment($order, $payments, $request->user()->id);
 
         return $this->success($order, 'تم الدفع بنجاح');
+    }
+
+    public function applySettlement(ApplyOrderSettlementRequest $request, Order $order): JsonResponse
+    {
+        $validated = $request->validated();
+        $scenario = $validated['scenario'];
+
+        $order = match ($scenario) {
+            'owner_charge' => $this->orderSettlementService->applyOwnerCharge(
+                order: $order,
+                chargeAccount: \App\Models\User::findOrFail((int) $validated['charge_account_user_id']),
+                actorId: $request->user()->id,
+                notes: $validated['notes'] ?? null,
+            ),
+            'employee_allowance' => $this->orderSettlementService->applyEmployeeMonthlyAllowance(
+                order: $order,
+                employee: \App\Models\User::findOrFail((int) $validated['user_id']),
+                actorId: $request->user()->id,
+                notes: $validated['notes'] ?? null,
+            ),
+            'employee_free_meal' => $this->orderSettlementService->applyEmployeeFreeMealBenefit(
+                order: $order,
+                employee: \App\Models\User::findOrFail((int) $validated['user_id']),
+                actorId: $request->user()->id,
+                notes: $validated['notes'] ?? null,
+            ),
+        };
+
+        return $this->success($order, 'تم تطبيق تسوية الطلب بنجاح');
     }
 
     /**

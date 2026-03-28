@@ -17,6 +17,7 @@ class CreateOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'pos_order_type_id'     => ['nullable', 'integer', Rule::exists('pos_order_types', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'))],
             'type'                  => ['required', Rule::in(array_column(OrderType::cases(), 'value'))],
             'source'                => ['nullable', Rule::in(array_column(OrderSource::cases(), 'value'))],
             'customer_id'           => ['nullable', 'integer', 'exists:customers,id'],
@@ -37,6 +38,7 @@ class CreateOrderRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'pos_order_type_id.exists' => 'نوع الطلب المحدد غير موجود أو غير نشط.',
             'type.required'     => 'نوع الطلب مطلوب.',
             'type.in'           => 'نوع الطلب غير صالح.',
             'customer_id.exists' => 'العميل المحدد غير موجود.',

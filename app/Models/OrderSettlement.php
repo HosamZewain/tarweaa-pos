@@ -12,6 +12,8 @@ class OrderSettlement extends Model
 {
     use HasAuditFields;
 
+    protected $appends = ['settlement_type_label'];
+
     protected $fillable = [
         'order_id',
         'settlement_type',
@@ -48,5 +50,17 @@ class OrderSettlement extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(OrderSettlementLine::class);
+    }
+
+    public function eligibleItemsTotal(): float
+    {
+        $this->loadMissing('lines');
+
+        return round((float) $this->lines->sum('eligible_amount'), 2);
+    }
+
+    public function getSettlementTypeLabelAttribute(): string
+    {
+        return $this->settlement_type?->label() ?? '—';
     }
 }

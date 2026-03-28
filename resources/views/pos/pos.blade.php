@@ -138,12 +138,14 @@
 
     /* ═══ Payment Modal ═══ */
     .pay-methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+    .pay-methods.extended { grid-template-columns: repeat(3, 1fr); }
     .pay-method {
         padding: 0.75rem; border-radius: var(--radius); border: 2px solid var(--border);
         background: var(--bg-card); text-align: center; cursor: pointer;
         font-weight: 600; font-size: 0.9rem; transition: all 0.15s;
     }
     .pay-method.active { border-color: var(--accent); background: rgba(99, 102, 241, 0.1); }
+    .pay-method.special { border-style: dashed; }
     .pay-amount-section { margin-bottom: 1rem; }
     .pay-card-section {
         margin-bottom: 1rem;
@@ -183,6 +185,45 @@
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 0.5rem;
+    }
+    .settlement-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+    .settlement-meta-pill {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-card);
+        padding: 0.65rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    .settlement-meta-pill strong {
+        display: block;
+        margin-top: 0.2rem;
+        color: var(--text-primary);
+    }
+    .pay-difference-methods {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .pay-difference-method {
+        padding: 0.75rem;
+        border-radius: var(--radius);
+        border: 2px solid var(--border);
+        background: var(--bg-card);
+        text-align: center;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.88rem;
+        transition: all 0.15s;
+    }
+    .pay-difference-method.active {
+        border-color: var(--accent);
+        background: rgba(99, 102, 241, 0.1);
     }
     .change-display { text-align: center; padding: 0.75rem; border-radius: var(--radius); margin-bottom: 1rem; }
     .change-display.positive { background: var(--success-bg); color: var(--success); }
@@ -314,6 +355,7 @@
             border-right: none;
             border-top: 1px solid var(--border);
         }
+        .pay-methods.extended { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .pay-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 </style>
@@ -406,9 +448,69 @@
             <span>المطلوب</span><span class="val" id="pm-total">0.00 ج.م</span>
         </div>
 
-        <div class="pay-methods">
+        <div class="pay-methods" id="pay-methods-grid">
             <div class="pay-method active" data-method="cash" onclick="selectPayMethod('cash')">💵 نقدي</div>
             <div class="pay-method" data-method="card" onclick="selectPayMethod('card')">💳 بطاقة</div>
+            <div class="pay-method special hidden" data-method="owner_charge" data-special-method onclick="selectPayMethod('owner_charge')">🧾 تحميل مالك/إدارة</div>
+            <div class="pay-method special hidden" data-method="employee_allowance" data-special-method onclick="selectPayMethod('employee_allowance')">👤 بدل موظف</div>
+            <div class="pay-method special hidden" data-method="employee_free_meal" data-special-method onclick="selectPayMethod('employee_free_meal')">🍽️ وجبة موظف</div>
+        </div>
+
+        <div class="config-section hidden" id="special-settlement-section">
+            <div class="config-section-title" id="special-settlement-title">تسوية خاصة</div>
+            <div class="config-help" id="special-settlement-help">اختر المستفيد أو الحساب المطلوب ثم راجع الغطاء من النظام.</div>
+            <div class="form-group mb-3">
+                <label class="form-label" id="special-settlement-person-label">الحساب / الموظف</label>
+                <select id="special-settlement-user" class="form-input" onchange="handleSettlementPersonChange()">
+                    <option value="">اختر من القائمة</option>
+                </select>
+            </div>
+            <div class="pay-preview-card" id="special-settlement-preview">
+                <div class="pay-preview-row">
+                    <span>إجمالي الطلب</span>
+                    <strong id="settlement-total-preview">0.00 ج.م</strong>
+                </div>
+                <div class="pay-preview-row muted">
+                    <span>إجمالي الأصناف المؤهلة</span>
+                    <strong id="settlement-eligible-preview">—</strong>
+                </div>
+                <div class="pay-preview-row">
+                    <span>المبلغ المغطى</span>
+                    <strong id="settlement-covered-preview">0.00 ج.م</strong>
+                </div>
+                <div class="pay-preview-row emphasis">
+                    <span>المتبقي للتحصيل</span>
+                    <strong id="settlement-remaining-preview">0.00 ج.م</strong>
+                </div>
+            </div>
+            <div class="settlement-meta-grid">
+                <div class="settlement-meta-pill hidden" id="settlement-allowance-pill">
+                    الرصيد الشهري المتبقي
+                    <strong id="settlement-allowance-remaining">—</strong>
+                </div>
+                <div class="settlement-meta-pill hidden" id="settlement-free-meal-amount-pill">
+                    رصيد مبلغ الوجبة المتبقي
+                    <strong id="settlement-free-meal-amount-remaining">—</strong>
+                </div>
+                <div class="settlement-meta-pill hidden" id="settlement-free-meal-count-pill">
+                    عدد الوجبات المتبقي
+                    <strong id="settlement-free-meal-count-remaining">—</strong>
+                </div>
+                <div class="settlement-meta-pill hidden" id="settlement-covered-meals-pill">
+                    الوجبات المغطاة في هذا الطلب
+                    <strong id="settlement-covered-meals-count">—</strong>
+                </div>
+            </div>
+            <div class="pay-preview-help" id="special-settlement-preview-help">اختر الحساب أو الموظف لاحتساب التسوية.</div>
+        </div>
+
+        <div class="config-section hidden" id="settlement-difference-section">
+            <div class="config-section-title">تحصيل المتبقي</div>
+            <div class="config-help">إذا كان جزء من الطلب غير مغطى، اختر طريقة دفع الفرق فقط.</div>
+            <div class="pay-difference-methods">
+                <div class="pay-difference-method active" data-method="cash" onclick="selectDifferencePayMethod('cash')">💵 المتبقي نقدي</div>
+                <div class="pay-difference-method" data-method="card" onclick="selectDifferencePayMethod('card')">💳 المتبقي بطاقة</div>
+            </div>
         </div>
 
         <div class="pay-amount-section" id="pay-cash-section">
@@ -718,6 +820,14 @@
     let paymentTerminals = [];
     let currentCardPreview = null;
     let lastPaidOrder = null;
+    let specialSettlementCandidates = {
+        owner_charge: [],
+        employee_allowance: [],
+        employee_free_meal: [],
+    };
+    let currentSettlementPreview = null;
+    let selectedSettlementPersonId = null;
+    let selectedDifferencePayMethod = 'cash';
 
     function userHasPermission(permission) {
         if (Array.isArray(currentUser.roles) && currentUser.roles.some((role) => role.name === 'admin')) {
@@ -733,6 +843,30 @@
 
     function isCashierOnlyUser() {
         return userHasRole('cashier') && !userHasRole('admin') && !userHasRole('manager');
+    }
+
+    function canUseSpecialSettlement() {
+        return userHasPermission('orders.apply_special_settlement');
+    }
+
+    function isSpecialSettlementMethod(method) {
+        return ['owner_charge', 'employee_allowance', 'employee_free_meal'].includes(method);
+    }
+
+    function getCurrentPayableAmount() {
+        if (isSpecialSettlementMethod(selectedPayMethod)) {
+            return Number.parseFloat(currentSettlementPreview?.remaining_payable_amount || 0);
+        }
+
+        return getTotal();
+    }
+
+    function getCurrentPaymentMethodForCollection() {
+        if (isSpecialSettlementMethod(selectedPayMethod)) {
+            return getCurrentPayableAmount() > 0 ? selectedDifferencePayMethod : null;
+        }
+
+        return selectedPayMethod;
     }
 
     function canViewLiveSessionStats() {
@@ -788,6 +922,7 @@
     function buildReceiptHtml(order, { shouldOpenDrawer = false } = {}) {
         const items = Array.isArray(order?.items) ? order.items : [];
         const payments = Array.isArray(order?.payments) ? order.payments : [];
+        const settlement = order?.settlement || null;
         const primaryPayment = payments[0] || null;
         const customerName = order?.customer_name || order?.customer?.name || 'عميل نقدي';
         const customerPhone = order?.customer_phone || order?.customer?.phone || '';
@@ -909,6 +1044,13 @@
             ${payment?.terminal?.name ? `<div class="row"><span>الجهاز</span><strong>${escapeReceiptHtml(payment.terminal.name)}</strong></div>` : ''}
             ${payment?.reference_number ? `<div class="row"><span>المرجع</span><strong>${escapeReceiptHtml(payment.reference_number)}</strong></div>` : ''}
         `).join('')}
+        ${settlement ? `
+            <div class="row"><span>نوع التسوية</span><strong>${escapeReceiptHtml(settlement?.settlement_type_label || settlement?.settlement_type || '—')}</strong></div>
+            ${settlement?.charge_account_user?.name ? `<div class="row"><span>على حساب</span><strong>${escapeReceiptHtml(settlement.charge_account_user.name)}</strong></div>` : ''}
+            ${settlement?.beneficiary_user?.name ? `<div class="row"><span>المستفيد</span><strong>${escapeReceiptHtml(settlement.beneficiary_user.name)}</strong></div>` : ''}
+            <div class="row"><span>المغطى</span><strong>${escapeReceiptHtml(moneyValue(settlement?.covered_amount || 0))} ج.م</strong></div>
+            <div class="row"><span>المتبقي</span><strong>${escapeReceiptHtml(moneyValue(settlement?.remaining_payable_amount || 0))} ج.م</strong></div>
+        ` : ''}
         <div class="row"><span>المبلغ المدفوع</span><strong>${escapeReceiptHtml(moneyValue(order?.paid_amount || 0))} ج.م</strong></div>
         <div class="row"><span>الباقي</span><strong>${escapeReceiptHtml(moneyValue(order?.change_amount || 0))} ج.م</strong></div>
 
@@ -1110,7 +1252,8 @@
             }
 
             if (orderTypes.length > 0) {
-                selectType(orderTypes[0].id, { silent: true, closeModal: false });
+                const defaultOrderType = orderTypes.find((type) => Boolean(type.is_default)) || orderTypes[0];
+                selectType(defaultOrderType.id, { silent: true, closeModal: false });
             }
 
             const menuRes = await api('/pos/menu');
@@ -1142,9 +1285,9 @@
                 <div class="config-option-info">
                     <input type="radio" name="order-type" ${selectedOrderType?.id === type.id ? 'checked' : ''}
                            onclick="selectType(${type.id})">
-                    <div>
-                        <div class="font-bold">${escapeHtml(type.name)}</div>
-                        <div class="text-xs text-muted">${escapeHtml(type.type)} / ${escapeHtml(type.source)}</div>
+                        <div>
+                            <div class="font-bold">${escapeHtml(type.name)}</div>
+                        <div class="text-xs text-muted">${escapeHtml(type.type)} / ${escapeHtml(type.source)}${type.is_default ? ' / افتراضي' : ''}</div>
                     </div>
                 </div>
             </label>
@@ -1756,7 +1899,7 @@
 
     function renderPayShortcuts() {
         const shortcuts = document.getElementById('pay-shortcuts');
-        const total = getTotal();
+        const total = getCurrentPayableAmount();
 
         shortcuts.innerHTML = buildPayShortcutAmounts(total).map((amount, index) => `
             <button type="button" class="pay-shortcut" onclick="setPayAmount(${amount})">
@@ -1773,10 +1916,183 @@
 
     function resetCardPaymentPreview() {
         currentCardPreview = null;
-        document.getElementById('card-paid-preview').textContent = money(getTotal());
+        document.getElementById('card-paid-preview').textContent = money(getCurrentPayableAmount());
         document.getElementById('card-fee-preview').textContent = '—';
         document.getElementById('card-net-preview').textContent = '—';
         document.getElementById('card-preview-help').textContent = 'اختر جهاز الدفع لعرض الرسوم وصافي التسوية.';
+    }
+
+    function getCartItemsPayload() {
+        return cart.map((item) => ({
+            menu_item_id: item.menuItem.id,
+            quantity: item.qty,
+            variant_id: item.variant?.id || null,
+            modifiers: Object.fromEntries((item.modifiers || []).map((modifier) => [modifier.id, modifier.quantity])),
+            discount_amount: 0,
+        }));
+    }
+
+    function getOrderDiscountPayload() {
+        return {
+            discount_type: currentOrderDiscount?.type || null,
+            discount_value: Number.parseFloat(currentOrderDiscount?.value || 0),
+        };
+    }
+
+    function resetSpecialSettlementState() {
+        currentSettlementPreview = null;
+        selectedSettlementPersonId = null;
+        selectedDifferencePayMethod = 'cash';
+        document.getElementById('special-settlement-user').value = '';
+        document.getElementById('special-settlement-user').innerHTML = '<option value="">اختر من القائمة</option>';
+        document.getElementById('settlement-total-preview').textContent = money(getTotal());
+        document.getElementById('settlement-eligible-preview').textContent = '—';
+        document.getElementById('settlement-covered-preview').textContent = money(0);
+        document.getElementById('settlement-remaining-preview').textContent = money(0);
+        document.getElementById('special-settlement-preview-help').textContent = 'اختر الحساب أو الموظف لاحتساب التسوية.';
+        ['settlement-allowance-pill', 'settlement-free-meal-amount-pill', 'settlement-free-meal-count-pill', 'settlement-covered-meals-pill']
+            .forEach((id) => document.getElementById(id).classList.add('hidden'));
+        document.querySelectorAll('.pay-difference-method').forEach((element) => {
+            element.classList.toggle('active', element.dataset.method === 'cash');
+        });
+    }
+
+    function renderSpecialSettlementUsers() {
+        const select = document.getElementById('special-settlement-user');
+        const scenario = selectedPayMethod;
+        const users = specialSettlementCandidates[scenario] || [];
+
+        select.innerHTML = `
+            <option value="">اختر من القائمة</option>
+            ${users.map((user) => `
+                <option value="${user.id}">
+                    ${escapeHtml(user.name)}${user.phone ? ` — ${escapeHtml(user.phone)}` : ''}
+                </option>
+            `).join('')}
+        `;
+
+        if (selectedSettlementPersonId && users.some((user) => String(user.id) === String(selectedSettlementPersonId))) {
+            select.value = String(selectedSettlementPersonId);
+        }
+    }
+
+    async function loadSpecialSettlementUsers(force = false) {
+        if (!isSpecialSettlementMethod(selectedPayMethod)) {
+            return [];
+        }
+
+        if (!force && (specialSettlementCandidates[selectedPayMethod] || []).length) {
+            renderSpecialSettlementUsers();
+            return specialSettlementCandidates[selectedPayMethod];
+        }
+
+        const response = await api(`/pos/settlement-users?scenario=${encodeURIComponent(selectedPayMethod)}`);
+        specialSettlementCandidates[selectedPayMethod] = response?.data || [];
+        renderSpecialSettlementUsers();
+
+        return specialSettlementCandidates[selectedPayMethod];
+    }
+
+    function renderSettlementPreview() {
+        const preview = currentSettlementPreview;
+
+        document.getElementById('settlement-total-preview').textContent = money(preview?.commercial_total_amount || getTotal());
+        document.getElementById('settlement-eligible-preview').textContent = preview ? money(preview.eligible_items_total || 0) : '—';
+        document.getElementById('settlement-covered-preview').textContent = money(preview?.covered_amount || 0);
+        document.getElementById('settlement-remaining-preview').textContent = money(preview?.remaining_payable_amount || 0);
+        document.getElementById('special-settlement-preview-help').textContent = preview?.message || 'اختر الحساب أو الموظف لاحتساب التسوية.';
+
+        const allowancePill = document.getElementById('settlement-allowance-pill');
+        const freeMealAmountPill = document.getElementById('settlement-free-meal-amount-pill');
+        const freeMealCountPill = document.getElementById('settlement-free-meal-count-pill');
+        const coveredMealsPill = document.getElementById('settlement-covered-meals-pill');
+
+        allowancePill.classList.toggle('hidden', !(preview && preview.monthly_allowance_remaining !== undefined));
+        freeMealAmountPill.classList.toggle('hidden', !(preview && preview.free_meal_amount_remaining !== undefined));
+        freeMealCountPill.classList.toggle('hidden', !(preview && preview.free_meal_count_remaining !== undefined));
+        coveredMealsPill.classList.toggle('hidden', !(preview && preview.covered_meals_count !== undefined));
+
+        document.getElementById('settlement-allowance-remaining').textContent = money(preview?.monthly_allowance_remaining || 0);
+        document.getElementById('settlement-free-meal-amount-remaining').textContent = money(preview?.free_meal_amount_remaining || 0);
+        document.getElementById('settlement-free-meal-count-remaining').textContent = String(preview?.free_meal_count_remaining || 0);
+        document.getElementById('settlement-covered-meals-count').textContent = String(preview?.covered_meals_count || 0);
+
+        document.getElementById('settlement-difference-section').classList.toggle(
+            'hidden',
+            !(preview && preview.can_apply && Number.parseFloat(preview.remaining_payable_amount || 0) > 0)
+        );
+
+        renderPayShortcuts();
+        resetCardPaymentPreview();
+
+        if (preview && Number.parseFloat(preview.remaining_payable_amount || 0) > 0) {
+            setPayAmount(getCurrentPayableAmount());
+            setDifferencePayMethod(selectedDifferencePayMethod);
+        } else {
+            document.getElementById('pay-cash-section').style.display = 'none';
+            document.getElementById('pay-card-section').classList.add('hidden');
+            document.getElementById('pay-amount').value = '';
+            document.getElementById('change-display').textContent = 'الباقي: 0.00 ج.م';
+            document.getElementById('change-display').className = 'change-display zero';
+        }
+    }
+
+    async function refreshSettlementPreview() {
+        if (!isSpecialSettlementMethod(selectedPayMethod) || !selectedSettlementPersonId) {
+            currentSettlementPreview = null;
+            renderSettlementPreview();
+            return;
+        }
+
+        const payload = {
+            scenario: selectedPayMethod,
+            items: getCartItemsPayload(),
+            tax_rate: TAX_RATE,
+            ...getOrderDiscountPayload(),
+        };
+
+        if (selectedPayMethod === 'owner_charge') {
+            payload.charge_account_user_id = Number(selectedSettlementPersonId);
+        } else {
+            payload.user_id = Number(selectedSettlementPersonId);
+        }
+
+        const response = await api('/pos/settlement-preview', {
+            method: 'POST',
+            body: payload,
+        });
+
+        currentSettlementPreview = response?.data || null;
+        renderSettlementPreview();
+    }
+
+    function handleSettlementPersonChange() {
+        selectedSettlementPersonId = document.getElementById('special-settlement-user').value || null;
+        refreshSettlementPreview().catch((err) => {
+            currentSettlementPreview = null;
+            renderSettlementPreview();
+            showToast(err.message || 'تعذر احتساب التسوية الخاصة', 'error');
+        });
+    }
+
+    function selectDifferencePayMethod(method) {
+        selectedDifferencePayMethod = method;
+        document.querySelectorAll('.pay-difference-method').forEach((item) => {
+            item.classList.toggle('active', item.dataset.method === method);
+        });
+
+        document.getElementById('pay-cash-section').style.display = method === 'cash' ? 'block' : 'none';
+        document.getElementById('pay-card-section').classList.toggle('hidden', method !== 'card');
+
+        if (method === 'cash') {
+            renderPayShortcuts();
+            setPayAmount(getCurrentPayableAmount());
+            return;
+        }
+
+        loadPaymentTerminals().then(() => refreshCardPaymentPreview()).catch((err) => {
+            showToast(err.message || 'تعذر تحميل أجهزة الدفع', 'error');
+        });
     }
 
     function resetCardPaymentForm() {
@@ -1822,8 +2138,9 @@
 
     async function refreshCardPaymentPreview() {
         const terminalId = Number.parseInt(document.getElementById('pay-terminal').value || '0', 10);
+        const dueAmount = getCurrentPayableAmount();
 
-        document.getElementById('card-paid-preview').textContent = money(getTotal());
+        document.getElementById('card-paid-preview').textContent = money(dueAmount);
 
         if (!terminalId) {
             resetCardPaymentPreview();
@@ -1835,7 +2152,7 @@
                 method: 'POST',
                 body: {
                     method: 'card',
-                    amount: getTotal(),
+                    amount: dueAmount,
                     terminal_id: terminalId,
                 },
             });
@@ -1866,6 +2183,13 @@
         document.getElementById('change-display').textContent = 'الباقي: 0.00 ج.م';
         document.getElementById('change-display').className = 'change-display zero';
         resetCardPaymentForm();
+        resetSpecialSettlementState();
+        document.getElementById('pay-methods-grid').classList.toggle('extended', canUseSpecialSettlement());
+        document.querySelectorAll('[data-special-method]').forEach((element) => {
+            element.classList.toggle('hidden', !canUseSpecialSettlement());
+        });
+        document.getElementById('special-settlement-section').classList.add('hidden');
+        document.getElementById('settlement-difference-section').classList.add('hidden');
         renderPayShortcuts();
         selectPayMethod('cash');
         document.getElementById('pay-modal').classList.remove('hidden');
@@ -1873,6 +2197,7 @@
 
     function closePayModal() {
         document.getElementById('pay-modal').classList.add('hidden');
+        resetSpecialSettlementState();
     }
 
     function selectPayMethod(method) {
@@ -1881,16 +2206,46 @@
             item.classList.toggle('active', item.dataset.method === method);
         });
 
+        const isSpecial = isSpecialSettlementMethod(method);
+        document.getElementById('special-settlement-section').classList.toggle('hidden', !isSpecial);
+
+        if (isSpecial) {
+            const titleMap = {
+                owner_charge: 'تحميل الطلب على مالك / إدارة',
+                employee_allowance: 'استخدام بدل الموظف',
+                employee_free_meal: 'استخدام ميزة الوجبة المجانية',
+            };
+            const labelMap = {
+                owner_charge: 'الحساب المحمّل عليه',
+                employee_allowance: 'الموظف المستفيد',
+                employee_free_meal: 'الموظف المستفيد',
+            };
+
+            document.getElementById('special-settlement-title').textContent = titleMap[method];
+            document.getElementById('special-settlement-person-label').textContent = labelMap[method];
+            document.getElementById('pay-cash-section').style.display = 'none';
+            document.getElementById('pay-card-section').classList.add('hidden');
+            resetCardPaymentForm();
+            resetSpecialSettlementState();
+            loadSpecialSettlementUsers().catch((err) => {
+                showToast(err.message || 'تعذر تحميل مستخدمي التسوية الخاصة', 'error');
+            });
+            return;
+        }
+
+        document.getElementById('special-settlement-section').classList.add('hidden');
+        document.getElementById('settlement-difference-section').classList.add('hidden');
+        currentSettlementPreview = null;
         document.getElementById('pay-cash-section').style.display = method === 'cash' ? 'block' : 'none';
         document.getElementById('pay-card-section').classList.toggle('hidden', method !== 'card');
 
         if (method === 'cash') {
             renderPayShortcuts();
-            setPayAmount(getTotal());
+            setPayAmount(getCurrentPayableAmount());
             return;
         }
 
-        document.getElementById('card-paid-preview').textContent = money(getTotal());
+        document.getElementById('card-paid-preview').textContent = money(getCurrentPayableAmount());
         loadPaymentTerminals().then(() => refreshCardPaymentPreview()).catch((err) => {
             showToast(err.message || 'تعذر تحميل أجهزة الدفع', 'error');
         });
@@ -1898,7 +2253,7 @@
 
     function calcChange() {
         const paid = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
-        const total = getTotal();
+        const total = getCurrentPayableAmount();
         const change = paid - total;
         const el = document.getElementById('change-display');
 
@@ -1937,23 +2292,44 @@
         }
 
         const btn = document.getElementById('btn-confirm-pay');
-        const total = getTotal();
-        let paidAmount = total;
+        const payableAmount = getCurrentPayableAmount();
         let receiptWindow = null;
-        let paymentPayload = {
-            method: selectedPayMethod,
-            amount: paidAmount,
-        };
+        let paymentPayload = null;
+        const actualPaymentMethod = getCurrentPaymentMethodForCollection();
 
-        if (selectedPayMethod === 'cash') {
-            paidAmount = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
-            if (paidAmount < total) {
-                showToast('المبلغ المدفوع أقل من الإجمالي', 'error');
+        if (isSpecialSettlementMethod(selectedPayMethod)) {
+            if (!selectedSettlementPersonId) {
+                showToast('اختر الحساب أو الموظف أولاً', 'error');
                 return;
             }
 
-            paymentPayload.amount = paidAmount;
-        } else if (selectedPayMethod === 'card') {
+            if (!currentSettlementPreview) {
+                try {
+                    await refreshSettlementPreview();
+                } catch (err) {
+                    showToast(err.message || 'تعذر احتساب التسوية الخاصة', 'error');
+                    return;
+                }
+            }
+
+            if (!currentSettlementPreview?.can_apply) {
+                showToast(currentSettlementPreview?.message || 'لا يمكن تطبيق هذه التسوية على الطلب الحالي', 'error');
+                return;
+            }
+        }
+
+        if (actualPaymentMethod === 'cash') {
+            let paidAmount = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
+            if (paidAmount < payableAmount) {
+                showToast('المبلغ المدفوع أقل من المبلغ المطلوب', 'error');
+                return;
+            }
+
+            paymentPayload = {
+                method: actualPaymentMethod,
+                amount: paidAmount,
+            };
+        } else if (actualPaymentMethod === 'card') {
             const terminalId = Number.parseInt(document.getElementById('pay-terminal').value || '0', 10);
             const referenceNumber = document.getElementById('pay-reference-number').value.trim();
 
@@ -1975,10 +2351,15 @@
             }
 
             paymentPayload = {
-                method: selectedPayMethod,
-                amount: total,
+                method: actualPaymentMethod,
+                amount: payableAmount,
                 terminal_id: terminalId,
                 reference_number: referenceNumber,
+            };
+        } else if (!isSpecialSettlementMethod(selectedPayMethod)) {
+            paymentPayload = {
+                method: selectedPayMethod,
+                amount: payableAmount,
             };
         }
 
@@ -1993,6 +2374,7 @@
                 body: {
                     type: selectedOrderType?.type || 'takeaway',
                     source: selectedOrderType?.source || 'pos',
+                    pos_order_type_id: selectedOrderType?.id || null,
                     customer_id: selectedCustomer?.id || null,
                     customer_name: selectedCustomer?.name || null,
                     customer_phone: selectedCustomer?.phone || null,
@@ -2030,15 +2412,46 @@
                 });
             }
 
-            await api(`/orders/${currentOrder.id}/pay`, {
-                method: 'POST',
-                body: {
-                    payments: [paymentPayload],
-                },
-            });
+            if (isSpecialSettlementMethod(selectedPayMethod)) {
+                const settlementPayload = {
+                    scenario: selectedPayMethod,
+                };
+
+                if (selectedPayMethod === 'owner_charge') {
+                    settlementPayload.charge_account_user_id = Number(selectedSettlementPersonId);
+                } else {
+                    settlementPayload.user_id = Number(selectedSettlementPersonId);
+                }
+
+                const settlementRes = await api(`/orders/${currentOrder.id}/settlement`, {
+                    method: 'POST',
+                    body: settlementPayload,
+                });
+
+                currentOrder = settlementRes.data;
+            }
+
+            const postSettlementRemaining = isSpecialSettlementMethod(selectedPayMethod)
+                ? Number.parseFloat(
+                    currentOrder?.settlement?.remaining_payable_amount
+                        ?? currentSettlementPreview?.remaining_payable_amount
+                        ?? 0
+                )
+                : payableAmount;
+
+            if (paymentPayload && postSettlementRemaining > 0) {
+                const payRes = await api(`/orders/${currentOrder.id}/pay`, {
+                    method: 'POST',
+                    body: {
+                        payments: [paymentPayload],
+                    },
+                });
+
+                currentOrder = payRes.data;
+            }
 
             await printPaidOrderReceipt(currentOrder.id, {
-                shouldOpenDrawer: selectedPayMethod === 'cash',
+                shouldOpenDrawer: actualPaymentMethod === 'cash' && payableAmount > 0,
                 receiptWindow,
             });
 

@@ -308,6 +308,13 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_pos_order_types_resource()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/pos-order-types')
+             ->assertSuccessful();
+    }
+
     public function test_admin_can_view_database_backups_page()
     {
         $this->actingAs($this->adminUser)

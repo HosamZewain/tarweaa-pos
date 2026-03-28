@@ -11,6 +11,7 @@ readonly class CreateOrderData
     public function __construct(
         public OrderType    $type,
         public OrderSource  $source          = OrderSource::Pos,
+        public ?int         $posOrderTypeId  = null,
         public ?int         $customerId      = null,
         public ?string      $customerName    = null,
         public ?string      $customerPhone   = null,
@@ -30,6 +31,7 @@ readonly class CreateOrderData
         return new self(
             type:                OrderType::from($data['type']),
             source:              OrderSource::from($data['source'] ?? 'pos'),
+            posOrderTypeId:      isset($data['pos_order_type_id']) ? (int) $data['pos_order_type_id'] : null,
             customerId:          isset($data['customer_id']) ? (int) $data['customer_id'] : null,
             customerName:        $data['customer_name'] ?? null,
             customerPhone:       $data['customer_phone'] ?? null,

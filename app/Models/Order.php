@@ -33,9 +33,11 @@ class Order extends Model
         'shift_id',
         'drawer_session_id',
         'pos_device_id',
+        'pos_order_type_id',
         'customer_id',
         'customer_name',
         'customer_phone',
+        'order_type_name',
         'delivery_address',
         'subtotal',
         'discount_type',
@@ -111,6 +113,11 @@ class Order extends Model
     public function posDevice(): BelongsTo
     {
         return $this->belongsTo(PosDevice::class);
+    }
+
+    public function posOrderType(): BelongsTo
+    {
+        return $this->belongsTo(PosOrderType::class)->withTrashed();
     }
 
     public function customer(): BelongsTo
@@ -204,16 +211,43 @@ class Order extends Model
 
     public function remainingAmount(): float
     {
-        return max(0, (float) $this->total - (float) $this->paid_amount);
+        return $this->remainingPayableAmount();
     }
 
     public function isFullyPaid(): bool
     {
-        return $this->remainingAmount() <= 0;
+        return $this->remainingPayableAmount() <= 0;
+    }
+
+    public function coveredAmount(): float
+    {
+        $settlement = $this->relationLoaded('settlement')
+            ? $this->getRelation('settlement')
+            : $this->settlement()->first();
+
+        return round((float) ($settlement?->covered_amount ?? 0), 2);
+    }
+
+    public function settledAmount(): float
+    {
+        return round((float) $this->paid_amount + $this->coveredAmount(), 2);
+    }
+
+    public function remainingPayableAmount(): float
+    {
+        return max(0, round((float) $this->total - $this->settledAmount(), 2));
     }
 
     public function getTypeLabelAttribute(): string
     {
+        if (!blank($this->order_type_name)) {
+            return (string) $this->order_type_name;
+        }
+
+        if ($this->relationLoaded('posOrderType') && $this->posOrderType?->name) {
+            return $this->posOrderType->name;
+        }
+
         return $this->type->label();
     }
 

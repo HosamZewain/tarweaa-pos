@@ -5,14 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Order\AuthorizeDiscountApprovalRequest;
+use App\Http\Requests\Order\ListSettlementUsersRequest;
+use App\Http\Requests\Order\PreviewOrderSettlementRequest;
 use App\Models\Customer;
 use App\Models\MenuCategory;
 use App\Models\PaymentTerminal;
 use App\Models\PosDevice;
 use App\Models\PosOrderType;
+use App\Models\User;
 use App\Services\DiscountApprovalService;
 use App\Services\DrawerSessionService;
 use App\Services\PaymentTerminalFeeService;
+use App\Services\PosOrderTypeService;
+use App\Services\PosSettlementPreviewService;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +29,8 @@ class POSController extends Controller
         private readonly DrawerSessionService $drawerService,
         private readonly DiscountApprovalService $discountApprovalService,
         private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
+        private readonly PosOrderTypeService $posOrderTypeService,
+        private readonly PosSettlementPreviewService $posSettlementPreviewService,
     ) {}
 
     private function authorizePosAccess(Request $request): ?JsonResponse
@@ -187,9 +194,8 @@ class POSController extends Controller
             return $response;
         }
 
-        $types = PosOrderType::where('is_active', true)
-            ->orderBy('sort_order')
-            ->get(['id', 'name', 'type', 'source']);
+        $types = $this->posOrderTypeService->activeQuery()
+            ->get(['id', 'name', 'type', 'source', 'is_default', 'sort_order']);
 
         return $this->success($types);
     }
@@ -267,6 +273,40 @@ class POSController extends Controller
                 'code' => $terminal->code,
             ],
         ]);
+    }
+
+    /**
+     * GET /api/pos/settlement-users — Active candidates for special settlement modes.
+     */
+    public function settlementUsers(ListSettlementUsersRequest $request): JsonResponse
+    {
+        return $this->success(
+            $this->posSettlementPreviewService->listCandidates(
+                scenario: $request->validated('scenario'),
+                search: $request->validated('search'),
+            )
+        );
+    }
+
+    /**
+     * POST /api/pos/settlement-preview — Backend-evaluated preview for special settlement coverage.
+     */
+    public function settlementPreview(PreviewOrderSettlementRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $preview = $this->posSettlementPreviewService->preview(
+            scenario: $validated['scenario'],
+            items: $validated['items'],
+            beneficiary: isset($validated['user_id']) ? User::find((int) $validated['user_id']) : null,
+            chargeAccount: isset($validated['charge_account_user_id']) ? User::find((int) $validated['charge_account_user_id']) : null,
+            discountType: $validated['discount_type'] ?? null,
+            discountValue: (float) ($validated['discount_value'] ?? 0),
+            taxRate: (float) ($validated['tax_rate'] ?? 0),
+            deliveryFee: (float) ($validated['delivery_fee'] ?? 0),
+        );
+
+        return $this->success($preview);
     }
 
     /**

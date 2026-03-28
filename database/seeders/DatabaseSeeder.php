@@ -67,30 +67,34 @@ class DatabaseSeeder extends Seeder
 
     private function seedOperationalDefaults(): void
     {
+        if (PosOrderType::withTrashed()->exists()) {
+            return;
+        }
+
         foreach ([
             [
                 'name' => 'تيك أواي',
                 'type' => 'takeaway',
                 'source' => 'pos',
                 'sort_order' => 1,
+                'is_default' => true,
             ],
             [
                 'name' => 'استلام',
                 'type' => 'pickup',
                 'source' => 'pos',
                 'sort_order' => 2,
+                'is_default' => false,
             ],
             [
                 'name' => 'توصيل',
                 'type' => 'delivery',
                 'source' => 'pos',
                 'sort_order' => 3,
+                'is_default' => false,
             ],
         ] as $orderType) {
-            PosOrderType::updateOrCreate(
-                ['name' => $orderType['name']],
-                array_merge($orderType, ['is_active' => true]),
-            );
+            PosOrderType::create(array_merge($orderType, ['is_active' => true]));
         }
     }
 

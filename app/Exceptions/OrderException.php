@@ -35,6 +35,11 @@ class OrderException extends \RuntimeException
         return new self('طلبات التوصيل تتطلب إدخال عنوان التوصيل.');
     }
 
+    public static function invalidPosOrderType(): self
+    {
+        return new self('نوع الطلب المحدد غير صالح أو غير نشط.', 422);
+    }
+
     public static function itemNotAvailable(string $itemName): self
     {
         return new self("المنتج [{$itemName}] غير متاح حالياً.");
@@ -73,6 +78,36 @@ class OrderException extends \RuntimeException
     public static function invalidPaymentTerminal(): self
     {
         return new self('جهاز الدفع الإلكتروني المحدد غير صالح أو غير نشط.', 422);
+    }
+
+    public static function settlementNotAllowedAfterPayment(): self
+    {
+        return new self('لا يمكن تعديل تسوية الطلب بعد تسجيل دفعات فعلية عليه.', 422);
+    }
+
+    public static function invalidOwnerChargeAccount(): self
+    {
+        return new self('الحساب المحدد غير صالح لاستقبال أوامر التحميل على المالك/الإدارة.', 422);
+    }
+
+    public static function mealBenefitProfileRequired(): self
+    {
+        return new self('لا يوجد ملف مزايا وجبات نشط لهذا المستخدم.', 422);
+    }
+
+    public static function monthlyAllowanceNotEnabled(): self
+    {
+        return new self('البدل الشهري غير مفعل لهذا المستخدم.', 422);
+    }
+
+    public static function freeMealBenefitNotEnabled(): self
+    {
+        return new self('ميزة الوجبة المجانية غير مفعلة لهذا المستخدم.', 422);
+    }
+
+    public static function noEligibleBenefitItems(): self
+    {
+        return new self('لا توجد أصناف مؤهلة للاستفادة من ميزة الوجبة المجانية في هذا الطلب.', 422);
     }
 
     // ─── Status Transitions ─────────────────────────────────────────────────

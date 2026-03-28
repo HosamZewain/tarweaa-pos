@@ -19,6 +19,7 @@ class OrderPaymentService
         private readonly RecipeInventoryService $recipeInventoryService,
         private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
         private readonly DrawerSessionService $drawerSessionService,
+        private readonly OrderSettlementService $orderSettlementService,
     ) {}
 
     /**
@@ -40,13 +41,15 @@ class OrderPaymentService
         }
 
         $totalProvided = collect($payments)->sum(fn (ProcessPaymentData $p) => $p->amount);
-        $amountDue     = $order->remainingAmount();
+        $amountDue     = $order->remainingPayableAmount();
 
         if ($totalProvided < $amountDue) {
             throw OrderException::insufficientPayment($amountDue, $totalProvided);
         }
 
-        return DB::transaction(function () use ($order, $payments, $totalProvided, $actorId): Order {
+        return DB::transaction(function () use ($order, $payments, $totalProvided, $amountDue, $actorId): Order {
+            $wasPaid = $order->payment_status === PaymentStatus::Paid;
+
             foreach ($payments as $paymentData) {
                 $terminal = null;
                 $feeData = [
@@ -78,7 +81,7 @@ class OrderPaymentService
 
                 if ($order->isFullyPaid()) {
                     $order->update(['payment_status' => PaymentStatus::Paid]);
-                } elseif ((float) $order->paid_amount > 0) {
+                } elseif ((float) $order->paid_amount > 0 || $order->coveredAmount() > 0) {
                     $order->update(['payment_status' => PaymentStatus::Partial]);
                 }
 
@@ -92,22 +95,32 @@ class OrderPaymentService
                         referenceId:   $order->id,
                     );
                 }
+
             }
 
             // Store change given back to customer
-            $change = max(0, $totalProvided - (float) $order->total);
+            $change = max(0, round($totalProvided - $amountDue, 2));
             if ($change > 0) {
                 $order->update(['change_amount' => $change]);
             }
 
+            $this->orderSettlementService->recordSupplementalPayment(
+                order: $order->fresh(['settlement']),
+                amount: min($amountDue, $totalProvided),
+                actorId: $actorId,
+                notes: "دفعة تكميلية على الطلب {$order->order_number}",
+            );
+
             // Transition to Confirmed once payment is fully received
             if ($order->isFullyPaid()) {
                 $this->recipeInventoryService->deductPendingForOrder($order->fresh(['items.menuItem.recipeLines.inventoryItem']), $actorId);
-                $order->transitionTo(OrderStatus::Confirmed, $actorId);
+                if ($order->status === OrderStatus::Pending) {
+                    $order->transitionTo(OrderStatus::Confirmed, $actorId);
+                }
             }
 
             // Update customer lifetime metrics
-            if ($order->customer_id && $order->isFullyPaid()) {
+            if ($order->customer_id && $order->isFullyPaid() && !$wasPaid) {
                 $order->customer->recordOrder((float) $order->total);
             }
 
@@ -116,13 +129,21 @@ class OrderPaymentService
                 'order_number'   => $order->order_number,
                 'total'          => $order->total,
                 'paid'           => $order->paid_amount,
+                'covered'        => $order->coveredAmount(),
+                'remaining_payable' => $order->remainingPayableAmount(),
                 'change'         => $order->change_amount,
                 'fees_total'     => round($order->payments()->sum('fee_amount'), 2),
                 'payment_status' => $order->payment_status->value,
                 'processed_by'   => $actorId,
             ]);
 
-            return $order->fresh(['payments', 'items.modifiers']);
+            return $order->fresh([
+                'payments',
+                'items.modifiers',
+                'settlement.lines.orderItem',
+                'settlement.beneficiaryUser',
+                'settlement.chargeAccountUser',
+            ]);
         });
     }
 

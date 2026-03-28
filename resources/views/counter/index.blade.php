@@ -195,6 +195,19 @@
         color: var(--accent);
         font-size: 1rem;
     }
+    .counter-priority-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.55rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.14);
+        border: 1px solid rgba(245, 158, 11, 0.32);
+        color: #fcd34d;
+        font-size: 0.76rem;
+        font-weight: 800;
+    }
     .counter-status {
         display: inline-flex;
         align-items: center;
@@ -563,13 +576,14 @@
             return;
         }
 
-        board.innerHTML = counterOrders.map(order => `
+        board.innerHTML = counterOrders.map((order, index) => `
             <div class="counter-card ${statusClass(order.status)} ${selectedCounterOrderId === order.id ? 'selected-by-keypad' : ''}" id="counter-order-${order.id}">
                 <div class="counter-card__header">
                     <div>
                         <div class="counter-number">#${getCounterShortcutNumber(order)}</div>
                         <div class="counter-order-ref">${escapeHtml(order.order_number)}</div>
                         <div class="counter-time">${timeLabel(order)}</div>
+                        ${index === 0 ? `<div class="counter-priority-badge">⏳ الأقدم انتظارًا</div>` : ''}
                         <div class="counter-shortcut">
                             <span>رقم لوحة الأرقام</span>
                             <span class="counter-shortcut__value">${getCounterShortcutNumber(order)}</span>

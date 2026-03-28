@@ -48,6 +48,8 @@ class SystemPermissions
             'purchases' => ['group' => 'المخزون', 'singular' => 'أمر شراء', 'plural' => 'المشتريات'],
             'expenses' => ['group' => 'المالية', 'singular' => 'مصروف', 'plural' => 'المصروفات'],
             'expense_categories' => ['group' => 'المالية', 'singular' => 'فئة مصروف', 'plural' => 'فئات المصروفات'],
+            'user_meal_benefit_profiles' => ['group' => 'الإعدادات', 'singular' => 'ملف مزايا وجبات', 'plural' => 'ملفات مزايا الوجبات'],
+            'pos_order_types' => ['group' => 'الإعدادات', 'singular' => 'نوع طلب', 'plural' => 'أنواع الطلبات'],
             'pos_devices' => ['group' => 'الإعدادات', 'singular' => 'جهاز POS', 'plural' => 'أجهزة POS'],
             'payment_terminals' => ['group' => 'الإعدادات', 'singular' => 'جهاز دفع', 'plural' => 'أجهزة الدفع'],
         ];
@@ -95,6 +97,7 @@ class SystemPermissions
             ['name' => 'drawers.cash_in', 'display_name' => 'إضافة نقدية للدرج', 'group' => 'العمليات'],
             ['name' => 'drawers.cash_out', 'display_name' => 'سحب نقدية من الدرج', 'group' => 'العمليات'],
             ['name' => 'orders.cancel', 'display_name' => 'إلغاء طلب', 'group' => 'العمليات'],
+            ['name' => 'orders.apply_special_settlement', 'display_name' => 'تطبيق تسويات بدل الوجبات والتحميل', 'group' => 'العمليات'],
             ['name' => 'apply_discount', 'display_name' => 'تطبيق الخصم', 'group' => 'العمليات'],
             ['name' => 'expenses.approve', 'display_name' => 'الموافقة على مصروف', 'group' => 'المالية'],
             ['name' => 'inventory_items.adjust_stock', 'display_name' => 'تعديل المخزون', 'group' => 'المخزون'],
@@ -103,6 +106,7 @@ class SystemPermissions
             ['name' => 'mark_order_ready', 'display_name' => 'تحديد الطلب كجاهز', 'group' => 'المطبخ'],
             ['name' => 'view_counter_screen', 'display_name' => 'عرض شاشة التسليم والاستلام', 'group' => 'الكاونتر'],
             ['name' => 'handover_counter_orders', 'display_name' => 'تسليم الطلبات من الكاونتر', 'group' => 'الكاونتر'],
+            ['name' => 'reports.meal_benefits.view', 'display_name' => 'عرض كشف بدلات الوجبات والتحميل', 'group' => 'التقارير'],
         ];
     }
 }

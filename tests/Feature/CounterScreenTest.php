@@ -122,6 +122,39 @@ class CounterScreenTest extends TestCase
         $this->assertSame('ready', $response[0]['status']);
     }
 
+    public function test_counter_orders_are_sorted_oldest_first(): void
+    {
+        $counterUser = $this->createUserWithPermissions('Counter User', ['view_counter_screen', 'handover_counter_orders']);
+        $context = $this->createOperationalContext();
+
+        $olderOrder = $this->createOrder($context, [
+            'order_number' => 'ORD-20260328-0013',
+            'status' => OrderStatus::Confirmed,
+            'payment_status' => PaymentStatus::Paid,
+            'created_at' => now()->subMinutes(12),
+            'confirmed_at' => now()->subMinutes(11),
+        ]);
+
+        $newerOrder = $this->createOrder($context, [
+            'order_number' => 'ORD-20260328-0015',
+            'status' => OrderStatus::Ready,
+            'payment_status' => PaymentStatus::Paid,
+            'created_at' => now()->subMinutes(4),
+            'confirmed_at' => now()->subMinutes(3),
+            'ready_at' => now()->subMinutes(2),
+        ]);
+
+        Sanctum::actingAs($counterUser->fresh());
+
+        $orders = $this->getJson('/api/counter/orders/odd')
+            ->assertOk()
+            ->json('data.orders');
+
+        $this->assertCount(2, $orders);
+        $this->assertSame($olderOrder->id, $orders[0]['id']);
+        $this->assertSame($newerOrder->id, $orders[1]['id']);
+    }
+
     public function test_counter_staff_can_mark_ready_order_as_handed_over_and_it_disappears(): void
     {
         $counterUser = $this->createUserWithPermissions('Counter User', ['view_counter_screen', 'handover_counter_orders']);

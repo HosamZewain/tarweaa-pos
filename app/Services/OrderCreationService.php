@@ -26,6 +26,7 @@ class OrderCreationService
         private readonly RecipeInventoryService $recipeInventoryService,
         private readonly RecipeService $recipeService,
         private readonly DrawerSessionService $drawerSessionService,
+        private readonly PosOrderTypeService $posOrderTypeService,
     ) {}
 
     /**
@@ -63,23 +64,27 @@ class OrderCreationService
             throw OrderException::noActiveShift();
         }
 
-        if ($data->type->requiresDeliveryAddress() && empty($data->deliveryAddress)) {
+        $selectedOrderType = $this->resolveSelectedOrderType($data->posOrderTypeId, $data->type, $data->source);
+
+        if ($selectedOrderType['type']->requiresDeliveryAddress() && empty($data->deliveryAddress)) {
             throw OrderException::deliveryAddressRequired();
         }
 
-        return DB::transaction(function () use ($cashier, $data, $shift, $drawerSession, $posDevice): Order {
+        return DB::transaction(function () use ($cashier, $data, $shift, $drawerSession, $posDevice, $selectedOrderType): Order {
             $order = Order::create([
                 'order_number'           => Order::generateOrderNumber(),
-                'type'                   => $data->type,
+                'type'                   => $selectedOrderType['type'],
                 'status'                 => OrderStatus::Pending,
-                'source'                 => $data->source,
+                'source'                 => $selectedOrderType['source'],
                 'cashier_id'             => $cashier->id,
                 'shift_id'               => $shift->id,
                 'drawer_session_id'      => $drawerSession->id,
                 'pos_device_id'          => $posDevice->id,
+                'pos_order_type_id'      => $selectedOrderType['record']?->id,
                 'customer_id'            => $data->customerId,
                 'customer_name'          => $data->customerName,
                 'customer_phone'         => $data->customerPhone,
+                'order_type_name'        => $selectedOrderType['label'],
                 'delivery_address'       => $data->deliveryAddress,
                 'delivery_fee'           => $data->deliveryFee,
                 'discount_type'          => $data->discountType,
@@ -106,8 +111,9 @@ class OrderCreationService
                 'order_number' => $order->order_number,
                 'cashier_id'   => $cashier->id,
                 'shift_id'     => $shift->id,
-                'type'         => $data->type->value,
-                'source'       => $data->source->value,
+                'type'         => $selectedOrderType['type']->value,
+                'source'       => $selectedOrderType['source']->value,
+                'pos_order_type_id' => $selectedOrderType['record']?->id,
             ]);
 
             return $order;
@@ -255,6 +261,7 @@ class OrderCreationService
             return Order::create([
                 'order_number'           => Order::generateOrderNumber(),
                 'type'                   => OrderType::Delivery,
+                'order_type_name'        => OrderType::Delivery->label(),
                 'status'                 => OrderStatus::Confirmed,
                 'source'                 => $data->source,
                 'cashier_id'             => $processedBy->id,
@@ -281,5 +288,26 @@ class OrderCreationService
                 'updated_by'             => $processedBy->id,
             ]);
         });
+    }
+
+    private function resolveSelectedOrderType(?int $posOrderTypeId, OrderType $fallbackType, \App\Enums\OrderSource $fallbackSource): array
+    {
+        $selected = $this->posOrderTypeService->resolveForOrderCreation($posOrderTypeId);
+
+        if ($selected) {
+            return [
+                'record' => $selected,
+                'type' => OrderType::from($selected->type),
+                'source' => \App\Enums\OrderSource::from($selected->source),
+                'label' => $selected->name,
+            ];
+        }
+
+        return [
+            'record' => null,
+            'type' => $fallbackType,
+            'source' => $fallbackSource,
+            'label' => $fallbackType->label(),
+        ];
     }
 }

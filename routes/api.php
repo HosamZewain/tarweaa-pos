@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CounterController;
 use App\Http\Controllers\Api\DrawerController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\MealBenefitController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\POSController;
 use App\Http\Controllers\Api\ReportController;
@@ -51,9 +52,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/order-types', [POSController::class, 'orderTypes']);
         Route::get('/payment-terminals', [POSController::class, 'paymentTerminals']);
         Route::post('/payment-preview', [POSController::class, 'paymentPreview']);
+        Route::get('/settlement-users', [POSController::class, 'settlementUsers']);
+        Route::post('/settlement-preview', [POSController::class, 'settlementPreview']);
         Route::get('/discount-approvers', [POSController::class, 'discountApprovers']);
         Route::post('/discount-approval', [POSController::class, 'authorizeDiscount']);
     });
+
+    Route::get('/meal-benefits/users/{user}/summary', [MealBenefitController::class, 'summary']);
 
     // ── Shifts ───────────────────────────────────────────────────────────
     Route::prefix('shifts')->group(function () {
@@ -85,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{order}/items',      [OrderController::class, 'addItem']);
         Route::delete('/items/{item}',     [OrderController::class, 'removeItem']);
         Route::post('/{order}/discount',   [OrderController::class, 'applyDiscount']);
+        Route::post('/{order}/settlement', [OrderController::class, 'applySettlement']);
         Route::post('/{order}/pay',        [OrderController::class, 'processPayment']);
         Route::post('/{order}/cancel',     [OrderController::class, 'cancel']);
         Route::post('/{order}/refund',     [OrderController::class, 'refund']);

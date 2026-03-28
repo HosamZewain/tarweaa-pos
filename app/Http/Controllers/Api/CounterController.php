@@ -31,15 +31,8 @@ class CounterController extends Controller
             ])
             ->counterVisible()
             ->forCounterLane($lane)
-            ->orderByRaw("
-                CASE status
-                    WHEN 'ready' THEN 0
-                    WHEN 'preparing' THEN 1
-                    WHEN 'confirmed' THEN 2
-                    ELSE 3
-                END
-            ")
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         return $this->success([

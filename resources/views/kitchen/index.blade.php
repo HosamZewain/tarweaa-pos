@@ -169,6 +169,19 @@
         color: var(--accent);
         font-size: 1rem;
     }
+    .order-priority-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.14);
+        border: 1px solid rgba(245, 158, 11, 0.32);
+        color: #fcd34d;
+        font-size: 0.76rem;
+        font-weight: 800;
+    }
     @media (max-width: 960px) {
         .kitchen-topbar {
             height: auto;
@@ -238,7 +251,16 @@
         try {
             const res = await api('/orders?status=confirmed,preparing&per_page=50');
             if (res.success) {
-                activeOrders = res.data;
+                activeOrders = [...(res.data || [])].sort((left, right) => {
+                    const leftTime = new Date(left.created_at || 0).getTime();
+                    const rightTime = new Date(right.created_at || 0).getTime();
+
+                    if (leftTime === rightTime) {
+                        return (left.id || 0) - (right.id || 0);
+                    }
+
+                    return leftTime - rightTime;
+                });
                 syncSelectedOrderFromInput();
                 renderOrders();
                 document.getElementById('order-count').textContent = `${activeOrders.length} طلب نشط`;
@@ -262,12 +284,13 @@
             return;
         }
 
-        container.innerHTML = activeOrders.map(order => `
+            container.innerHTML = activeOrders.map((order, index) => `
             <div class="order-card ${order.status === 'preparing' ? 'preparing' : ''} ${selectedKitchenOrderId === order.id ? 'selected-by-keypad' : ''}" id="order-${order.id}">
                 <div class="order-header">
                     <div>
                         <div class="order-number">#${order.order_number.split('-').pop()}</div>
                         <div class="order-time">${getTimeAgo(order.created_at)}</div>
+                        ${index === 0 ? `<div class="order-priority-badge">⏳ الأقدم انتظارًا</div>` : ''}
                         <div class="order-shortcut">
                             <span>رقم لوحة الأرقام</span>
                             <span class="order-shortcut__value">${getKitchenShortcutNumber(order)}</span>
