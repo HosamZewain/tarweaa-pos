@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\DatabaseBackupRestoreController;
 use App\Http\Controllers\PosViewController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,3 +25,12 @@ Route::prefix('pos')->group(function () {
 
 Route::get('/kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])
     ->name('kitchen.index');
+
+Route::get('/counter-screen/{lane}', [\App\Http\Controllers\CounterScreenController::class, 'index'])
+    ->whereIn('lane', ['odd', 'even'])
+    ->name('counter.index');
+
+Route::middleware('auth')->prefix('admin')->group(function () {
+    Route::post('/database-backups/restore', [DatabaseBackupRestoreController::class, 'store'])
+        ->name('admin.database-backups.restore');
+});

@@ -81,6 +81,7 @@ class SystemPermissions
             ['name' => 'reports.inventory.view', 'display_name' => 'عرض تقرير المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.inventory_movements.view', 'display_name' => 'عرض حركة المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.card_terminals.view', 'display_name' => 'عرض تقرير أجهزة الدفع', 'group' => 'التقارير'],
+            ['name' => 'settings.database_backups.manage', 'display_name' => 'إدارة النسخ الاحتياطية لقاعدة البيانات', 'group' => 'الإعدادات'],
         ];
     }
 
@@ -100,6 +101,8 @@ class SystemPermissions
             ['name' => 'inventory_items.add_stock', 'display_name' => 'إضافة مخزون', 'group' => 'المخزون'],
             ['name' => 'view_kitchen', 'display_name' => 'عرض شاشة المطبخ', 'group' => 'المطبخ'],
             ['name' => 'mark_order_ready', 'display_name' => 'تحديد الطلب كجاهز', 'group' => 'المطبخ'],
+            ['name' => 'view_counter_screen', 'display_name' => 'عرض شاشة التسليم والاستلام', 'group' => 'الكاونتر'],
+            ['name' => 'handover_counter_orders', 'display_name' => 'تسليم الطلبات من الكاونتر', 'group' => 'الكاونتر'],
         ];
     }
 }

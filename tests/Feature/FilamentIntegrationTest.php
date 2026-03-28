@@ -308,6 +308,15 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_database_backups_page()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/database-backups-page')
+             ->assertSuccessful()
+             ->assertSee('النسخ الاحتياطية والاستعادة')
+             ->assertSee('إعادة تهيئة البيانات التشغيلية');
+    }
+
     public function test_admin_can_view_menu_categories_resource()
     {
         $this->actingAs($this->adminUser)

@@ -105,6 +105,24 @@ class OrderLifecycleService
     }
 
     /**
+     * Mark a paid ready order as handed over from the pickup/delivery counter.
+     *
+     * @throws OrderException
+     */
+    public function markHandedOver(Order $order, User $by): Order
+    {
+        if (!$order->isPaid()) {
+            throw OrderException::handoverRequiresPaidOrder();
+        }
+
+        if ($order->status !== OrderStatus::Ready) {
+            throw OrderException::handoverRequiresReadyOrder();
+        }
+
+        return $this->transition($order, OrderStatus::Delivered, $by);
+    }
+
+    /**
      * Cancel an order.
      *
      * @throws OrderException

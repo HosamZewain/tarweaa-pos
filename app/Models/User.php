@@ -105,6 +105,31 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(DiscountLog::class, 'requested_by');
     }
 
+    public function mealBenefitProfile(): HasOne
+    {
+        return $this->hasOne(UserMealBenefitProfile::class);
+    }
+
+    public function mealBenefitLedgerEntries(): HasMany
+    {
+        return $this->hasMany(MealBenefitLedgerEntry::class);
+    }
+
+    public function settlementBeneficiaryOrders(): HasMany
+    {
+        return $this->hasMany(OrderSettlement::class, 'beneficiary_user_id');
+    }
+
+    public function chargedOrders(): HasMany
+    {
+        return $this->hasMany(OrderSettlement::class, 'charge_account_user_id');
+    }
+
+    public function settlementLines(): HasMany
+    {
+        return $this->hasMany(OrderSettlementLine::class);
+    }
+
     // ─────────────────────────────────────────
     // RBAC Helpers
     // ─────────────────────────────────────────
@@ -178,6 +203,11 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessKitchenSurface(): bool
     {
         return $this->is_active && $this->hasPermission('view_kitchen');
+    }
+
+    public function canAccessCounterSurface(): bool
+    {
+        return $this->is_active && $this->hasPermission('view_counter_screen');
     }
 
     public function canApproveDiscounts(): bool

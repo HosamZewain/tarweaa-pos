@@ -73,6 +73,12 @@ class MenuItem extends Model
         return $this->hasMany(MenuItemRecipeLine::class)->orderBy('sort_order')->orderBy('id');
     }
 
+    public function mealBenefitProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(UserMealBenefitProfile::class, 'user_meal_benefit_profile_menu_item', 'menu_item_id', 'profile_id')
+            ->withTimestamps();
+    }
+
     // ─────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────

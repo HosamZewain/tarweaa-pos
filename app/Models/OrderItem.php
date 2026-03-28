@@ -68,6 +68,11 @@ class OrderItem extends Model
         return $this->hasMany(DiscountLog::class);
     }
 
+    public function settlementLines(): HasMany
+    {
+        return $this->hasMany(OrderSettlementLine::class);
+    }
+
     // ─────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────

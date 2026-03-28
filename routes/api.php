@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CounterController;
 use App\Http\Controllers\Api\DrawerController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\OrderController;
@@ -88,6 +89,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{order}/cancel',     [OrderController::class, 'cancel']);
         Route::post('/{order}/refund',     [OrderController::class, 'refund']);
         Route::patch('/{order}/status',    [OrderController::class, 'transition']);
+    });
+
+    // ── Counter Screen ───────────────────────────────────────────────────
+    Route::prefix('counter')->group(function () {
+        Route::get('/orders/{lane}', [CounterController::class, 'orders'])
+            ->whereIn('lane', ['odd', 'even']);
+        Route::post('/orders/{order}/handover', [CounterController::class, 'handover']);
     });
 
     // ── Inventory ────────────────────────────────────────────────────────

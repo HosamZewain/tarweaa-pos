@@ -108,6 +108,7 @@ class AuthController extends Controller
             'is_active'   => $user->is_active,
             'can_access_pos' => $user->canAccessPosSurface(),
             'can_access_kitchen' => $user->canAccessKitchenSurface(),
+            'can_access_counter' => $user->canAccessCounterSurface(),
             'can_view_live_session_stats' => $user->canViewLiveSessionFinancialStats(),
             'must_declare_cash_before_session_stats' => $user->mustDeclareCashBeforeSeeingSessionFinancialStats(),
             'roles'       => $user->roles->map(fn ($role) => [

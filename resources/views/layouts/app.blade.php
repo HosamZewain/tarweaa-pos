@@ -444,6 +444,9 @@
         function canAccessKitchenSurface(user = getUser()) {
             return Boolean(user?.can_access_kitchen || hasPermission('view_kitchen', user));
         }
+        function canAccessCounterSurface(user = getUser()) {
+            return Boolean(user?.can_access_counter || hasPermission('view_counter_screen', user));
+        }
         function getCurrentPathWithQuery() {
             return `${window.location.pathname}${window.location.search}`;
         }
@@ -461,6 +464,10 @@
 
             if (canAccessKitchenSurface(user)) {
                 return '/kitchen';
+            }
+
+            if (canAccessCounterSurface(user)) {
+                return '/counter-screen/odd';
             }
 
             return '/pos/login';

@@ -139,4 +139,14 @@ class OrderException extends \RuntimeException
     {
         return new self('رقم المرجع أو الإيصال مطلوب لعمليات البطاقة.', 422);
     }
+
+    public static function handoverRequiresPaidOrder(): self
+    {
+        return new self('لا يمكن تسليم طلب غير مدفوع.', 422);
+    }
+
+    public static function handoverRequiresReadyOrder(): self
+    {
+        return new self('لا يمكن تسليم الطلب قبل أن يصبح جاهزًا.', 422);
+    }
 }

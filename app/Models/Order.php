@@ -10,6 +10,7 @@ use App\Enums\OrderType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Traits\HasAuditFields;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,7 +22,7 @@ class Order extends Model
 {
     use HasFactory, SoftDeletes, HasAuditFields;
  
-    protected $appends = ['type_label', 'status_label', 'source_label'];
+    protected $appends = ['type_label', 'status_label', 'source_label', 'counter_number', 'counter_lane'];
 
     protected $fillable = [
         'order_number',
@@ -133,6 +134,16 @@ class Order extends Model
         return $this->hasMany(OrderPayment::class);
     }
 
+    public function settlement(): HasOne
+    {
+        return $this->hasOne(OrderSettlement::class);
+    }
+
+    public function settlementLines(): HasMany
+    {
+        return $this->hasMany(OrderSettlementLine::class);
+    }
+
     public function discountLogs(): HasMany
     {
         return $this->hasMany(DiscountLog::class);
@@ -214,6 +225,26 @@ class Order extends Model
     public function getSourceLabelAttribute(): string
     {
         return $this->source->label();
+    }
+
+    public function getCounterNumberAttribute(): ?int
+    {
+        if (!$this->order_number || !preg_match('/(\d+)$/', $this->order_number, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    public function getCounterLaneAttribute(): ?string
+    {
+        $number = $this->counter_number;
+
+        if ($number === null) {
+            return null;
+        }
+
+        return $number % 2 === 0 ? 'even' : 'odd';
     }
 
     // ─────────────────────────────────────────
@@ -348,5 +379,26 @@ class Order extends Model
             OrderStatus::Confirmed,
             OrderStatus::Preparing,
         ])->orderBy('created_at');
+    }
+
+    public function scopeCounterVisible(Builder $query): Builder
+    {
+        return $query
+            ->where('payment_status', PaymentStatus::Paid->value)
+            ->whereIn('status', [
+                OrderStatus::Confirmed->value,
+                OrderStatus::Preparing->value,
+                OrderStatus::Ready->value,
+            ]);
+    }
+
+    public function scopeForCounterLane(Builder $query, string $lane): Builder
+    {
+        $remainder = $lane === 'even' ? 0 : 1;
+
+        return $query->whereRaw(
+            "MOD(CAST(SUBSTRING_INDEX(order_number, '-', -1) AS UNSIGNED), 2) = ?",
+            [$remainder],
+        );
     }
 }

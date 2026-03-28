@@ -229,6 +229,13 @@
                 };
             }
 
+            if (target.startsWith('/counter-screen') && !canAccessCounterSurface(user)) {
+                return {
+                    allowed: false,
+                    message: 'هذا الحساب لا يملك صلاحية شاشة التسليم والاستلام.',
+                };
+            }
+
             return { allowed: true };
         }
 
@@ -241,6 +248,10 @@
 
             if (target.startsWith('/pos')) {
                 return canAccessPosSurface(user) ? target : getAuthorizedHome(user);
+            }
+
+            if (target.startsWith('/counter-screen')) {
+                return canAccessCounterSurface(user) ? target : getAuthorizedHome(user);
             }
 
             return getAuthorizedHome(user);

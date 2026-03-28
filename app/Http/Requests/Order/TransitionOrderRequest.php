@@ -20,6 +20,10 @@ class TransitionOrderRequest extends FormRequest
             return $user->hasPermission('mark_order_ready');
         }
 
+        if (in_array($this->input('status'), [OrderStatus::Dispatched->value, OrderStatus::Delivered->value], true)) {
+            return $user->hasPermission('handover_counter_orders');
+        }
+
         return true;
     }
 

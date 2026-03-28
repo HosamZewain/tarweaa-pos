@@ -21,7 +21,7 @@ enum OrderStatus: string
             self::Preparing  => 'قيد التحضير',
             self::Ready      => 'جاهز',
             self::Dispatched => 'تم الإرسال',
-            self::Delivered  => 'تم التوصيل',
+            self::Delivered  => 'تم التسليم',
             self::Cancelled  => 'ملغي',
             self::Refunded   => 'مسترجع',
         };
