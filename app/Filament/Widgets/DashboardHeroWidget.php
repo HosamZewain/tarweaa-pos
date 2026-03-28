@@ -26,6 +26,7 @@ class DashboardHeroWidget extends Widget
 
     public function getViewData(): array
     {
+        $canViewAnalytics = auth()->user()?->canViewDashboardAnalytics() ?? false;
         $today = today();
 
         $activeShift = Shift::query()
@@ -50,7 +51,7 @@ class DashboardHeroWidget extends Widget
             [
                 'label' => 'تقرير المبيعات',
                 'description' => 'مراجعة الإيرادات والخصومات والاتجاه اليومي.',
-                'url' => SalesReport::canAccess() ? SalesReport::getUrl() : null,
+                'url' => $canViewAnalytics && SalesReport::canAccess() ? SalesReport::getUrl() : null,
                 'tone' => 'primary',
             ],
             [
@@ -68,7 +69,7 @@ class DashboardHeroWidget extends Widget
             [
                 'label' => 'تقرير المخزون',
                 'description' => 'فحص قيمة المخزون والتنبيهات الحرجة.',
-                'url' => InventoryReport::canAccess() ? InventoryReport::getUrl() : null,
+                'url' => $canViewAnalytics && InventoryReport::canAccess() ? InventoryReport::getUrl() : null,
                 'tone' => 'success',
             ],
             [
@@ -80,7 +81,7 @@ class DashboardHeroWidget extends Widget
             [
                 'label' => 'تقرير المصروفات',
                 'description' => 'تحليل الاعتمادات والمبالغ حسب الفئات.',
-                'url' => ExpensesReport::canAccess() ? ExpensesReport::getUrl() : null,
+                'url' => $canViewAnalytics && ExpensesReport::canAccess() ? ExpensesReport::getUrl() : null,
                 'tone' => 'danger',
             ],
         ])->filter(fn (array $link): bool => filled($link['url']))->values();

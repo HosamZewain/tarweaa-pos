@@ -14,6 +14,7 @@ use App\Filament\Resources\ShiftResource\Pages;
 use App\Models\CashierDrawerSession;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Services\AdminActivityLogService;
 use App\Services\ShiftService;
 use Filament\Forms;
 use Filament\Infolists;
@@ -87,10 +88,23 @@ class ShiftResource extends Resource
                     ])
                     ->action(function (Shift $record, array $data) {
                         try {
-                            app(ShiftService::class)->close(
-                                $record,
-                                auth()->user(),
-                                CloseShiftData::fromArray($data),
+                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                                app(ShiftService::class)->close(
+                                    $record,
+                                    auth()->user(),
+                                    CloseShiftData::fromArray($data),
+                                );
+                            });
+                            $record->refresh();
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'closed',
+                                subject: $record,
+                                description: 'تم إغلاق وردية من لوحة الإدارة.',
+                                newValues: [
+                                    'actual_cash' => $record->actual_cash,
+                                    'expected_cash' => $record->expected_cash,
+                                    'cash_difference' => $record->cash_difference,
+                                ],
                             );
                             Notification::make()->title('تم إغلاق الوردية بنجاح')->success()->send();
                         } catch (\Exception $e) {
@@ -110,9 +124,20 @@ class ShiftResource extends Resource
                     ])
                     ->action(function (array $data) {
                         try {
-                            app(ShiftService::class)->open(
-                                auth()->user(),
-                                OpenShiftData::fromArray($data),
+                            $shift = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($data) {
+                                return app(ShiftService::class)->open(
+                                    auth()->user(),
+                                    OpenShiftData::fromArray($data),
+                                );
+                            });
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'opened',
+                                subject: $shift,
+                                description: 'تم فتح وردية جديدة من لوحة الإدارة.',
+                                newValues: [
+                                    'notes' => $shift->notes,
+                                    'started_at' => $shift->started_at,
+                                ],
                             );
                             Notification::make()->title('تم فتح الوردية بنجاح')->success()->send();
                         } catch (\Exception $e) {

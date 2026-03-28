@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AdminActivityLogService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
@@ -89,7 +90,9 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email')->label('البريد')->searchable()->placeholder('—'),
                 Tables\Columns\TextColumn::make('roles.display_name')->label('الأدوار')->badge(),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
-                Tables\Columns\TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('updated_at')->label('آخر تحديث')->dateTime()->sortable()->toggleable(),
+                Tables\Columns\TextColumn::make('last_login_at')->label('آخر تسجيل دخول')->dateTime()->sortable()->placeholder('—')->toggleable(),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')->label('الحالة'),
@@ -105,7 +108,18 @@ class UserResource extends Resource
                     ->color(fn (User $record) => $record->is_active ? 'danger' : 'success')
                     ->visible(fn (User $record): bool => static::canEdit($record) && auth()->id() !== $record->id)
                     ->requiresConfirmation()
-                    ->action(fn (User $record) => $record->update(['is_active' => !$record->is_active])),
+                    ->action(function (User $record): void {
+                        $oldState = (bool) $record->is_active;
+                        app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->update(['is_active' => !$record->is_active]));
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'toggled',
+                            subject: $record,
+                            description: 'تم تغيير حالة المستخدم من لوحة الإدارة.',
+                            oldValues: ['is_active' => $oldState],
+                            newValues: ['is_active' => $record->is_active],
+                        );
+                    }),
             ])
             ->bulkActions([
                 \Filament\Actions\BulkActionGroup::make([

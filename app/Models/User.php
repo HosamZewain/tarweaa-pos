@@ -23,7 +23,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->is_active && $this->hasRole(['admin', 'manager']);
+        return $this->is_active && $this->hasRole(['admin', 'manager', 'owner']);
     }
 
     protected $fillable = [
@@ -45,6 +45,7 @@ class User extends Authenticatable implements FilamentUser
     protected $casts = [
         'is_active'          => 'boolean',
         'email_verified_at'  => 'datetime',
+        'last_login_at'      => 'datetime',
         'password'           => 'hashed',
     ];
 
@@ -108,6 +109,11 @@ class User extends Authenticatable implements FilamentUser
     public function mealBenefitProfile(): HasOne
     {
         return $this->hasOne(UserMealBenefitProfile::class);
+    }
+
+    public function employeeProfile(): HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class);
     }
 
     public function mealBenefitLedgerEntries(): HasMany
@@ -185,6 +191,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasRole('admin');
     }
 
+    public function isOwner(): bool
+    {
+        return $this->hasRole('owner');
+    }
+
     public function isCashier(): bool
     {
         return $this->hasRole('cashier');
@@ -193,6 +204,35 @@ class User extends Authenticatable implements FilamentUser
     public function isManager(): bool
     {
         return $this->hasRole('manager');
+    }
+
+    public static function privilegedRoleNames(): array
+    {
+        return ['admin', 'manager', 'owner'];
+    }
+
+    public static function assignableEmployeeRoleNames(): array
+    {
+        return ['employee', 'cashier', 'kitchen', 'counter'];
+    }
+
+    public function isManageableEmployee(): bool
+    {
+        return !$this->hasRole(static::privilegedRoleNames());
+    }
+
+    public function forgetAuthorizationCache(): void
+    {
+        $this->cachedRoles = null;
+        $this->cachedPermissions = null;
+        $this->unsetRelation('roles');
+    }
+
+    public function markSignedIn(): void
+    {
+        $this->forceFill([
+            'last_login_at' => now(),
+        ])->saveQuietly();
     }
 
     public function canAccessPosSurface(): bool
@@ -213,6 +253,11 @@ class User extends Authenticatable implements FilamentUser
     public function canApproveDiscounts(): bool
     {
         return $this->is_active && $this->hasRole(['admin', 'manager']);
+    }
+
+    public function canViewDashboardAnalytics(): bool
+    {
+        return $this->is_active && $this->hasPermission('dashboard.analytics.view');
     }
 
     public function canViewLiveSessionFinancialStats(): bool

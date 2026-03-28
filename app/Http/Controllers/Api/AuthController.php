@@ -32,6 +32,7 @@ class AuthController extends Controller
             return $this->error('الحساب غير نشط. يرجى التواصل مع المدير.', 403);
         }
 
+        $user->markSignedIn();
         $token = $user->createToken($request->device_name)->plainTextToken;
 
         return $this->success([
@@ -64,6 +65,7 @@ class AuthController extends Controller
             return $this->error('الحساب غير نشط. يرجى التواصل مع المدير.', 403);
         }
 
+        $user->markSignedIn();
         $token = $user->createToken($request->device_name)->plainTextToken;
 
         return $this->success([

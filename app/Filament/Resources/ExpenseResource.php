@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ExpenseResource\Pages;
 use App\Models\Expense;
+use App\Services\AdminActivityLogService;
 use App\Services\ExpenseService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
@@ -79,7 +80,19 @@ class ExpenseResource extends Resource
                     ->visible(fn (Expense $record) => !$record->isApproved() && auth()->user()?->hasPermission('expenses.approve'))
                     ->action(function (Expense $record) {
                         abort_unless(auth()->user()?->hasPermission('expenses.approve'), 403);
-                        app(ExpenseService::class)->approve($record, auth()->id());
+                        app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record): void {
+                            app(ExpenseService::class)->approve($record, auth()->id());
+                        });
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'approved',
+                            subject: $record,
+                            description: 'تمت الموافقة على المصروف من لوحة الإدارة.',
+                            newValues: [
+                                'approved_by' => $record->approved_by,
+                                'approved_at' => $record->approved_at,
+                            ],
+                        );
                         Notification::make()->title('تمت الموافقة على المصروف')->success()->send();
                     }),
             ])

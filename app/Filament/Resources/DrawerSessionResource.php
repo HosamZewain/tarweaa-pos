@@ -11,6 +11,7 @@ use App\Enums\PaymentStatus;
 use App\Filament\Resources\DrawerSessionResource\Pages;
 use App\Models\CashierDrawerSession;
 use App\Models\Order;
+use App\Services\AdminActivityLogService;
 use App\Services\DrawerSessionService;
 use Filament\Forms;
 use Filament\Infolists;
@@ -91,14 +92,27 @@ class DrawerSessionResource extends Resource
                     ])
                     ->action(function (CashierDrawerSession $record, array $data) {
                         try {
-                            app(DrawerSessionService::class)->close(
-                                session: $record,
-                                actor: auth()->user(),
-                                data: new CloseDrawerData(
-                                    actualCash: (float) $data['actual_cash'],
-                                    closedBy: auth()->id(),
-                                    notes: $data['notes'] ?? null,
-                                ),
+                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                                app(DrawerSessionService::class)->close(
+                                    session: $record,
+                                    actor: auth()->user(),
+                                    data: new CloseDrawerData(
+                                        actualCash: (float) $data['actual_cash'],
+                                        closedBy: auth()->id(),
+                                        notes: $data['notes'] ?? null,
+                                    ),
+                                );
+                            });
+                            $record->refresh();
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'closed',
+                                subject: $record,
+                                description: 'تم إغلاق جلسة درج من لوحة الإدارة.',
+                                newValues: [
+                                    'closing_balance' => $record->closing_balance,
+                                    'expected_balance' => $record->expected_balance,
+                                    'cash_difference' => $record->cash_difference,
+                                ],
                             );
                             Notification::make()->title('تم إغلاق الدرج بنجاح')->success()->send();
                         } catch (\Exception $e) {

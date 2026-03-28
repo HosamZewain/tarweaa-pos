@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\MenuItemResource\Pages;
 use App\Models\InventoryItem;
 use App\Models\MenuItem;
+use App\Services\AdminActivityLogService;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
@@ -184,7 +185,18 @@ class MenuItemResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->color(fn (MenuItem $record) => $record->is_available ? 'warning' : 'success')
                     ->requiresConfirmation()
-                    ->action(fn (MenuItem $record) => $record->toggleAvailability()),
+                    ->action(function (MenuItem $record): void {
+                        $oldState = (bool) $record->is_available;
+                        app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->toggleAvailability());
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'toggled',
+                            subject: $record,
+                            description: 'تم تغيير إتاحة الصنف من لوحة الإدارة.',
+                            oldValues: ['is_available' => $oldState],
+                            newValues: ['is_available' => $record->is_available],
+                        );
+                    }),
             ])
             ->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])])
             ->defaultSort('sort_order');

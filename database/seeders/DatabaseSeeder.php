@@ -101,9 +101,13 @@ class DatabaseSeeder extends Seeder
     private function seedRolesAndPermissions(): void
     {
         foreach ([
+            ['name' => 'owner', 'display_name' => 'Owner'],
             ['name' => 'admin', 'display_name' => 'Administrator'],
             ['name' => 'manager', 'display_name' => 'Manager'],
             ['name' => 'cashier', 'display_name' => 'Cashier'],
+            ['name' => 'kitchen', 'display_name' => 'Kitchen'],
+            ['name' => 'counter', 'display_name' => 'Counter'],
+            ['name' => 'employee', 'display_name' => 'Employee'],
         ] as $roleData) {
             Role::updateOrCreate(
                 ['name' => $roleData['name']],
@@ -119,6 +123,59 @@ class DatabaseSeeder extends Seeder
                     'group' => $permission['group'],
                 ],
             );
+        }
+
+        $this->syncDefaultRolePermissions();
+    }
+
+    private function syncDefaultRolePermissions(): void
+    {
+        $rolePermissions = [
+            'owner' => [
+                'dashboard.view',
+                'dashboard.analytics.view',
+                'employees.viewAny',
+                'employees.view',
+                'employees.create',
+                'employees.update',
+                'user_meal_benefit_profiles.viewAny',
+                'user_meal_benefit_profiles.view',
+                'user_meal_benefit_profiles.create',
+                'user_meal_benefit_profiles.update',
+                'reports.meal_benefits.view',
+            ],
+            'manager' => [
+                'dashboard.view',
+                'employees.viewAny',
+                'employees.view',
+                'employees.create',
+                'employees.update',
+                'user_meal_benefit_profiles.viewAny',
+                'user_meal_benefit_profiles.view',
+                'user_meal_benefit_profiles.create',
+                'user_meal_benefit_profiles.update',
+                'reports.meal_benefits.view',
+            ],
+            'kitchen' => [
+                'view_kitchen',
+                'mark_order_ready',
+            ],
+            'counter' => [
+                'view_counter_screen',
+                'handover_counter_orders',
+            ],
+        ];
+
+        foreach ($rolePermissions as $roleName => $permissions) {
+            $role = Role::firstWhere('name', $roleName);
+
+            if ($role) {
+                $role->givePermissionTo($permissions);
+
+                if ($roleName === 'manager' && $role->permissions()->where('name', 'dashboard.analytics.view')->exists()) {
+                    $role->revokePermissionTo('dashboard.analytics.view');
+                }
+            }
         }
     }
 

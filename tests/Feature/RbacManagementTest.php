@@ -44,13 +44,13 @@ class RbacManagementTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_manager_with_user_view_permission_can_access_users_resource(): void
+    public function test_manager_with_user_view_permission_still_cannot_access_users_resource(): void
     {
         $this->managerRole->givePermissionTo('users.viewAny');
 
         $this->actingAs($this->manager)
             ->get('/admin/users')
-            ->assertSuccessful();
+            ->assertForbidden();
     }
 
     public function test_manager_without_permission_policy_cannot_access_permissions_resource(): void
@@ -75,6 +75,13 @@ class RbacManagementTest extends TestCase
         $this->actingAs($this->manager)
             ->get('/admin/sales-report')
             ->assertForbidden();
+    }
+
+    public function test_manager_role_does_not_keep_dashboard_analytics_permission_after_seeding(): void
+    {
+        $this->assertFalse(
+            $this->managerRole->fresh()->permissions()->where('name', 'dashboard.analytics.view')->exists()
+        );
     }
 
     public function test_manager_with_report_permission_can_access_sales_report_page(): void

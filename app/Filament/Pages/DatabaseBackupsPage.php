@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Services\AdminActivityLogService;
 use App\Services\DatabaseBackupService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -34,6 +35,17 @@ class DatabaseBackupsPage extends Page
     public function createBackup(): BinaryFileResponse
     {
         $backup = app(DatabaseBackupService::class)->createBackup();
+
+        app(AdminActivityLogService::class)->logAction(
+            action: 'backup_created',
+            description: 'تم إنشاء نسخة احتياطية لقاعدة البيانات من لوحة الإدارة.',
+            newValues: [
+                'path' => $backup['path'],
+                'filename' => $backup['filename'],
+            ],
+            module: 'settings.database_backups',
+            subjectLabel: $backup['filename'],
+        );
 
         $this->refreshBackupFiles();
 
@@ -91,6 +103,16 @@ class DatabaseBackupsPage extends Page
         }
 
         $result = app(DatabaseBackupService::class)->resetOperationalData(createSafetyBackup: true);
+
+        app(AdminActivityLogService::class)->logAction(
+            action: 'operational_data_reset',
+            description: 'تمت إعادة تهيئة البيانات التشغيلية من صفحة النسخ الاحتياطية.',
+            newValues: [
+                'safety_backup_created' => (bool) $result['safety_backup'],
+            ],
+            module: 'settings.database_backups',
+            subjectLabel: 'إعادة تهيئة البيانات التشغيلية',
+        );
 
         Notification::make()
             ->title('تمت إعادة تهيئة البيانات التشغيلية')

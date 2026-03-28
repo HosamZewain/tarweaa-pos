@@ -2,12 +2,15 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Models\Order;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
 class SalesChartWidget extends ChartWidget
 {
+    use InteractsWithDashboardAnalyticsVisibility;
+
     protected ?string $heading = 'اتجاه المبيعات خلال آخر 14 يومًا';
     protected ?string $description = 'صافي قيمة الطلبات غير الملغاة يومًا بيوم.';
     protected static ?int $sort = 2;

@@ -2,12 +2,15 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Models\Order;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
 class OrderVolumeChartWidget extends ChartWidget
 {
+    use InteractsWithDashboardAnalyticsVisibility;
+
     protected ?string $heading = 'عدد الطلبات خلال آخر 14 يومًا';
     protected ?string $description = 'مقارنة يومية لحركة الطلبات في آخر أسبوعين.';
     protected static ?int $sort = 3;

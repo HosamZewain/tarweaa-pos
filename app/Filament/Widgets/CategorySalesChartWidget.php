@@ -2,11 +2,14 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Facades\DB;
 
 class CategorySalesChartWidget extends ChartWidget
 {
+    use InteractsWithDashboardAnalyticsVisibility;
+
     protected ?string $heading = 'المبيعات حسب الفئة هذا الشهر';
     protected ?string $description = 'أفضل الفئات أداءً بحسب صافي الإيراد في الشهر الحالي.';
     protected int | string | array $columnSpan = 4;

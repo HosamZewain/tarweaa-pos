@@ -34,7 +34,9 @@ class SystemPermissions
         ];
 
         $resources = [
+            'admin_activity_logs' => ['group' => 'الإدارة', 'singular' => 'سجل نشاط إداري', 'plural' => 'سجل النشاط الإداري'],
             'users' => ['group' => 'الإدارة', 'singular' => 'مستخدم', 'plural' => 'المستخدمين'],
+            'employees' => ['group' => 'الإدارة', 'singular' => 'موظف', 'plural' => 'الموظفون'],
             'roles' => ['group' => 'الإدارة', 'singular' => 'دور', 'plural' => 'الأدوار'],
             'permissions' => ['group' => 'الإدارة', 'singular' => 'صلاحية', 'plural' => 'الصلاحيات'],
             'orders' => ['group' => 'العمليات', 'singular' => 'طلب', 'plural' => 'الطلبات'],
@@ -75,6 +77,7 @@ class SystemPermissions
     {
         return [
             ['name' => 'dashboard.view', 'display_name' => 'عرض لوحة التحكم', 'group' => 'لوحة التحكم'],
+            ['name' => 'dashboard.analytics.view', 'display_name' => 'عرض مؤشرات وتقارير لوحة التحكم', 'group' => 'لوحة التحكم'],
             ['name' => 'reports.sales.view', 'display_name' => 'عرض تقرير المبيعات', 'group' => 'التقارير'],
             ['name' => 'reports.sales_breakdown.view', 'display_name' => 'عرض تفصيل المبيعات', 'group' => 'التقارير'],
             ['name' => 'reports.discounts.view', 'display_name' => 'عرض تقرير الخصومات', 'group' => 'التقارير'],

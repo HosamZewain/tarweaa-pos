@@ -11,6 +11,7 @@ use App\Enums\PaymentMethod;
 use App\Filament\Resources\OrderResource\Pages;
 use App\Models\DiscountLog;
 use App\Models\Order;
+use App\Services\AdminActivityLogService;
 use App\Services\OrderLifecycleService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
@@ -108,7 +109,19 @@ class OrderResource extends Resource
                     ->visible(fn (Order $record) => $record->isCancellable() && auth()->user()?->hasPermission('orders.cancel'))
                     ->action(function (Order $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('orders.cancel'), 403);
-                        app(OrderLifecycleService::class)->cancel($record, auth()->user(), $data['reason']);
+                        app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                            app(OrderLifecycleService::class)->cancel($record, auth()->user(), $data['reason']);
+                        });
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'cancelled',
+                            subject: $record,
+                            description: 'تم إلغاء طلب من لوحة الإدارة.',
+                            newValues: [
+                                'status' => $record->status,
+                                'cancellation_reason' => $data['reason'],
+                            ],
+                        );
                     }),
             ])
             ->defaultSort('created_at', 'desc');

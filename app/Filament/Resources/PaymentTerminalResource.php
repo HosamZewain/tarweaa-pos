@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\PaymentTerminalFeeType;
 use App\Filament\Resources\PaymentTerminalResource\Pages;
 use App\Models\PaymentTerminal;
+use App\Services\AdminActivityLogService;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -117,7 +118,16 @@ class PaymentTerminalResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (PaymentTerminal $record) => auth()->user()?->can('update', $record) ?? false)
                     ->action(function (PaymentTerminal $record): void {
-                        $record->update(['is_active' => !$record->is_active]);
+                        $oldState = (bool) $record->is_active;
+                        app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->update(['is_active' => !$record->is_active]));
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'toggled',
+                            subject: $record,
+                            description: 'تم تغيير حالة جهاز الدفع من لوحة الإدارة.',
+                            oldValues: ['is_active' => $oldState],
+                            newValues: ['is_active' => $record->is_active],
+                        );
                     }),
             ])
             ->bulkActions([

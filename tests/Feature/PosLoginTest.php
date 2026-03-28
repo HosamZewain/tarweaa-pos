@@ -37,6 +37,8 @@ class PosLoginTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.user.email', 'admin@example.com')
             ->assertJsonPath('data.user.can_access_pos', true);
+
+        $this->assertNotNull($user->fresh()->last_login_at);
     }
 
     public function test_pin_login_rejects_duplicate_active_pins(): void
@@ -94,5 +96,7 @@ class PosLoginTest extends TestCase
             'device_name' => 'test-terminal',
         ])->assertOk()
             ->assertJsonPath('data.user.can_access_kitchen', true);
+
+        $this->assertNotNull($user->fresh()->last_login_at);
     }
 }

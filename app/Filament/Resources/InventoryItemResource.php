@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\InventoryTransactionType;
 use App\Filament\Resources\InventoryItemResource\Pages;
 use App\Models\InventoryItem;
+use App\Services\AdminActivityLogService;
 use App\Services\RecipeService;
 use App\Services\InventoryService;
 use Filament\Forms;
@@ -91,11 +92,25 @@ class InventoryItemResource extends Resource
                     ->action(function (InventoryItem $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('inventory_items.adjust_stock'), 403);
                         try {
-                            app(InventoryService::class)->adjustTo(
-                                $record,
-                                (float) $data['new_quantity'],
-                                auth()->id(),
-                                $data['notes'],
+                            $oldQuantity = (float) $record->current_stock;
+                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                                app(InventoryService::class)->adjustTo(
+                                    $record,
+                                    (float) $data['new_quantity'],
+                                    auth()->id(),
+                                    $data['notes'],
+                                );
+                            });
+                            $record->refresh();
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'stock_adjusted',
+                                subject: $record,
+                                description: 'تم تعديل رصيد المخزون يدويًا من لوحة الإدارة.',
+                                oldValues: ['current_stock' => $oldQuantity],
+                                newValues: [
+                                    'current_stock' => $record->current_stock,
+                                    'reason' => $data['notes'],
+                                ],
                             );
                             Notification::make()->title('تم تعديل المخزون بنجاح')->success()->send();
                         } catch (\Exception $e) {
@@ -115,13 +130,29 @@ class InventoryItemResource extends Resource
                     ->action(function (InventoryItem $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('inventory_items.add_stock'), 403);
                         try {
-                            app(InventoryService::class)->addStock(
-                                $record,
-                                (float) $data['quantity'],
-                                auth()->id(),
-                                InventoryTransactionType::Purchase,
-                                !empty($data['unit_cost']) ? (float) $data['unit_cost'] : null,
-                                notes: $data['notes'] ?? null,
+                            $oldQuantity = (float) $record->current_stock;
+                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                                app(InventoryService::class)->addStock(
+                                    $record,
+                                    (float) $data['quantity'],
+                                    auth()->id(),
+                                    InventoryTransactionType::Purchase,
+                                    !empty($data['unit_cost']) ? (float) $data['unit_cost'] : null,
+                                    notes: $data['notes'] ?? null,
+                                );
+                            });
+                            $record->refresh();
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'stock_added',
+                                subject: $record,
+                                description: 'تمت إضافة رصيد مخزون من لوحة الإدارة.',
+                                oldValues: ['current_stock' => $oldQuantity],
+                                newValues: [
+                                    'current_stock' => $record->current_stock,
+                                    'quantity_added' => (float) $data['quantity'],
+                                    'unit_cost' => !empty($data['unit_cost']) ? (float) $data['unit_cost'] : null,
+                                    'notes' => $data['notes'] ?? null,
+                                ],
                             );
                             Notification::make()->title('تمت إضافة المخزون بنجاح')->success()->send();
                         } catch (\Exception $e) {

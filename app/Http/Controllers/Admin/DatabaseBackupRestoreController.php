@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AdminActivityLogService;
 use App\Services\DatabaseBackupService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,17 @@ class DatabaseBackupRestoreController extends Controller
         $path = $file->storeAs(DatabaseBackupService::BACKUP_DIRECTORY . '/uploads', $filename, 'local');
 
         $result = $databaseBackupService->restoreUploadedBackup($path);
+
+        app(AdminActivityLogService::class)->logAction(
+            action: 'backup_restored',
+            description: 'تمت استعادة نسخة احتياطية لقاعدة البيانات من لوحة الإدارة.',
+            newValues: [
+                'uploaded_path' => $path,
+                'safety_backup_created' => (bool) $result['safety_backup'],
+            ],
+            module: 'settings.database_backups',
+            subjectLabel: basename($path),
+        );
 
         return redirect()
             ->route('filament.admin.pages.database-backups-page')

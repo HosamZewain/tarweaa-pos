@@ -2,11 +2,14 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Models\OrderItem;
 use Filament\Widgets\Widget;
 
 class TopSellingItemsWidget extends Widget
 {
+    use InteractsWithDashboardAnalyticsVisibility;
+
     protected static ?int $sort = 2;
     protected string $view = 'filament.widgets.top-selling-items';
     protected int | string | array $columnSpan = 'full';

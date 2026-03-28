@@ -2,12 +2,15 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Enums\OrderStatus;
 use App\Models\Order;
 use Filament\Widgets\ChartWidget;
 
 class OrderStatusChartWidget extends ChartWidget
 {
+    use InteractsWithDashboardAnalyticsVisibility;
+
     protected ?string $heading = 'حالات الطلبات هذا الشهر';
     protected ?string $description = 'مقارنة سريعة لتوزيع الطلبات حسب حالة المعالجة.';
     protected int | string | array $columnSpan = 4;

@@ -7,6 +7,7 @@ use App\Filament\Resources\UserMealBenefitProfileResource;
 use App\Models\MenuItem;
 use App\Models\User;
 use App\Models\UserMealBenefitProfile;
+use App\Services\AdminActivityLogService;
 use App\Services\UserMealBenefitProfileService;
 use Filament\Actions;
 use Filament\Forms;
@@ -124,6 +125,18 @@ class ListUserMealBenefitProfiles extends ListRecords
                         $data['user_ids'] ?? [],
                         $data,
                         auth()->id(),
+                    );
+
+                    app(AdminActivityLogService::class)->logAction(
+                        action: 'bulk_assigned',
+                        description: 'تم تنفيذ إسناد جماعي لملفات مزايا الوجبات.',
+                        newValues: [
+                            'user_ids' => $data['user_ids'] ?? [],
+                            'benefit_mode' => $data['benefit_mode'] ?? null,
+                            'updated_profiles_count' => $count,
+                        ],
+                        module: 'user_meal_benefit_profiles',
+                        subjectLabel: 'إسناد جماعي لملفات المزايا',
                     );
 
                     Notification::make()

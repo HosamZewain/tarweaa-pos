@@ -87,6 +87,10 @@ class Login extends BaseLogin
             $this->throwFailureValidationException();
         }
 
+        if (method_exists($user, 'markSignedIn')) {
+            $user->markSignedIn();
+        }
+
         session()->regenerate();
 
         return app(LoginResponse::class);

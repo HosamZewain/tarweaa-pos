@@ -1,0 +1,235 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\EmployeeResource\Pages;
+use App\Models\Employee;
+use App\Models\User;
+use App\Services\AdminActivityLogService;
+use App\Services\EmployeeManagementService;
+use Filament\Forms;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Hash;
+
+class EmployeeResource extends Resource
+{
+    protected static ?string $model = Employee::class;
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
+    protected static string | \UnitEnum | null $navigationGroup = 'الإدارة';
+    protected static ?string $navigationLabel = 'الموظفون';
+    protected static ?string $modelLabel = 'موظف';
+    protected static ?string $pluralModelLabel = 'الموظفون';
+    protected static ?int $navigationSort = 2;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function form(Schema $form): Schema
+    {
+        $employeeService = app(EmployeeManagementService::class);
+
+        return $form->schema([
+            \Filament\Schemas\Components\Section::make('بيانات الموظف')->schema([
+                Forms\Components\TextInput::make('name')
+                    ->label('الاسم')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('username')
+                    ->label('اسم المستخدم')
+                    ->required()
+                    ->unique(ignoreRecord: true)
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('email')
+                    ->label('البريد الإلكتروني')
+                    ->email()
+                    ->helperText('اختياري')
+                    ->placeholder('اختياري')
+                    ->unique(ignoreRecord: true)
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('phone')
+                    ->label('الهاتف')
+                    ->tel()
+                    ->maxLength(20),
+                Forms\Components\TextInput::make('password')
+                    ->label('كلمة المرور')
+                    ->password()
+                    ->dehydrateStateUsing(fn ($state) => filled($state) ? Hash::make($state) : null)
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('pin')
+                    ->label('رمز PIN')
+                    ->password()
+                    ->helperText('اختياري. من 4 إلى 6 أرقام عند الحاجة للدخول من شاشات التشغيل.')
+                    ->minLength(4)
+                    ->maxLength(6)
+                    ->rule('regex:/^[0-9]{4,6}$/')
+                    ->dehydrated(fn ($state) => filled($state)),
+                Forms\Components\Toggle::make('is_active')
+                    ->label('نشط')
+                    ->default(true),
+            ])->columns(2),
+
+            \Filament\Schemas\Components\Section::make('الملف الوظيفي')
+                ->relationship('employeeProfile')
+                ->schema([
+                    Forms\Components\TextInput::make('full_name')
+                        ->label('الاسم الكامل')
+                        ->maxLength(255),
+                    Forms\Components\TextInput::make('job_title')
+                        ->label('المسمى الوظيفي')
+                        ->maxLength(255),
+                    Forms\Components\DatePicker::make('hired_at')
+                        ->label('تاريخ التعيين'),
+                    Forms\Components\FileUpload::make('profile_image')
+                        ->label('الصورة الشخصية')
+                        ->image()
+                        ->directory('employees/profile-images')
+                        ->imageEditor()
+                        ->nullable(),
+                    Forms\Components\Textarea::make('notes')
+                        ->label('ملاحظات إدارية')
+                        ->rows(3)
+                        ->columnSpanFull(),
+                ])->columns(2),
+
+            \Filament\Schemas\Components\Section::make('المرفقات')
+                ->relationship('employeeProfile')
+                ->schema([
+                    Forms\Components\Repeater::make('attachments')
+                        ->label('الملفات')
+                        ->relationship()
+                        ->defaultItems(0)
+                        ->addActionLabel('إضافة ملف')
+                        ->reorderable(false)
+                        ->collapsed()
+                        ->schema([
+                            Forms\Components\TextInput::make('title')
+                                ->label('عنوان الملف')
+                                ->maxLength(255),
+                            Forms\Components\FileUpload::make('file_path')
+                                ->label('الملف')
+                                ->directory('employees/attachments')
+                                ->openable()
+                                ->downloadable()
+                                ->required()
+                                ->afterStateUpdated(function ($state, Set $set): void {
+                                    if (blank($state)) {
+                                        return;
+                                    }
+
+                                    $filename = is_string($state) ? basename($state) : null;
+                                    $extension = is_string($state) ? strtolower(pathinfo($state, PATHINFO_EXTENSION)) : null;
+
+                                    if ($filename) {
+                                        $set('file_name', $filename);
+                                    }
+
+                                    if ($extension) {
+                                        $set('file_type', $extension);
+                                    }
+                                }),
+                            Forms\Components\Hidden::make('file_name'),
+                            Forms\Components\Hidden::make('file_type'),
+                        ])->columns(2),
+                ]),
+
+            \Filament\Schemas\Components\Section::make('الدور التشغيلي')->schema([
+                Forms\Components\Radio::make('staff_role')
+                    ->label('نوع الحساب')
+                    ->options($employeeService->assignableRoleOptions())
+                    ->descriptions([
+                        'employee' => 'يُستخدم كسجل موظف فقط للمزايا والوجبات دون صلاحيات تشغيلية.',
+                        'cashier' => 'يستطيع استخدام نقطة البيع.',
+                        'kitchen' => 'يستطيع عرض شاشة المطبخ وتحديث حالة التجهيز.',
+                        'counter' => 'يستطيع عرض شاشة الكاونتر وتأكيد التسليم.',
+                    ])
+                    ->required()
+                    ->inline(false),
+            ]),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->manageable()->with(['roles', 'employeeProfile']))
+            ->columns([
+                Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
+                Tables\Columns\ImageColumn::make('employeeProfile.profile_image')->label('الصورة')->circular()->defaultImageUrl(null),
+                Tables\Columns\TextColumn::make('employeeProfile.full_name')->label('الاسم الكامل')->searchable()->placeholder('—'),
+                Tables\Columns\TextColumn::make('employeeProfile.job_title')->label('المسمى الوظيفي')->placeholder('—'),
+                Tables\Columns\TextColumn::make('username')->label('اسم المستخدم')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('email')->label('البريد')->placeholder('—')->searchable(),
+                Tables\Columns\TextColumn::make('roles.display_name')->label('الدور')->badge(),
+                Tables\Columns\TextColumn::make('employeeProfile.hired_at')
+                    ->label('تاريخ التعيين')
+                    ->date()
+                    ->placeholder('—'),
+                Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('تاريخ الإنشاء')
+                    ->dateTime()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->label('آخر تحديث')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('last_login_at')
+                    ->label('آخر تسجيل دخول')
+                    ->dateTime()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_active')->label('الحالة'),
+                Tables\Filters\SelectFilter::make('roles')
+                    ->label('الدور')
+                    ->relationship('roles', 'display_name', fn (Builder $query) => $query->whereIn('name', User::assignableEmployeeRoleNames())),
+            ])
+            ->actions([
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\Action::make('toggleActive')
+                    ->label(fn (Employee $record) => $record->is_active ? 'تعطيل' : 'تفعيل')
+                    ->icon(fn (Employee $record) => $record->is_active ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+                    ->color(fn (Employee $record) => $record->is_active ? 'danger' : 'success')
+                    ->requiresConfirmation()
+                    ->action(function (Employee $record): void {
+                        $oldState = (bool) $record->is_active;
+                        app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->update(['is_active' => !$record->is_active]));
+                        $record->refresh();
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'toggled',
+                            subject: $record,
+                            description: 'تم تغيير حالة موظف من شاشة إدارة الموظفين.',
+                            oldValues: ['is_active' => $oldState],
+                            newValues: ['is_active' => $record->is_active],
+                        );
+                    }),
+            ])
+            ->defaultSort('name');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->manageable()->with(['roles', 'employeeProfile']);
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListEmployees::route('/'),
+            'create' => Pages\CreateEmployee::route('/create'),
+            'edit' => Pages\EditEmployee::route('/{record}/edit'),
+        ];
+    }
+}

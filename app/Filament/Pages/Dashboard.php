@@ -47,14 +47,21 @@ class Dashboard extends BaseDashboard
 
     public function getWidgets(): array
     {
-        return [
+        $widgets = [
             DashboardHeroWidget::class,
             DashboardStatsWidget::class,
-            SalesChartWidget::class,
-            OrderStatusChartWidget::class,
-            OrderVolumeChartWidget::class,
-            CategorySalesChartWidget::class,
-            TopSellingItemsWidget::class,
         ];
+
+        if (auth()->user()?->canViewDashboardAnalytics()) {
+            $widgets = array_merge($widgets, [
+                SalesChartWidget::class,
+                OrderStatusChartWidget::class,
+                OrderVolumeChartWidget::class,
+                CategorySalesChartWidget::class,
+                TopSellingItemsWidget::class,
+            ]);
+        }
+
+        return $widgets;
     }
 }

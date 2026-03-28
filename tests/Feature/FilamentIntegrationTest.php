@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use ReflectionMethod;
+use App\Filament\Widgets\SalesChartWidget;
+use App\Filament\Widgets\DashboardHeroWidget;
+use App\Filament\Widgets\DashboardStatsWidget;
 use App\Models\User;
 use App\Models\Shift;
 use App\Models\PosDevice;
@@ -59,6 +63,50 @@ class FilamentIntegrationTest extends TestCase
         $this->actingAs($this->adminUser)
              ->get('/admin')
              ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_dashboard_analytics_widgets(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        $stats = $this->invokeProtectedMethod(app(DashboardStatsWidget::class), 'getStats');
+        $heroData = app(DashboardHeroWidget::class)->getViewData();
+
+        $this->assertTrue(SalesChartWidget::canView());
+        $this->assertTrue(
+            collect($stats)->contains(fn ($stat) => $stat->getLabel() === 'مبيعات اليوم')
+        );
+        $this->assertTrue(
+            collect($heroData['links'])->contains(fn (array $link) => $link['label'] === 'تقرير المبيعات')
+        );
+    }
+
+    public function test_manager_can_access_dashboard_without_viewing_analytics_widgets(): void
+    {
+        $manager = User::factory()->create([
+            'name' => 'Branch Manager',
+            'email' => 'branch.manager@example.com',
+            'username' => 'branch-manager',
+            'is_active' => true,
+        ]);
+
+        $managerRole = Role::firstWhere('name', 'manager');
+        $manager->roles()->sync([$managerRole->id]);
+
+        $this->actingAs($manager)
+            ->get('/admin')
+            ->assertSuccessful();
+
+        $stats = $this->invokeProtectedMethod(app(DashboardStatsWidget::class), 'getStats');
+        $heroData = app(DashboardHeroWidget::class)->getViewData();
+
+        $this->assertFalse(SalesChartWidget::canView());
+        $this->assertFalse(
+            collect($stats)->contains(fn ($stat) => $stat->getLabel() === 'مبيعات اليوم')
+        );
+        $this->assertFalse(
+            collect($heroData['links'])->contains(fn (array $link) => $link['label'] === 'تقرير المبيعات')
+        );
     }
 
     public function test_admin_can_view_shifts_resource()
@@ -259,6 +307,13 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_admin_activity_logs_resource()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/admin-activity-logs')
+             ->assertSuccessful();
+    }
+
     public function test_admin_can_view_roles_resource()
     {
         $this->actingAs($this->adminUser)
@@ -403,5 +458,13 @@ class FilamentIntegrationTest extends TestCase
         $this->actingAs($this->adminUser)
              ->get('/admin/inventory-report')
              ->assertSuccessful();
+    }
+
+    private function invokeProtectedMethod(object $instance, string $method): mixed
+    {
+        $reflection = new ReflectionMethod($instance, $method);
+        $reflection->setAccessible(true);
+
+        return $reflection->invoke($instance);
     }
 }
