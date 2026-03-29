@@ -954,18 +954,35 @@
         return 'المرجع';
     }
 
+    function normalizeOrderTypeSource(value) {
+        return String(value ?? '')
+            .trim()
+            .toLowerCase();
+    }
+
     function getContextualExternalPayMethod() {
-        switch (selectedOrderType?.source) {
-            case 'talabat':
-                return 'talabat_pay';
-            case 'jahez':
-                return 'jahez_pay';
-            case 'hungerstation':
-            case 'other':
-                return 'online';
-            default:
-                return null;
+        const source = normalizeOrderTypeSource(selectedOrderType?.source);
+        const name = normalizeOrderTypeSource(selectedOrderType?.name);
+
+        if (source === 'talabat' || name.includes('طلبات') || name.includes('talabat')) {
+            return 'talabat_pay';
         }
+
+        if (source === 'jahez' || name.includes('جاهز') || name.includes('jahez')) {
+            return 'jahez_pay';
+        }
+
+        if (
+            source === 'hungerstation'
+            || source === 'other'
+            || name.includes('هنقر')
+            || name.includes('hunger')
+            || name.includes('online')
+        ) {
+            return 'online';
+        }
+
+        return null;
     }
 
     function updateAvailablePayMethods() {

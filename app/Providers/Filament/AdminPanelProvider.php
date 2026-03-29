@@ -41,7 +41,7 @@ class AdminPanelProvider extends PanelProvider
                 'info'    => Color::Blue,
             ])
             ->renderHook(
-                PanelsRenderHook::TOPBAR_START,
+                PanelsRenderHook::TOPBAR_END,
                 fn (): View => view('filament.components.topbar-date-time'),
             )
             ->navigationGroups([
