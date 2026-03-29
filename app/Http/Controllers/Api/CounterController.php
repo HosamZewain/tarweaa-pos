@@ -17,7 +17,7 @@ class CounterController extends Controller
 
     public function orders(Request $request, string $lane): JsonResponse
     {
-        abort_unless(in_array($lane, ['odd', 'even'], true), 404);
+        abort_unless(in_array($lane, ['all', 'odd', 'even'], true), 404);
 
         if (!$request->user()?->canAccessCounterSurface()) {
             return $this->error('ليس لديك صلاحية شاشة التسليم والاستلام.', 403);
@@ -30,9 +30,9 @@ class CounterController extends Controller
                 'items:id,order_id,item_name,variant_name,quantity',
             ])
             ->counterVisible()
-            ->forCounterLane($lane)
             ->orderBy('created_at')
             ->orderBy('id')
+            ->when($lane !== 'all', fn ($query) => $query->forCounterLane($lane))
             ->get();
 
         return $this->success([

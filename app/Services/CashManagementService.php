@@ -11,6 +11,7 @@ use App\Models\CashierDrawerSession;
 use App\Models\CashMovement;
 use App\Models\Expense;
 use App\Models\Shift;
+use App\Support\BusinessTime;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -110,8 +111,8 @@ class CashManagementService
             'cashier'          => $session->cashier->name,
             'pos_device'       => $session->posDevice->name,
             'status'           => $session->status->label(),
-            'started_at'       => $session->started_at?->format('Y-m-d H:i'),
-            'ended_at'         => $session->ended_at?->format('Y-m-d H:i'),
+            'started_at'       => BusinessTime::formatDateTime($session->started_at),
+            'ended_at'         => BusinessTime::formatDateTime($session->ended_at),
             // Money breakdown
             'opening_balance'  => round((float) $session->opening_balance, 2),
             'total_sales'      => $sum('sale'),
@@ -134,7 +135,7 @@ class CashManagementService
                 'amount'       => round((float) $m->amount, 2),
                 'notes'        => $m->notes,
                 'performed_by' => $m->performer?->name,
-                'at'           => $m->created_at?->format('H:i:s'),
+                'at'           => blank($m->created_at) ? null : BusinessTime::asLocal($m->created_at)->format('H:i:s'),
             ])->values()->all(),
         ];
     }
@@ -181,8 +182,8 @@ class CashManagementService
         return [
             'shift_number'          => $shift->shift_number,
             'status'                => $shift->status->label(),
-            'started_at'            => $shift->started_at?->format('Y-m-d H:i'),
-            'ended_at'              => $shift->ended_at?->format('Y-m-d H:i'),
+            'started_at'            => BusinessTime::formatDateTime($shift->started_at),
+            'ended_at'              => BusinessTime::formatDateTime($shift->ended_at),
             'duration'              => $shift->durationLabel(),
             'opened_by'             => $shift->opener->name,
             'closed_by'             => $shift->closer?->name,

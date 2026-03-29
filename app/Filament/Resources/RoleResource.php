@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\RoleResource\Pages;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
@@ -135,6 +136,8 @@ class RoleResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('display_name')
@@ -163,6 +166,7 @@ class RoleResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('تاريخ الإنشاء')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])

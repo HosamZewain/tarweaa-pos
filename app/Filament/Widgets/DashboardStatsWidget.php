@@ -9,6 +9,7 @@ use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Support\BusinessTime;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -26,13 +27,13 @@ class DashboardStatsWidget extends StatsOverviewWidget
     protected function getStats(): array
     {
         $canViewAnalytics = auth()->user()?->canViewDashboardAnalytics() ?? false;
-        $today     = today();
-        $yesterday = today()->subDay();
+        $today = BusinessTime::today();
+        $yesterday = $today->copy()->subDay();
 
-        $todayOrders = Order::whereDate('created_at', $today)
+        $todayOrders = BusinessTime::applyUtcDate(Order::query(), $today)
             ->whereNotIn('status', ['cancelled']);
 
-        $yesterdayRevenue = (float) Order::whereDate('created_at', $yesterday)
+        $yesterdayRevenue = (float) BusinessTime::applyUtcDate(Order::query(), $yesterday)
             ->whereNotIn('status', ['cancelled'])
             ->sum('total');
 
@@ -40,15 +41,19 @@ class DashboardStatsWidget extends StatsOverviewWidget
         $todayOrderCount = $todayOrders->count();
 
         $weeklyRevenueTrend = collect(range(6, 0))
-            ->map(fn (int $offset): float => (float) Order::whereDate('created_at', today()->subDays($offset))
-                ->whereNotIn('status', ['cancelled'])
-                ->sum('total'))
+            ->map(function (int $offset) use ($today): float {
+                return (float) BusinessTime::applyUtcDate(Order::query(), $today->copy()->subDays($offset))
+                    ->whereNotIn('status', ['cancelled'])
+                    ->sum('total');
+            })
             ->all();
 
         $weeklyOrderTrend = collect(range(6, 0))
-            ->map(fn (int $offset): int => (int) Order::whereDate('created_at', today()->subDays($offset))
-                ->whereNotIn('status', ['cancelled'])
-                ->count())
+            ->map(function (int $offset) use ($today): int {
+                return (int) BusinessTime::applyUtcDate(Order::query(), $today->copy()->subDays($offset))
+                    ->whereNotIn('status', ['cancelled'])
+                    ->count();
+            })
             ->all();
 
         $activeShift   = Shift::where('status', ShiftStatus::Open)->first();
@@ -56,23 +61,22 @@ class DashboardStatsWidget extends StatsOverviewWidget
         $lowStockCount = InventoryItem::active()->lowStock()->count();
 
         $pendingExpenses = Expense::whereNull('approved_by')
-            ->whereDate('expense_date', '>=', today()->startOfMonth())
+            ->whereDate('expense_date', '>=', $today->copy()->startOfMonth())
             ->count();
 
         $todayAOV = $todayOrderCount > 0 ? $todayRevenue / $todayOrderCount : 0;
 
-        $monthStart = today()->startOfMonth();
-        $thisMonthRevenue = (float) Order::where('created_at', '>=', $monthStart)
+        [$monthStart, $monthEnd] = BusinessTime::utcRangeForLocalMonth($today);
+        $thisMonthRevenue = (float) Order::whereBetween('created_at', [$monthStart, $monthEnd])
             ->whereNotIn('status', ['cancelled'])
             ->sum('total');
 
-        $lastMonthStart = today()->subMonth()->startOfMonth();
-        $lastMonthEnd = today()->subMonth()->endOfMonth();
+        [$lastMonthStart, $lastMonthEnd] = BusinessTime::utcRangeForLocalMonth($today->copy()->subMonthNoOverflow());
         $lastMonthRevenue = (float) Order::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])
             ->whereNotIn('status', ['cancelled'])
             ->sum('total');
 
-        $thisMonthExpenses = (float) Expense::where('expense_date', '>=', $monthStart)
+        $thisMonthExpenses = (float) Expense::where('expense_date', '>=', $today->copy()->startOfMonth()->toDateString())
             ->whereNotNull('approved_by')
             ->sum('amount');
         

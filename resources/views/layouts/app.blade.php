@@ -467,7 +467,7 @@
             }
 
             if (canAccessCounterSurface(user)) {
-                return '/counter-screen/odd';
+                return '/counter';
             }
 
             return '/pos/login';

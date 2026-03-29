@@ -4,8 +4,8 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Models\Order;
+use App\Support\BusinessTime;
 use Filament\Widgets\ChartWidget;
-use Illuminate\Support\Carbon;
 
 class SalesChartWidget extends ChartWidget
 {
@@ -23,9 +23,9 @@ class SalesChartWidget extends ChartWidget
         $labels = [];
 
         for ($i = 13; $i >= 0; $i--) {
-            $date = Carbon::today()->subDays($i);
+            $date = BusinessTime::today()->subDays($i);
             $labels[] = $date->format('d/m');
-            $data[] = (float) Order::whereDate('created_at', $date)
+            $data[] = (float) BusinessTime::applyUtcDate(Order::query(), $date)
                 ->whereNotIn('status', ['cancelled'])
                 ->sum('total');
         }

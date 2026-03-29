@@ -7,6 +7,7 @@ use App\Enums\OrderSource;
 use App\Enums\OrderType;
 use App\Filament\Resources\PosOrderTypeResource\Pages;
 use App\Models\PosOrderType;
+use App\Support\BusinessTime;
 use App\Services\ChannelPricingService;
 use App\Services\PosOrderTypeService;
 use Filament\Forms;
@@ -82,6 +83,8 @@ class PosOrderTypeResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->defaultSort('sort_order')
             ->columns([
@@ -111,6 +114,7 @@ class PosOrderTypeResource extends Resource
                 Tables\Columns\TextColumn::make('deleted_at')
                     ->label('محذوف')
                     ->since()
+                    ->timezone($businessTimezone)
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])

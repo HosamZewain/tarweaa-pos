@@ -140,8 +140,8 @@
                                                 {{ $row->shift?->ended_at ? 'مغلقة' : 'مفتوحة' }}
                                             </x-admin.badge>
                                         </td>
-                                        <td class="text-gray-500 dark:text-gray-400">{{ $row->shift?->started_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                                        <td class="text-gray-500 dark:text-gray-400">{{ $row->shift?->ended_at?->format('Y-m-d H:i') ?? 'مفتوحة' }}</td>
+                                        <td class="text-gray-500 dark:text-gray-400">{{ $row->shift?->started_at ? \App\Support\BusinessTime::formatDateTime($row->shift->started_at) : '—' }}</td>
+                                        <td class="text-gray-500 dark:text-gray-400">{{ $row->shift?->ended_at ? \App\Support\BusinessTime::formatDateTime($row->shift->ended_at) : 'مفتوحة' }}</td>
                                         <td>{{ number_format($row->total_orders) }}</td>
                                         <td>{{ number_format($row->gross_revenue, 2) }} ج.م</td>
                                         <td class="font-semibold text-danger-600 dark:text-danger-400">{{ number_format($row->total_refunds, 2) }} ج.م</td>

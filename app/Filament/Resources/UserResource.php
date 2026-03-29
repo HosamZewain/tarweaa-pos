@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
@@ -83,6 +84,8 @@ class UserResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
@@ -90,9 +93,9 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email')->label('البريد')->searchable()->placeholder('—'),
                 Tables\Columns\TextColumn::make('roles.display_name')->label('الأدوار')->badge(),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
-                Tables\Columns\TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime()->sortable(),
-                Tables\Columns\TextColumn::make('updated_at')->label('آخر تحديث')->dateTime()->sortable()->toggleable(),
-                Tables\Columns\TextColumn::make('last_login_at')->label('آخر تسجيل دخول')->dateTime()->sortable()->placeholder('—')->toggleable(),
+                Tables\Columns\TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime()->timezone($businessTimezone)->sortable(),
+                Tables\Columns\TextColumn::make('updated_at')->label('آخر تحديث')->dateTime()->timezone($businessTimezone)->sortable()->toggleable(),
+                Tables\Columns\TextColumn::make('last_login_at')->label('آخر تسجيل دخول')->dateTime()->timezone($businessTimezone)->sortable()->placeholder('—')->toggleable(),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')->label('الحالة'),

@@ -11,6 +11,7 @@ use App\Enums\PaymentMethod;
 use App\Filament\Resources\OrderResource\Pages;
 use App\Models\DiscountLog;
 use App\Models\Order;
+use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
 use App\Services\OrderLifecycleService;
 use Filament\Forms;
@@ -37,6 +38,8 @@ class OrderResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('order_number')->label('رقم الطلب')->searchable()->sortable(),
@@ -66,7 +69,7 @@ class OrderResource extends Resource
                         PaymentStatus::Refunded => 'gray',
                     })
                     ->formatStateUsing(fn (PaymentStatus $state) => $state->label()),
-                Tables\Columns\TextColumn::make('created_at')->label('التاريخ')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('created_at')->label('التاريخ')->dateTime()->timezone($businessTimezone)->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')->label('الحالة')
@@ -89,11 +92,11 @@ class OrderResource extends Resource
                         Forms\Components\DatePicker::make('from')->label('من'),
                         Forms\Components\DatePicker::make('until')->label('إلى'),
                     ])
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
-                    }),
+                    ->query(fn ($query, array $data) => BusinessTime::applyUtcDateRange(
+                        $query,
+                        $data['from'] ?? null,
+                        $data['until'] ?? null,
+                    )),
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),
@@ -129,6 +132,8 @@ class OrderResource extends Resource
 
     public static function infolist(Schema $infolist): Schema
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $infolist->schema([
             \Filament\Schemas\Components\Section::make('تفاصيل الطلب')->schema([
                 Infolists\Components\TextEntry::make('order_number')->label('رقم الطلب'),
@@ -156,13 +161,13 @@ class OrderResource extends Resource
                 Infolists\Components\TextEntry::make('payment_status')->label('حالة الدفع')->badge()->formatStateUsing(fn (PaymentStatus $state) => $state->label()),
             ])->columns(4),
             \Filament\Schemas\Components\Section::make('التوقيتات')->schema([
-                Infolists\Components\TextEntry::make('created_at')->label('وقت الإنشاء')->dateTime(),
-                Infolists\Components\TextEntry::make('confirmed_at')->label('وقت التأكيد')->dateTime()->placeholder('—'),
-                Infolists\Components\TextEntry::make('ready_at')->label('وقت الجاهزية')->dateTime()->placeholder('—'),
-                Infolists\Components\TextEntry::make('delivered_at')->label('وقت التسليم')->dateTime()->placeholder('—'),
-                Infolists\Components\TextEntry::make('cancelled_at')->label('وقت الإلغاء')->dateTime()->placeholder('—'),
+                Infolists\Components\TextEntry::make('created_at')->label('وقت الإنشاء')->dateTime()->timezone($businessTimezone),
+                Infolists\Components\TextEntry::make('confirmed_at')->label('وقت التأكيد')->dateTime()->timezone($businessTimezone)->placeholder('—'),
+                Infolists\Components\TextEntry::make('ready_at')->label('وقت الجاهزية')->dateTime()->timezone($businessTimezone)->placeholder('—'),
+                Infolists\Components\TextEntry::make('delivered_at')->label('وقت التسليم')->dateTime()->timezone($businessTimezone)->placeholder('—'),
+                Infolists\Components\TextEntry::make('cancelled_at')->label('وقت الإلغاء')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                 Infolists\Components\TextEntry::make('cancellation_reason')->label('سبب الإلغاء')->placeholder('—'),
-                Infolists\Components\TextEntry::make('refunded_at')->label('وقت الاسترجاع')->dateTime()->placeholder('—'),
+                Infolists\Components\TextEntry::make('refunded_at')->label('وقت الاسترجاع')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                 Infolists\Components\TextEntry::make('refunder.name')->label('تم الاسترجاع بواسطة')->placeholder('—'),
                 Infolists\Components\TextEntry::make('refund_reason')->label('سبب الاسترجاع')->placeholder('—'),
             ])->columns(3),
@@ -218,6 +223,7 @@ class OrderResource extends Resource
                     ->label('وقت اعتماد الخصم')
                     ->state(fn (Order $record) => $record->latestOrderDiscountLog?->created_at)
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->placeholder('—'),
             ])
                 ->columns(4)
@@ -259,14 +265,14 @@ class OrderResource extends Resource
                     Infolists\Components\TextEntry::make('amount')->label('المبلغ')->money('EGP'),
                     Infolists\Components\TextEntry::make('reference_number')->label('مرجع')->placeholder('—'),
                     Infolists\Components\TextEntry::make('notes')->label('ملاحظات الدفع')->placeholder('—'),
-                    Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime(),
+                    Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime()->timezone($businessTimezone),
                 ])->columns(5),
             ]),
             \Filament\Schemas\Components\Section::make('سجل الخصومات')->schema([
                 Infolists\Components\RepeatableEntry::make('orderDiscountLogs')
                     ->label('')
                     ->schema([
-                        Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime(),
+                        Infolists\Components\TextEntry::make('created_at')->label('التوقيت')->dateTime()->timezone($businessTimezone),
                         Infolists\Components\TextEntry::make('requestedBy.name')->label('طلب بواسطة')->placeholder('—'),
                         Infolists\Components\TextEntry::make('appliedBy.name')->label('اعتمد بواسطة')->placeholder('—'),
                         Infolists\Components\TextEntry::make('action')->label('الإجراء')

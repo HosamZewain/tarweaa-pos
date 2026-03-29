@@ -10,6 +10,7 @@ use App\Filament\Widgets\OrderStatusChartWidget;
 use App\Filament\Widgets\OrderVolumeChartWidget;
 use App\Filament\Widgets\SalesChartWidget;
 use App\Filament\Widgets\TopSellingItemsWidget;
+use App\Support\BusinessTime;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Illuminate\Contracts\Support\Htmlable;
 
@@ -25,7 +26,7 @@ class Dashboard extends BaseDashboard
 
     public function getTitle(): string | Htmlable
     {
-        $hour = now()->hour;
+        $hour = BusinessTime::now()->hour;
         $greeting = match(true) {
             $hour >= 5  && $hour < 12 => 'صباح الخير',
             $hour >= 12 && $hour < 17 => 'مساء الخير',
@@ -37,7 +38,7 @@ class Dashboard extends BaseDashboard
 
     public function getSubheading(): string | Htmlable | null
     {
-        return 'اليوم ' . now()->format('Y/m/d');
+        return 'اليوم ' . BusinessTime::now()->format('Y/m/d');
     }
 
     public function getColumns(): int | array

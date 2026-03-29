@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -357,10 +358,12 @@ class Order extends Model
 
     public static function generateOrderNumber(): string
     {
-        $date    = now()->format('Ymd');
-        $lastSeq = static::whereDate('created_at', today())
-                         ->lockForUpdate()
-                         ->count();
+        $date = BusinessTime::localDateKey();
+        [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+
+        $lastSeq = static::whereBetween('created_at', [$start, $end])
+            ->lockForUpdate()
+            ->count();
 
         return sprintf('ORD-%s-%04d', $date, $lastSeq + 1);
     }
@@ -399,7 +402,9 @@ class Order extends Model
 
     public function scopeToday($query)
     {
-        return $query->whereDate('created_at', today());
+        [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+
+        return $query->whereBetween('created_at', [$start, $end]);
     }
 
     public function scopeExternal($query)

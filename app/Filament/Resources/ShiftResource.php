@@ -14,6 +14,7 @@ use App\Filament\Resources\ShiftResource\Pages;
 use App\Models\CashierDrawerSession;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
 use App\Services\ShiftService;
 use Filament\Forms;
@@ -41,6 +42,8 @@ class ShiftResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('shift_number')->label('رقم الوردية')->searchable()->sortable(),
@@ -49,8 +52,8 @@ class ShiftResource extends Resource
                     ->formatStateUsing(fn (ShiftStatus $state) => $state->label()),
                 Tables\Columns\TextColumn::make('opener.name')->label('فتح بواسطة'),
                 Tables\Columns\TextColumn::make('closer.name')->label('أغلق بواسطة')->placeholder('—'),
-                Tables\Columns\TextColumn::make('started_at')->label('بداية')->dateTime()->sortable(),
-                Tables\Columns\TextColumn::make('ended_at')->label('نهاية')->dateTime()->placeholder('—'),
+                Tables\Columns\TextColumn::make('started_at')->label('بداية')->dateTime()->timezone($businessTimezone)->sortable(),
+                Tables\Columns\TextColumn::make('ended_at')->label('نهاية')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                 Tables\Columns\TextColumn::make('expected_cash')->label('المتوقع')->money('EGP')->placeholder('—'),
                 Tables\Columns\TextColumn::make('actual_cash')->label('الفعلي')->money('EGP')->placeholder('—'),
                 Tables\Columns\TextColumn::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—')
@@ -67,11 +70,12 @@ class ShiftResource extends Resource
                         Forms\Components\DatePicker::make('from')->label('من'),
                         Forms\Components\DatePicker::make('until')->label('إلى'),
                     ])
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->whereDate('started_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->whereDate('started_at', '<=', $date));
-                    }),
+                    ->query(fn ($query, array $data) => BusinessTime::applyUtcDateRange(
+                        $query,
+                        $data['from'] ?? null,
+                        $data['until'] ?? null,
+                        'started_at',
+                    )),
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),
@@ -150,14 +154,16 @@ class ShiftResource extends Resource
 
     public static function infolist(Schema $infolist): Schema
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $infolist->schema([
             \Filament\Schemas\Components\Section::make('تفاصيل الوردية')->schema([
                 Infolists\Components\TextEntry::make('shift_number')->label('رقم الوردية'),
                 Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()->formatStateUsing(fn (ShiftStatus $state) => $state->label()),
                 Infolists\Components\TextEntry::make('opener.name')->label('فتح بواسطة'),
                 Infolists\Components\TextEntry::make('closer.name')->label('أغلق بواسطة')->placeholder('—'),
-                Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime(),
-                Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->placeholder('—'),
+                Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime()->timezone($businessTimezone),
+                Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                 Infolists\Components\TextEntry::make('notes')->label('ملاحظات')->placeholder('—'),
                 Infolists\Components\TextEntry::make('duration')
                     ->label('مدة الوردية')
@@ -277,8 +283,8 @@ class ShiftResource extends Resource
                             2
                         ))
                         ->money('EGP'),
-                    Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime(),
-                    Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->placeholder('—'),
+                    Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime()->timezone($businessTimezone),
+                    Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                 ])
                     ->columns(4)
                     ->visible(fn (Shift $record) => $record->drawerSessions->isNotEmpty()),
@@ -307,7 +313,7 @@ class ShiftResource extends Resource
                         ->placeholder('—')
                         ->columnSpan(2),
                     Infolists\Components\TextEntry::make('customer_name')->label('العميل')->placeholder('—'),
-                    Infolists\Components\TextEntry::make('created_at')->label('وقت الإنشاء')->dateTime(),
+                    Infolists\Components\TextEntry::make('created_at')->label('وقت الإنشاء')->dateTime()->timezone($businessTimezone),
                 ])
                     ->columns(4)
                     ->visible(fn (Shift $record) => $record->orders->isNotEmpty()),
@@ -325,7 +331,7 @@ class ShiftResource extends Resource
                     Infolists\Components\TextEntry::make('payment_method')->label('طريقة الدفع')->placeholder('—'),
                     Infolists\Components\TextEntry::make('receipt_number')->label('رقم الإيصال')->placeholder('—'),
                     Infolists\Components\TextEntry::make('description')->label('الوصف')->columnSpan(2),
-                    Infolists\Components\TextEntry::make('approved_at')->label('وقت الاعتماد')->dateTime()->placeholder('—'),
+                    Infolists\Components\TextEntry::make('approved_at')->label('وقت الاعتماد')->dateTime()->timezone($businessTimezone)->placeholder('—'),
                     Infolists\Components\TextEntry::make('approver.name')->label('اعتمد بواسطة')->placeholder('—'),
                 ])
                     ->columns(4)

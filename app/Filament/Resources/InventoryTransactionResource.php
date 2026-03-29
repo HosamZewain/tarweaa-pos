@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\InventoryTransactionType;
 use App\Filament\Resources\InventoryTransactionResource\Pages;
 use App\Models\InventoryTransaction;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
@@ -38,11 +39,14 @@ class InventoryTransactionResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('التاريخ')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('inventoryItem.name')
                     ->label('المادة')
@@ -110,11 +114,11 @@ class InventoryTransactionResource extends Resource
                         Forms\Components\DatePicker::make('from')->label('من'),
                         Forms\Components\DatePicker::make('until')->label('إلى'),
                     ])
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
-                    }),
+                    ->query(fn ($query, array $data) => BusinessTime::applyUtcDateRange(
+                        $query,
+                        $data['from'] ?? null,
+                        $data['until'] ?? null,
+                    )),
                 Tables\Filters\Filter::make('increments')
                     ->label('وارد فقط')
                     ->query(fn ($q) => $q->where('quantity', '>', 0)),

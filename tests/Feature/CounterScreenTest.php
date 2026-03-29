@@ -25,7 +25,15 @@ class CounterScreenTest extends TestCase
 
     public function test_guest_can_load_counter_shell_and_login_redirect_target(): void
     {
-        $this->get('/counter-screen/odd')
+        $this->get('/counter')
+            ->assertSuccessful()
+            ->assertSee('شاشة التسليم والاستلام')
+            ->assertSee('شاشة كل الطلبات')
+            ->assertSee('رقم الطلب')
+            ->assertSee('اضغط Enter للتسليم')
+            ->assertSee('فاتح');
+
+        $this->get('/counter/odd')
             ->assertSuccessful()
             ->assertSee('شاشة التسليم والاستلام')
             ->assertSee('شاشة الفردية')
@@ -33,7 +41,10 @@ class CounterScreenTest extends TestCase
             ->assertSee('اضغط Enter للتسليم')
             ->assertSee('فاتح');
 
-        $this->get('/pos/login?redirect=%2Fcounter-screen%2Fodd')
+        $this->get('/counter-screen/odd')
+            ->assertRedirect('/counter/odd');
+
+        $this->get('/pos/login?redirect=%2Fcounter%2Fodd')
             ->assertSuccessful();
     }
 
@@ -90,6 +101,14 @@ class CounterScreenTest extends TestCase
         $this->assertSame('even', $evenResponse['lane']);
         $this->assertCount(1, $evenResponse['orders']);
         $this->assertSame('preparing', $evenResponse['orders'][0]['status']);
+
+        $allResponse = $this->getJson('/api/counter/orders/all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame('all', $allResponse['lane']);
+        $this->assertCount(2, $allResponse['orders']);
+        $this->assertSame($oddReady->id, $allResponse['orders'][0]['id']);
     }
 
     public function test_kitchen_ready_transition_is_reflected_in_counter_flow(): void

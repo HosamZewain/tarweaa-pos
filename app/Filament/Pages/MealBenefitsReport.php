@@ -6,6 +6,7 @@ use App\Enums\MealBenefitLedgerEntryType;
 use App\Filament\Pages\Concerns\HasPagePermission;
 use App\Models\User;
 use App\Services\MealBenefitReportService;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -34,7 +35,7 @@ class MealBenefitsReport extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->reference_month = today()->startOfMonth()->toDateString();
+        $this->reference_month = BusinessTime::today()->startOfMonth()->toDateString();
         $this->generateReport();
     }
 
@@ -66,7 +67,7 @@ class MealBenefitsReport extends Page implements HasForms
 
     public function generateReport(): void
     {
-        $reference = Carbon::parse($this->reference_month ?: today()->toDateString());
+        $reference = Carbon::parse($this->reference_month ?: BusinessTime::today()->toDateString());
         $this->reportData = app(MealBenefitReportService::class)->buildMonthlyReport(
             reference: $reference,
             userId: $this->user_id,

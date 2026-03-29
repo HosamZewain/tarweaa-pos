@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
+use App\Support\BusinessTime;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Facades\DB;
 
@@ -17,11 +18,13 @@ class CategorySalesChartWidget extends ChartWidget
 
     protected function getData(): array
     {
+        [$monthStart, $monthEnd] = BusinessTime::utcRangeForLocalMonth();
+
         $stats = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
             ->join('menu_categories', 'menu_items.category_id', '=', 'menu_categories.id')
-            ->where('orders.created_at', '>=', today()->startOfMonth())
+            ->whereBetween('orders.created_at', [$monthStart, $monthEnd])
             ->whereNull('orders.deleted_at')
             ->whereNotIn('orders.status', ['cancelled'])
             ->groupBy('menu_categories.name')

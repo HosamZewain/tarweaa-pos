@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Models\OrderItem;
+use App\Support\BusinessTime;
 use Filament\Widgets\Widget;
 
 class TopSellingItemsWidget extends Widget
@@ -17,10 +18,12 @@ class TopSellingItemsWidget extends Widget
     public function getViewData(): array
     {
         $items = OrderItem::query()
-            ->whereHas('order', fn ($q) => $q
-                ->whereDate('created_at', today())
-                ->whereNotIn('status', ['cancelled'])
-            )
+            ->whereHas('order', function ($q) {
+                BusinessTime::applyUtcDate(
+                    $q->whereNotIn('status', ['cancelled']),
+                    BusinessTime::today(),
+                );
+            })
             ->selectRaw('menu_item_id, item_name, SUM(quantity) as total_qty, SUM(total) as total_rev')
             ->groupBy('menu_item_id', 'item_name')
             ->orderByDesc('total_qty')

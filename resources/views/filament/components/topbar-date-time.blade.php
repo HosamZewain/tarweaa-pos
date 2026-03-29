@@ -1,10 +1,14 @@
+@php
+    $serverNow = \App\Support\BusinessTime::now();
+@endphp
+
 <div
     x-data="{
-        now: new Date(),
+        now: new Date(@js($serverNow->toIso8601String())),
         timer: null,
         init() {
             this.timer = setInterval(() => {
-                this.now = new Date()
+                this.now = new Date(this.now.getTime() + 1000)
             }, 1000)
         },
         destroy() {
@@ -18,6 +22,7 @@
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
+                timeZone: @js(\App\Support\BusinessTime::timezone()),
             }).format(this.now)
         },
         get timeLabel() {
@@ -26,6 +31,7 @@
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true,
+                timeZone: @js(\App\Support\BusinessTime::timezone()),
             }).format(this.now)
         },
     }"

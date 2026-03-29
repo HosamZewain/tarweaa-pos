@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Widgets\Concerns\InteractsWithDashboardAnalyticsVisibility;
 use App\Enums\OrderStatus;
 use App\Models\Order;
+use App\Support\BusinessTime;
 use Filament\Widgets\ChartWidget;
 
 class OrderStatusChartWidget extends ChartWidget
@@ -18,7 +19,9 @@ class OrderStatusChartWidget extends ChartWidget
 
     protected function getData(): array
     {
-        $stats = Order::where('created_at', '>=', today()->startOfMonth())
+        [$monthStart, $monthEnd] = BusinessTime::utcRangeForLocalMonth();
+
+        $stats = Order::whereBetween('created_at', [$monthStart, $monthEnd])
             ->groupBy('status')
             ->selectRaw('status, count(*) as count')
             ->pluck('count', 'status');

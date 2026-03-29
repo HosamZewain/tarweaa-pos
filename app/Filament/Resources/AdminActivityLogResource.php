@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AdminActivityLogResource\Pages;
 use App\Models\AdminActivityLog;
+use App\Support\BusinessTime;
 use Filament\Infolists;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -37,12 +38,15 @@ class AdminActivityLogResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('الوقت')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('actor.name')
                     ->label('المستخدم')
@@ -82,11 +86,11 @@ class AdminActivityLogResource extends Resource
                         \Filament\Forms\Components\DatePicker::make('from')->label('من'),
                         \Filament\Forms\Components\DatePicker::make('until')->label('إلى'),
                     ])
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                            ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
-                    }),
+                    ->query(fn ($query, array $data) => BusinessTime::applyUtcDateRange(
+                        $query,
+                        $data['from'] ?? null,
+                        $data['until'] ?? null,
+                    )),
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),
@@ -95,9 +99,11 @@ class AdminActivityLogResource extends Resource
 
     public static function infolist(Schema $infolist): Schema
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $infolist->schema([
             \Filament\Schemas\Components\Section::make('ملخص النشاط')->schema([
-                Infolists\Components\TextEntry::make('created_at')->label('الوقت')->dateTime(),
+                Infolists\Components\TextEntry::make('created_at')->label('الوقت')->dateTime()->timezone($businessTimezone),
                 Infolists\Components\TextEntry::make('actor.name')->label('المستخدم')->placeholder('النظام'),
                 Infolists\Components\TextEntry::make('action_label')->label('الإجراء')->badge(),
                 Infolists\Components\TextEntry::make('module')->label('الموديول')->placeholder('—'),

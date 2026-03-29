@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
 @php
-    $laneLabel = $lane === 'odd' ? 'الفردية' : 'الزوجية';
+    $laneLabel = match ($lane) {
+        'all' => 'كل الطلبات',
+        'odd' => 'الفردية',
+        'even' => 'الزوجية',
+        default => $lane,
+    };
 @endphp
 
 @section('title', "شاشة التسليم والاستلام {$laneLabel} — Tarweaa")
@@ -469,7 +474,7 @@
 <script>
     const OPS_THEME_KEY = 'tarweaa_ops_surface_theme';
     const COUNTER_LANE = @json($lane);
-    const COUNTER_REDIRECT = `/counter-screen/${COUNTER_LANE}`;
+    const COUNTER_REDIRECT = COUNTER_LANE === 'all' ? '/counter' : `/counter/${COUNTER_LANE}`;
     let counterOrders = [];
     let handoverBusyOrderId = null;
     let counterRefreshTimer = null;

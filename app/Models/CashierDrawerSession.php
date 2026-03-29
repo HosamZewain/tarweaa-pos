@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CashMovementDirection;
 use App\Enums\CashMovementType;
 use App\Enums\DrawerSessionStatus;
+use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -191,10 +192,12 @@ class CashierDrawerSession extends Model
 
     public static function generateSessionNumber(): string
     {
-        $date    = now()->format('Ymd');
-        $lastSeq = static::whereDate('created_at', today())
-                         ->lockForUpdate()
-                         ->count();
+        $date = BusinessTime::localDateKey();
+        [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+
+        $lastSeq = static::whereBetween('created_at', [$start, $end])
+            ->lockForUpdate()
+            ->count();
 
         return sprintf('DRW-%s-%03d', $date, $lastSeq + 1);
     }

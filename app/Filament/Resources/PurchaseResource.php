@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PurchaseResource\Pages;
 use App\Models\Purchase;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Infolists;
@@ -100,6 +101,8 @@ class PurchaseResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('purchase_number')
@@ -154,7 +157,8 @@ class PurchaseResource extends Resource
                     }),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('التاريخ')
-                    ->date()
+                    ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable(),
             ])
             ->filters([
@@ -184,11 +188,11 @@ class PurchaseResource extends Resource
                         Forms\Components\DatePicker::make('from')->label('من'),
                         Forms\Components\DatePicker::make('until')->label('إلى'),
                     ])
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
-                    }),
+                    ->query(fn ($query, array $data) => BusinessTime::applyUtcDateRange(
+                        $query,
+                        $data['from'] ?? null,
+                        $data['until'] ?? null,
+                    )),
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),

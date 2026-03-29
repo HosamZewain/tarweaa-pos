@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderPayment;
 use App\Enums\PaymentMethod;
+use App\Support\BusinessTime;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,28 +25,29 @@ class ReportService
         ?int $appliedBy = null,
         ?string $search = null,
     ): array {
-        $logs = DiscountLog::query()
-            ->with([
-                'order.customer:id,name,phone',
-                'order.cashier:id,name',
-                'appliedBy:id,name',
-                'orderItem:id,order_id,item_name',
-            ])
-            ->when($dateFrom, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
-            ->when($dateTo, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
-            ->when($scope && $scope !== 'all', fn ($query) => $query->where('scope', $scope))
-            ->when($appliedBy, fn ($query, $userId) => $query->where('applied_by', $userId))
-            ->when($search, function ($query, $term) {
-                $query->where(function ($inner) use ($term) {
-                    $inner->whereHas('order', function ($orderQuery) use ($term) {
-                        $orderQuery->where('order_number', 'like', "%{$term}%")
-                            ->orWhere('customer_name', 'like', "%{$term}%")
-                            ->orWhere('customer_phone', 'like', "%{$term}%");
+        $logs = BusinessTime::applyUtcDateRange(
+            DiscountLog::query()
+                ->with([
+                    'order.customer:id,name,phone',
+                    'order.cashier:id,name',
+                    'appliedBy:id,name',
+                    'orderItem:id,order_id,item_name',
+                ])
+                ->when($scope && $scope !== 'all', fn ($query) => $query->where('scope', $scope))
+                ->when($appliedBy, fn ($query, $userId) => $query->where('applied_by', $userId))
+                ->when($search, function ($query, $term) {
+                    $query->where(function ($inner) use ($term) {
+                        $inner->whereHas('order', function ($orderQuery) use ($term) {
+                            $orderQuery->where('order_number', 'like', "%{$term}%")
+                                ->orWhere('customer_name', 'like', "%{$term}%")
+                                ->orWhere('customer_phone', 'like', "%{$term}%");
+                        });
                     });
-                });
-            })
-            ->orderByDesc('created_at')
-            ->get();
+                })
+                ->orderByDesc('created_at'),
+            $dateFrom,
+            $dateTo,
+        )->get();
 
         $summary = [
             'total_events' => $logs->count(),
@@ -91,36 +93,43 @@ class ReportService
 
     public function getDailySales(string $dateFrom, string $dateTo): array
     {
-        $orders = Order::whereDate('created_at', '>=', $dateFrom)
-            ->whereDate('created_at', '<=', $dateTo)
+        $orders = BusinessTime::applyUtcDateRange(
+            Order::query(),
+            $dateFrom,
+            $dateTo,
+        )
             ->whereNotIn('status', ['cancelled'])
-            ->selectRaw("
-                DATE(created_at) as date,
-                COUNT(*) as total_orders,
-                SUM(subtotal) as subtotal,
-                SUM(discount_amount) as total_discounts,
-                SUM(tax_amount) as total_tax,
-                SUM(delivery_fee) as total_delivery_fees,
-                SUM(total) as gross_revenue,
-                SUM(refund_amount) as total_refunds,
-                SUM(total) - SUM(refund_amount) as net_revenue
-            ")
-            ->groupByRaw('DATE(created_at)')
-            ->orderBy('date')
             ->get();
 
+        $daily = BusinessTime::groupByLocalDate($orders)
+            ->map(function (Collection $group, string $date) {
+                return (object) [
+                    'date' => $date,
+                    'total_orders' => $group->count(),
+                    'subtotal' => round($group->sum('subtotal'), 2),
+                    'total_discounts' => round($group->sum('discount_amount'), 2),
+                    'total_tax' => round($group->sum('tax_amount'), 2),
+                    'total_delivery_fees' => round($group->sum('delivery_fee'), 2),
+                    'gross_revenue' => round($group->sum('total'), 2),
+                    'total_refunds' => round($group->sum('refund_amount'), 2),
+                    'net_revenue' => round($group->sum('total') - $group->sum('refund_amount'), 2),
+                ];
+            })
+            ->sortBy('date')
+            ->values();
+
         $totals = [
-            'total_orders'       => $orders->sum('total_orders'),
-            'gross_revenue'      => round($orders->sum('gross_revenue'), 2),
-            'total_discounts'    => round($orders->sum('total_discounts'), 2),
-            'total_tax'          => round($orders->sum('total_tax'), 2),
-            'total_delivery_fees' => round($orders->sum('total_delivery_fees'), 2),
-            'total_refunds'      => round($orders->sum('total_refunds'), 2),
-            'net_revenue'        => round($orders->sum('net_revenue'), 2),
+            'total_orders'       => $daily->sum('total_orders'),
+            'gross_revenue'      => round($daily->sum('gross_revenue'), 2),
+            'total_discounts'    => round($daily->sum('total_discounts'), 2),
+            'total_tax'          => round($daily->sum('total_tax'), 2),
+            'total_delivery_fees' => round($daily->sum('total_delivery_fees'), 2),
+            'total_refunds'      => round($daily->sum('total_refunds'), 2),
+            'net_revenue'        => round($daily->sum('net_revenue'), 2),
         ];
 
         return [
-            'daily'  => $orders,
+            'daily'  => $daily,
             'totals' => $totals,
         ];
     }
@@ -128,9 +137,11 @@ class ReportService
     public function getSalesByItem(?string $dateFrom = null, ?string $dateTo = null, int $limit = 50): Collection
     {
         return OrderItem::whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-            $q->whereNotIn('status', ['cancelled'])
-                ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+            BusinessTime::applyUtcDateRange(
+                $q->whereNotIn('status', ['cancelled']),
+                $dateFrom,
+                $dateTo,
+            );
         })
             ->selectRaw('menu_item_id, item_name, SUM(quantity) as total_quantity, SUM(total) as net_revenue')
             ->groupBy('menu_item_id', 'item_name')
@@ -144,9 +155,11 @@ class ReportService
         return OrderItem::join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
             ->join('menu_categories', 'menu_items.category_id', '=', 'menu_categories.id')
             ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-                $q->whereNotIn('status', ['cancelled'])
-                    ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                    ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+                BusinessTime::applyUtcDateRange(
+                    $q->whereNotIn('status', ['cancelled']),
+                    $dateFrom,
+                    $dateTo,
+                );
             })
             ->selectRaw('menu_categories.id as category_id, menu_categories.name as category_name, SUM(order_items.quantity) as total_quantity, SUM(order_items.total) as net_revenue')
             ->groupBy('menu_categories.id', 'menu_categories.name')
@@ -157,9 +170,11 @@ class ReportService
     public function getSalesByPaymentMethod(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
         return OrderPayment::whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-            $q->whereNotIn('status', ['cancelled'])
-                ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+            BusinessTime::applyUtcDateRange(
+                $q->whereNotIn('status', ['cancelled']),
+                $dateFrom,
+                $dateTo,
+            );
         })
             ->selectRaw('payment_method, COUNT(*) as transaction_count, SUM(amount) as total_amount')
             ->groupBy('payment_method')
@@ -191,10 +206,10 @@ class ReportService
             ])
             ->whereIn('payment_method', $selectedMethods->all())
             ->whereHas('order', fn ($query) => $query->whereNotIn('status', ['cancelled']))
-            ->when($dateFrom, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
-            ->when($dateTo, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
             ->latest('created_at')
-            ->get();
+            ;
+
+        $payments = BusinessTime::applyUtcDateRange($payments, $dateFrom, $dateTo)->get();
 
         $entries = $payments->map(function (OrderPayment $payment): array {
             $order = $payment->order;
@@ -202,8 +217,8 @@ class ReportService
 
             return [
                 'payment_id' => $payment->id,
-                'date' => optional($payment->created_at)->format('Y-m-d'),
-                'date_time' => optional($payment->created_at)->format('Y-m-d h:i A'),
+                'date' => BusinessTime::localDateString($payment->created_at),
+                'date_time' => BusinessTime::asLocal($payment->created_at)->format('Y-m-d h:i A'),
                 'order_number' => $order?->order_number,
                 'order_url' => $order ? "/admin/orders/{$order->id}" : null,
                 'order_source' => $order?->source?->label() ?? '—',
@@ -275,9 +290,11 @@ class ReportService
             ->leftJoin('payment_terminals', 'payment_terminals.id', '=', 'order_payments.terminal_id')
             ->where('order_payments.payment_method', 'card')
             ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-                $q->whereNotIn('status', ['cancelled'])
-                    ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-                    ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date));
+                BusinessTime::applyUtcDateRange(
+                    $q->whereNotIn('status', ['cancelled']),
+                    $dateFrom,
+                    $dateTo,
+                );
             })
             ->selectRaw('
                 order_payments.terminal_id,
@@ -323,11 +340,11 @@ class ReportService
 
     public function getDrawersReconciliation(?string $dateFrom = null, ?string $dateTo = null, int $perPage = 25): LengthAwarePaginator
     {
-        return CashierDrawerSession::with(['cashier:id,name', 'posDevice:id,name'])
+        $query = CashierDrawerSession::with(['cashier:id,name', 'posDevice:id,name'])
             ->whereNotNull('ended_at')
-            ->when($dateFrom, fn ($q, $date) => $q->whereDate('ended_at', '>=', $date))
-            ->when($dateTo, fn ($q, $date) => $q->whereDate('ended_at', '<=', $date))
-            ->orderByDesc('ended_at')
+            ->orderByDesc('ended_at');
+
+        return BusinessTime::applyUtcDateRange($query, $dateFrom, $dateTo, 'ended_at')
             ->paginate($perPage);
     }
 
@@ -358,10 +375,12 @@ class ReportService
 
     public function getSalesByShift(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return Order::query()
+        return BusinessTime::applyUtcDateRange(
+            Order::query(),
+            $dateFrom,
+            $dateTo,
+        )
             ->whereNotIn('status', ['cancelled'])
-            ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
             ->selectRaw('shift_id, COUNT(*) as total_orders, SUM(total) as gross_revenue, SUM(refund_amount) as total_refunds, SUM(total) - SUM(refund_amount) as net_revenue')
             ->groupBy('shift_id')
             ->orderByDesc('gross_revenue')
@@ -371,9 +390,12 @@ class ReportService
 
     public function getSalesByCashier(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return Order::whereNotIn('status', ['cancelled'])
-            ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+        return BusinessTime::applyUtcDateRange(
+            Order::query(),
+            $dateFrom,
+            $dateTo,
+        )
+            ->whereNotIn('status', ['cancelled'])
             ->selectRaw('cashier_id, COUNT(*) as total_orders, SUM(total) as gross_revenue, SUM(refund_amount) as total_refunds, SUM(total) - SUM(refund_amount) as net_revenue')
             ->groupBy('cashier_id')
             ->orderByDesc('gross_revenue')
@@ -410,10 +432,13 @@ class ReportService
 
     public function getCashVarianceReport(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return CashierDrawerSession::with(['cashier:id,name', 'shift:id,shift_number', 'posDevice:id,name'])
+        return BusinessTime::applyUtcDateRange(
+            CashierDrawerSession::with(['cashier:id,name', 'shift:id,shift_number', 'posDevice:id,name']),
+            $dateFrom,
+            $dateTo,
+            'ended_at',
+        )
             ->whereNotNull('ended_at')
-            ->when($dateFrom, fn ($q, $date) => $q->whereDate('ended_at', '>=', $date))
-            ->when($dateTo, fn ($q, $date) => $q->whereDate('ended_at', '<=', $date))
             ->whereRaw('ABS(cash_difference) > 0')
             ->orderByRaw('ABS(cash_difference) DESC')
             ->get();
@@ -421,9 +446,11 @@ class ReportService
 
     public function getInventoryMovements(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return InventoryTransaction::with('inventoryItem:id,name,sku,category,unit')
-            ->when($dateFrom, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($dateTo, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+        return BusinessTime::applyUtcDateRange(
+            InventoryTransaction::with('inventoryItem:id,name,sku,category,unit'),
+            $dateFrom,
+            $dateTo,
+        )
             ->selectRaw('inventory_item_id, type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost')
             ->groupBy('inventory_item_id', 'type')
             ->get()

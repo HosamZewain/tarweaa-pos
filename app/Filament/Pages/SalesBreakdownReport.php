@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
 use App\Services\ReportService;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -30,8 +31,8 @@ class SalesBreakdownReport extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->date_from = today()->startOfMonth()->toDateString();
-        $this->date_to = today()->toDateString();
+        $this->date_from = BusinessTime::today()->startOfMonth()->toDateString();
+        $this->date_to = BusinessTime::today()->toDateString();
         $this->generateReport();
     }
 

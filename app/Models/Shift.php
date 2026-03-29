@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DrawerSessionStatus;
 use App\Enums\ShiftStatus;
+use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -191,7 +192,9 @@ class Shift extends Model
 
     public function scopeOnDate($query, string $date)
     {
-        return $query->whereDate('started_at', $date);
+        [$start, $end] = BusinessTime::utcRangeForLocalDate($date);
+
+        return $query->whereBetween('started_at', [$start, $end]);
     }
 
     // ─────────────────────────────────────────
@@ -209,10 +212,12 @@ class Shift extends Model
 
     public static function generateShiftNumber(): string
     {
-        $date    = now()->format('Ymd');
-        $lastSeq = static::whereDate('created_at', today())
-                         ->lockForUpdate()
-                         ->count();
+        $date = BusinessTime::localDateKey();
+        [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+
+        $lastSeq = static::whereBetween('created_at', [$start, $end])
+            ->lockForUpdate()
+            ->count();
 
         return sprintf('SHF-%s-%03d', $date, $lastSeq + 1);
     }

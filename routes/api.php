@@ -100,7 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Counter Screen ───────────────────────────────────────────────────
     Route::prefix('counter')->group(function () {
         Route::get('/orders/{lane}', [CounterController::class, 'orders'])
-            ->whereIn('lane', ['odd', 'even']);
+            ->whereIn('lane', ['all', 'odd', 'even']);
         Route::post('/orders/{order}/handover', [CounterController::class, 'handover']);
     });
 

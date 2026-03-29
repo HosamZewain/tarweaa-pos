@@ -26,9 +26,16 @@ Route::prefix('pos')->group(function () {
 Route::get('/kitchen', [\App\Http\Controllers\KitchenController::class, 'index'])
     ->name('kitchen.index');
 
-Route::get('/counter-screen/{lane}', [\App\Http\Controllers\CounterScreenController::class, 'index'])
+Route::get('/counter', [\App\Http\Controllers\CounterScreenController::class, 'index'])
+    ->defaults('lane', 'all')
+    ->name('counter.all');
+
+Route::get('/counter/{lane}', [\App\Http\Controllers\CounterScreenController::class, 'index'])
     ->whereIn('lane', ['odd', 'even'])
     ->name('counter.index');
+
+Route::get('/counter-screen/{lane}', fn (string $lane) => redirect("/counter/{$lane}", 301))
+    ->whereIn('lane', ['odd', 'even']);
 
 Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/database-backups/restore', [DatabaseBackupRestoreController::class, 'store'])

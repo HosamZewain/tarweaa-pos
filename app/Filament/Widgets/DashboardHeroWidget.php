@@ -14,6 +14,7 @@ use App\Models\CashierDrawerSession;
 use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Shift;
+use App\Support\BusinessTime;
 use Filament\Widgets\Widget;
 
 class DashboardHeroWidget extends Widget
@@ -27,7 +28,7 @@ class DashboardHeroWidget extends Widget
     public function getViewData(): array
     {
         $canViewAnalytics = auth()->user()?->canViewDashboardAnalytics() ?? false;
-        $today = today();
+        $today = BusinessTime::today();
 
         $activeShift = Shift::query()
             ->where('status', ShiftStatus::Open)

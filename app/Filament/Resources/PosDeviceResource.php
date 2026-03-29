@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PosDeviceResource\Pages;
 use App\Models\PosDevice;
+use App\Support\BusinessTime;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
@@ -32,13 +33,15 @@ class PosDeviceResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('identifier')->label('المعرّف')->searchable(),
                 Tables\Columns\TextColumn::make('location')->label('الموقع')->placeholder('—'),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
-                Tables\Columns\TextColumn::make('last_seen_at')->label('آخر اتصال')->dateTime()->placeholder('—'),
+                Tables\Columns\TextColumn::make('last_seen_at')->label('آخر اتصال')->dateTime()->timezone($businessTimezone)->placeholder('—'),
             ])
             ->filters([Tables\Filters\TernaryFilter::make('is_active')->label('الحالة')])
             ->actions([\Filament\Actions\EditAction::make()])

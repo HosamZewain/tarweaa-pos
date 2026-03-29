@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -89,8 +90,9 @@ class Purchase extends Model
     {
         static::creating(function (Purchase $purchase) {
             if (empty($purchase->purchase_number)) {
-                $date    = now()->format('Ymd');
-                $lastSeq = static::whereDate('created_at', today())->lockForUpdate()->count();
+                $date = BusinessTime::localDateKey();
+                [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+                $lastSeq = static::whereBetween('created_at', [$start, $end])->lockForUpdate()->count();
                 $purchase->purchase_number = sprintf('PO-%s-%03d', $date, $lastSeq + 1);
             }
         });

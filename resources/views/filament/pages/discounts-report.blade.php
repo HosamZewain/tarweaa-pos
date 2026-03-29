@@ -121,7 +121,7 @@
                                             : number_format($log->discount_value, 2) . ' ج.م';
                                     @endphp
                                     <tr>
-                                        <td class="text-gray-500 dark:text-gray-400">{{ $log->created_at?->format('Y-m-d H:i') }}</td>
+                                        <td class="text-gray-500 dark:text-gray-400">{{ \App\Support\BusinessTime::formatDateTime($log->created_at) }}</td>
                                         <td>
                                             <x-admin.badge tone="primary">{{ $actionLabels[$log->action] ?? $log->action }}</x-admin.badge>
                                         </td>

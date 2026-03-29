@@ -112,7 +112,7 @@
                                                 {{ number_format($sessionDifference, 2) }} ج.م
                                             </x-admin.badge>
                                         </td>
-                                        <td class="text-gray-500 dark:text-gray-400">{{ $session->ended_at?->format('Y-m-d H:i') ?? '—' }}</td>
+                                        <td class="text-gray-500 dark:text-gray-400">{{ $session->ended_at ? \App\Support\BusinessTime::formatDateTime($session->ended_at) : '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

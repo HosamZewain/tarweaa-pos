@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Models\Employee;
 use App\Models\User;
+use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
 use App\Services\EmployeeManagementService;
 use Filament\Forms;
@@ -159,6 +160,8 @@ class EmployeeResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $businessTimezone = BusinessTime::timezone();
+
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->manageable()->with(['roles', 'employeeProfile']))
             ->columns([
@@ -177,15 +180,18 @@ class EmployeeResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('تاريخ الإنشاء')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('آخر تحديث')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('last_login_at')
                     ->label('آخر تسجيل دخول')
                     ->dateTime()
+                    ->timezone($businessTimezone)
                     ->sortable()
                     ->placeholder('—')
                     ->toggleable(),

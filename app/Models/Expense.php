@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -81,8 +82,9 @@ class Expense extends Model
     {
         static::creating(function (Expense $expense) {
             if (empty($expense->expense_number)) {
-                $date    = now()->format('Ymd');
-                $lastSeq = static::whereDate('created_at', today())->lockForUpdate()->count();
+                $date = BusinessTime::localDateKey();
+                [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
+                $lastSeq = static::whereBetween('created_at', [$start, $end])->lockForUpdate()->count();
                 $expense->expense_number = sprintf('EXP-%s-%03d', $date, $lastSeq + 1);
             }
         });

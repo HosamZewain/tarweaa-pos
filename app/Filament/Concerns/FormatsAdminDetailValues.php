@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
+use App\Support\BusinessTime;
 use Carbon\CarbonInterface;
 
 trait FormatsAdminDetailValues
@@ -23,20 +24,12 @@ trait FormatsAdminDetailValues
 
     public function formatDateTime(CarbonInterface | string | null $value): string
     {
-        if (blank($value)) {
-            return '—';
-        }
-
-        return \Illuminate\Support\Carbon::parse($value)->format('Y/m/d h:i A');
+        return BusinessTime::formatDateTime($value, 'Y/m/d h:i A');
     }
 
     public function formatDate(CarbonInterface | string | null $value): string
     {
-        if (blank($value)) {
-            return '—';
-        }
-
-        return \Illuminate\Support\Carbon::parse($value)->format('Y/m/d');
+        return BusinessTime::formatDate($value, 'Y/m/d');
     }
 
     public function differenceTone(float | int | string | null $value): string
