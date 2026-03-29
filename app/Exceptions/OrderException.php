@@ -170,9 +170,13 @@ class OrderException extends \RuntimeException
         return new self('هذا الطلب مدفوع بالكامل بالفعل.');
     }
 
-    public static function paymentReferenceRequired(): self
+    public static function paymentReferenceRequired(?string $paymentLabel = null): self
     {
-        return new self('رقم المرجع أو الإيصال مطلوب لعمليات البطاقة.', 422);
+        if ($paymentLabel) {
+            return new self("بيانات المرجع مطلوبة لطريقة الدفع [{$paymentLabel}].", 422);
+        }
+
+        return new self('بيانات المرجع مطلوبة لطريقة الدفع المحددة.', 422);
     }
 
     public static function handoverRequiresPaidOrder(): self

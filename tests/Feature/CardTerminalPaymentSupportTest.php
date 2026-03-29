@@ -55,6 +55,46 @@ class CardTerminalPaymentSupportTest extends TestCase
             ]);
     }
 
+    public function test_talabat_pay_requires_talabat_order_number(): void
+    {
+        [$cashier, $order] = $this->createOrderContext('TAL-VAL');
+
+        Sanctum::actingAs($cashier);
+
+        $this->postJson("/api/orders/{$order->id}/pay", [
+            'payments' => [
+                [
+                    'method' => PaymentMethod::TalabatPay->value,
+                    'amount' => 100,
+                ],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'payments.0.reference_number',
+            ]);
+    }
+
+    public function test_instapay_requires_sender_phone_number(): void
+    {
+        [$cashier, $order] = $this->createOrderContext('INSTA-VAL');
+
+        Sanctum::actingAs($cashier);
+
+        $this->postJson("/api/orders/{$order->id}/pay", [
+            'payments' => [
+                [
+                    'method' => PaymentMethod::InstaPay->value,
+                    'amount' => 100,
+                ],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'payments.0.reference_number',
+            ]);
+    }
+
     public function test_pos_card_preview_returns_backend_fee_calculation(): void
     {
         [$cashier] = $this->createOrderContext();
@@ -190,6 +230,79 @@ class CardTerminalPaymentSupportTest extends TestCase
             'reference_number' => 'RCPT-12345',
             'fee_amount' => '4.00',
             'net_settlement_amount' => '96.00',
+        ]);
+
+        $this->assertDatabaseMissing('cash_movements', [
+            'drawer_session_id' => $drawer->id,
+            'type' => 'sale',
+            'reference_type' => 'order',
+            'reference_id' => $order->id,
+        ]);
+    }
+
+    public function test_talabat_pay_is_recorded_as_non_cash_and_does_not_affect_drawer_cash(): void
+    {
+        [$cashier, $order, $drawer] = $this->createOrderContext('TAL');
+
+        $processed = app(OrderPaymentService::class)->processPayment(
+            order: $order,
+            payments: [
+                new ProcessPaymentData(
+                    method: PaymentMethod::TalabatPay,
+                    amount: 100,
+                    referenceNumber: 'TAL-12345',
+                ),
+            ],
+            actorId: $cashier->id,
+        );
+
+        $this->assertSame(OrderStatus::Confirmed, $processed->status);
+
+        $this->assertDatabaseHas('order_payments', [
+            'order_id' => $order->id,
+            'payment_method' => PaymentMethod::TalabatPay->value,
+            'amount' => '100.00',
+            'reference_number' => 'TAL-12345',
+        ]);
+
+        $this->assertDatabaseMissing('cash_movements', [
+            'drawer_session_id' => $drawer->id,
+            'type' => 'sale',
+            'reference_type' => 'order',
+            'reference_id' => $order->id,
+        ]);
+
+        $paymentBreakdown = app(\App\Services\ReportService::class)->getSalesByPaymentMethod();
+
+        $talabatPayRow = $paymentBreakdown->firstWhere('payment_method', PaymentMethod::TalabatPay->value);
+
+        $this->assertNotNull($talabatPayRow);
+        $this->assertSame('100.00', number_format((float) $talabatPayRow->total_amount, 2, '.', ''));
+    }
+
+    public function test_instapay_is_recorded_as_non_cash_and_does_not_affect_drawer_cash(): void
+    {
+        [$cashier, $order, $drawer] = $this->createOrderContext('INSTA');
+
+        $processed = app(OrderPaymentService::class)->processPayment(
+            order: $order,
+            payments: [
+                new ProcessPaymentData(
+                    method: PaymentMethod::InstaPay,
+                    amount: 100,
+                    referenceNumber: '01001234567',
+                ),
+            ],
+            actorId: $cashier->id,
+        );
+
+        $this->assertSame(OrderStatus::Confirmed, $processed->status);
+
+        $this->assertDatabaseHas('order_payments', [
+            'order_id' => $order->id,
+            'payment_method' => PaymentMethod::InstaPay->value,
+            'amount' => '100.00',
+            'reference_number' => '01001234567',
         ]);
 
         $this->assertDatabaseMissing('cash_movements', [

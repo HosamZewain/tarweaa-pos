@@ -27,6 +27,7 @@ class OrderCreationService
         private readonly RecipeService $recipeService,
         private readonly DrawerSessionService $drawerSessionService,
         private readonly PosOrderTypeService $posOrderTypeService,
+        private readonly ChannelPricingService $channelPricingService,
     ) {}
 
     /**
@@ -138,7 +139,7 @@ class OrderCreationService
             throw OrderException::itemQtyInvalid();
         }
 
-        $menuItem = MenuItem::with(['variants'])->findOrFail($data->menuItemId);
+        $menuItem = MenuItem::with(['variants', 'channelPrices'])->findOrFail($data->menuItemId);
 
         if (!$menuItem->is_available) {
             throw OrderException::itemNotAvailable($menuItem->name);
@@ -169,7 +170,13 @@ class OrderCreationService
         }
 
         return DB::transaction(function () use ($order, $data, $menuItem, $variant, $modifiers, $actorId): OrderItem {
-            $snapshot = OrderItem::snapshotFrom($menuItem, $variant);
+            $resolvedUnitPrice = $this->channelPricingService->resolvePrice(
+                menuItem: $menuItem,
+                variant: $variant,
+                posOrderType: $order->posOrderType,
+            );
+
+            $snapshot = OrderItem::snapshotFrom($menuItem, $variant, $resolvedUnitPrice);
 
             $item = $order->items()->create([
                 'menu_item_id'         => $menuItem->id,

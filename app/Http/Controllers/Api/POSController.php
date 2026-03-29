@@ -9,10 +9,13 @@ use App\Http\Requests\Order\ListSettlementUsersRequest;
 use App\Http\Requests\Order\PreviewOrderSettlementRequest;
 use App\Models\Customer;
 use App\Models\MenuCategory;
+use App\Models\MenuItem;
+use App\Models\MenuItemVariant;
 use App\Models\PaymentTerminal;
 use App\Models\PosDevice;
 use App\Models\PosOrderType;
 use App\Models\User;
+use App\Services\ChannelPricingService;
 use App\Services\DiscountApprovalService;
 use App\Services\DrawerSessionService;
 use App\Services\PaymentTerminalFeeService;
@@ -29,6 +32,7 @@ class POSController extends Controller
         private readonly DrawerSessionService $drawerService,
         private readonly DiscountApprovalService $discountApprovalService,
         private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
+        private readonly ChannelPricingService $channelPricingService,
         private readonly PosOrderTypeService $posOrderTypeService,
         private readonly PosSettlementPreviewService $posSettlementPreviewService,
     ) {}
@@ -89,11 +93,15 @@ class POSController extends Controller
     /**
      * GET /api/pos/menu — Full menu for POS display.
      */
-    public function menu(): JsonResponse
+    public function menu(Request $request): JsonResponse
     {
-        if ($response = $this->authorizePosAccess(request())) {
+        if ($response = $this->authorizePosAccess($request)) {
             return $response;
         }
+
+        $selectedOrderType = $this->posOrderTypeService->resolveForOrderCreation(
+            $request->integer('pos_order_type_id') ?: null,
+        );
 
         $categories = MenuCategory::with([
             'menuItems' => function ($query) {
@@ -102,6 +110,7 @@ class POSController extends Controller
                       ->orderBy('sort_order')
                       ->with([
                           'variants' => fn ($q) => $q->where('is_available', true)->orderBy('sort_order'),
+                          'channelPrices',
                           'modifierGroups' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')
                               ->with(['modifiers' => fn ($q) => $q->where('is_available', true)->orderBy('sort_order')]),
                       ]);
@@ -112,7 +121,9 @@ class POSController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        return $this->success($categories);
+        return $this->success(
+            $categories->map(fn (MenuCategory $category) => $this->transformCategoryForPos($category, $selectedOrderType))->values(),
+        );
     }
 
     /**
@@ -195,9 +206,86 @@ class POSController extends Controller
         }
 
         $types = $this->posOrderTypeService->activeQuery()
-            ->get(['id', 'name', 'type', 'source', 'is_default', 'sort_order']);
+            ->get(['id', 'name', 'type', 'source', 'pricing_rule_type', 'pricing_rule_value', 'is_default', 'sort_order']);
 
         return $this->success($types);
+    }
+
+    private function transformCategoryForPos(MenuCategory $category, ?PosOrderType $selectedOrderType): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'description' => $category->description,
+            'image' => $category->image,
+            'sort_order' => $category->sort_order,
+            'menu_items' => $category->menuItems
+                ->map(fn (MenuItem $item) => $this->transformMenuItemForPos($item, $selectedOrderType))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function transformMenuItemForPos(MenuItem $item, ?PosOrderType $selectedOrderType): array
+    {
+        return [
+            'id' => $item->id,
+            'category_id' => $item->category_id,
+            'name' => $item->name,
+            'description' => $item->description,
+            'sku' => $item->sku,
+            'image' => $item->image,
+            'type' => $item->type,
+            'base_price' => (float) $item->base_price,
+            'price' => $this->channelPricingService->resolvePrice($item, null, $selectedOrderType),
+            'cost_price' => (float) ($item->cost_price ?? 0),
+            'preparation_time' => $item->preparation_time,
+            'track_inventory' => (bool) $item->track_inventory,
+            'is_available' => (bool) $item->is_available,
+            'is_active' => (bool) $item->is_active,
+            'sort_order' => $item->sort_order,
+            'variants' => $item->variants
+                ->map(fn (MenuItemVariant $variant) => $this->transformVariantForPos($item, $variant, $selectedOrderType))
+                ->values()
+                ->all(),
+            'modifier_groups' => $item->modifierGroups
+                ->map(fn ($group) => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'description' => $group->description,
+                    'selection_type' => $group->selection_type,
+                    'is_required' => (bool) $group->is_required,
+                    'min_selections' => $group->min_selections,
+                    'max_selections' => $group->max_selections,
+                    'sort_order' => $group->pivot?->sort_order,
+                    'modifiers' => $group->modifiers->map(fn ($modifier) => [
+                        'id' => $modifier->id,
+                        'name' => $modifier->name,
+                        'price' => (float) $modifier->price,
+                        'sort_order' => $modifier->sort_order,
+                    ])->values()->all(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function transformVariantForPos(
+        MenuItem $item,
+        MenuItemVariant $variant,
+        ?PosOrderType $selectedOrderType,
+    ): array {
+        return [
+            'id' => $variant->id,
+            'menu_item_id' => $variant->menu_item_id,
+            'name' => $variant->name,
+            'sku' => $variant->sku,
+            'base_price' => (float) $variant->price,
+            'price' => $this->channelPricingService->resolvePrice($item, $variant, $selectedOrderType),
+            'cost_price' => (float) ($variant->cost_price ?? 0),
+            'is_available' => (bool) $variant->is_available,
+            'sort_order' => $variant->sort_order,
+        ];
     }
 
     /**

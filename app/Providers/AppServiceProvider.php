@@ -11,6 +11,7 @@ use App\Models\ExpenseCategory;
 use App\Models\InventoryItem;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
+use App\Models\MenuItemChannelPrice;
 use App\Models\PaymentTerminal;
 use App\Models\Permission;
 use App\Models\PosDevice;
@@ -50,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             CashierDrawerSession::class,
             MenuCategory::class,
             MenuItem::class,
+            MenuItemChannelPrice::class,
             InventoryItem::class,
             Supplier::class,
             Purchase::class,

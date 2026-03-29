@@ -97,12 +97,16 @@ class OrderItem extends Model
      * Snapshot data from the menu item at the moment of order creation.
      * Prevents price changes from affecting historical orders.
      */
-    public static function snapshotFrom(MenuItem $item, ?MenuItemVariant $variant = null): array
+    public static function snapshotFrom(
+        MenuItem $item,
+        ?MenuItemVariant $variant = null,
+        ?float $resolvedUnitPrice = null,
+    ): array
     {
         return [
             'item_name'   => $item->name,
             'variant_name' => $variant?->name,
-            'unit_price'  => $variant ? $variant->price : $item->base_price,
+            'unit_price'  => $resolvedUnitPrice ?? ($variant ? $variant->price : $item->base_price),
             'cost_price'  => $item->effectiveCostPrice($variant),
         ];
     }

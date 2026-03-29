@@ -2,13 +2,16 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\ChannelPricingRuleType;
 use App\Enums\OrderSource;
 use App\Enums\OrderType;
 use App\Filament\Resources\PosOrderTypeResource\Pages;
 use App\Models\PosOrderType;
+use App\Services\ChannelPricingService;
 use App\Services\PosOrderTypeService;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -47,6 +50,22 @@ class PosOrderTypeResource extends Resource
                 ->default(OrderSource::Pos->value)
                 ->required()
                 ->native(false),
+            Forms\Components\Select::make('pricing_rule_type')
+                ->label('قاعدة التسعير الافتراضية')
+                ->options(collect(ChannelPricingRuleType::cases())->mapWithKeys(fn (ChannelPricingRuleType $type) => [
+                    $type->value => $type->label(),
+                ])->all())
+                ->default(ChannelPricingRuleType::BasePrice->value)
+                ->required()
+                ->native(false)
+                ->live(),
+            Forms\Components\TextInput::make('pricing_rule_value')
+                ->label('قيمة القاعدة')
+                ->numeric()
+                ->default(0)
+                ->step('0.01')
+                ->helperText('مثال: 20 لزيادة 20%، أو -10 لخفض 10%، أو 5 لإضافة 5 جنيهات.')
+                ->visible(fn (Get $get) => $get('pricing_rule_type') !== ChannelPricingRuleType::BasePrice->value),
             Forms\Components\TextInput::make('sort_order')
                 ->label('الترتيب')
                 ->numeric()
@@ -76,6 +95,10 @@ class PosOrderTypeResource extends Resource
                 Tables\Columns\TextColumn::make('source')
                     ->label('المصدر')
                     ->badge(),
+                Tables\Columns\TextColumn::make('pricing_rule_summary')
+                    ->label('قاعدة التسعير')
+                    ->state(fn (PosOrderType $record) => app(ChannelPricingService::class)->ruleSummary($record))
+                    ->wrap(),
                 Tables\Columns\IconColumn::make('is_default')
                     ->label('افتراضي')
                     ->boolean(),

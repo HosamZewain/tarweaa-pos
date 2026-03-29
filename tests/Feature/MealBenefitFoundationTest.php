@@ -70,8 +70,8 @@ class MealBenefitFoundationTest extends TestCase
             'profile_id' => $profile->id,
             'entry_type' => MealBenefitLedgerEntryType::MonthlyAllowanceUsage,
             'amount' => 500,
-            'benefit_period_start' => now()->subMonth()->startOfMonth()->toDateString(),
-            'benefit_period_end' => now()->subMonth()->endOfMonth()->toDateString(),
+            'benefit_period_start' => now()->startOfMonth()->subMonthNoOverflow()->toDateString(),
+            'benefit_period_end' => now()->endOfMonth()->subMonthNoOverflow()->toDateString(),
         ]);
 
         $summary = app(MealBenefitService::class)->getMonthlySummary($user);

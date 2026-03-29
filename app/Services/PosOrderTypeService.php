@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ChannelPricingRuleType;
 use App\Enums\OrderSource;
 use App\Enums\OrderType;
 use App\Exceptions\OrderException;
@@ -47,9 +48,15 @@ class PosOrderTypeService
     public function normalizeForPersistence(array $data): array
     {
         $data['source'] = $data['source'] ?: OrderSource::Pos->value;
+        $data['pricing_rule_type'] = $data['pricing_rule_type'] ?: ChannelPricingRuleType::BasePrice->value;
+        $data['pricing_rule_value'] = (float) ($data['pricing_rule_value'] ?? 0);
         $data['is_active'] = (bool) ($data['is_active'] ?? true);
         $data['is_default'] = (bool) ($data['is_default'] ?? false);
         $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
+
+        if ($data['pricing_rule_type'] === ChannelPricingRuleType::BasePrice->value) {
+            $data['pricing_rule_value'] = 0;
+        }
 
         if ($data['is_default']) {
             $data['is_active'] = true;

@@ -99,9 +99,11 @@ class ViewDrawerSession extends ViewRecord
                 'tone' => 'success',
             ],
             [
-                'title' => 'مبيعات بطاقة',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('amount')),
-                'hint' => 'محصلة غير نقدية',
+                'title' => 'مبيعات غير نقدية',
+                'value' => $this->formatMoney($payments->reject(
+                    fn ($payment) => $payment->payment_method === PaymentMethod::Cash
+                )->sum('amount')),
+                'hint' => 'بطاقة، طلبات، إنستاباي وغيرها',
                 'tone' => 'info',
             ],
             [

@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\MenuItemResource\Pages;
 use App\Models\InventoryItem;
 use App\Models\MenuItem;
+use App\Models\PosOrderType;
 use App\Services\AdminActivityLogService;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -60,6 +61,40 @@ class MenuItemResource extends Resource
                         ->columns(4)
                         ->visible(fn (Get $get) => $get('type') === 'variable'),
                 ]),
+            \Filament\Schemas\Components\Section::make('تسعير القنوات')
+                ->description('يمكنك وضع سعر مخصص للصنف في قناة معينة. إذا لم يوجد سعر مخصص، سيستخدم النظام قاعدة التسعير الافتراضية لنوع الطلب.')
+                ->schema([
+                    Forms\Components\Repeater::make('channelPrices')
+                        ->relationship('channelPrices')
+                        ->label('الأسعار المخصصة حسب القناة')
+                        ->addActionLabel('إضافة سعر قناة')
+                        ->defaultItems(0)
+                        ->schema([
+                            Forms\Components\Select::make('pos_order_type_id')
+                                ->label('نوع الطلب / القناة')
+                                ->options(fn () => PosOrderType::query()
+                                    ->where('is_active', true)
+                                    ->orderByDesc('is_default')
+                                    ->orderBy('sort_order')
+                                    ->orderBy('id')
+                                    ->pluck('name', 'id')
+                                    ->all())
+                                ->required()
+                                ->searchable()
+                                ->preload()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                            Forms\Components\TextInput::make('price')
+                                ->label('السعر المخصص')
+                                ->numeric()
+                                ->required()
+                                ->prefix('ج.م')
+                                ->minValue(0)
+                                ->step('0.01'),
+                        ])
+                        ->columns(2)
+                        ->columnSpanFull(),
+                ])
+                ->columnSpanFull(),
             \Filament\Schemas\Components\Section::make('الوصفة والتكلفة')
                 ->description('اربط الصنف بمكونات المخزون مع الكميات المستخدمة ومعامل التحويل لوحدة المخزون الأساسية.')
                 ->schema([
@@ -170,6 +205,10 @@ class MenuItemResource extends Resource
                     )
                     ->money('EGP')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('channel_prices_count')
+                    ->label('أسعار القنوات')
+                    ->counts('channelPrices')
+                    ->badge(),
                 Tables\Columns\IconColumn::make('is_available')->label('متاح')->boolean(),
                 Tables\Columns\IconColumn::make('is_active')->label('نشط')->boolean(),
             ])

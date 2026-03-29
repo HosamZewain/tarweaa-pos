@@ -10,6 +10,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderPayment;
+use App\Enums\PaymentMethod;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -163,6 +164,109 @@ class ReportService
             ->selectRaw('payment_method, COUNT(*) as transaction_count, SUM(amount) as total_amount')
             ->groupBy('payment_method')
             ->get();
+    }
+
+    public function getPlatformTransfersReport(
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        ?array $methods = null,
+    ): array {
+        $selectedMethods = collect($methods)
+            ->filter()
+            ->values();
+
+        if ($selectedMethods->isEmpty()) {
+            $selectedMethods = collect([
+                PaymentMethod::TalabatPay->value,
+                PaymentMethod::JahezPay->value,
+                PaymentMethod::Online->value,
+                PaymentMethod::InstaPay->value,
+            ]);
+        }
+
+        $payments = OrderPayment::query()
+            ->with([
+                'order:id,order_number,source,cashier_id,total,external_order_number,external_order_id,created_at',
+                'order.cashier:id,name',
+            ])
+            ->whereIn('payment_method', $selectedMethods->all())
+            ->whereHas('order', fn ($query) => $query->whereNotIn('status', ['cancelled']))
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
+            ->latest('created_at')
+            ->get();
+
+        $entries = $payments->map(function (OrderPayment $payment): array {
+            $order = $payment->order;
+            $method = $payment->payment_method;
+
+            return [
+                'payment_id' => $payment->id,
+                'date' => optional($payment->created_at)->format('Y-m-d'),
+                'date_time' => optional($payment->created_at)->format('Y-m-d h:i A'),
+                'order_number' => $order?->order_number,
+                'order_url' => $order ? "/admin/orders/{$order->id}" : null,
+                'order_source' => $order?->source?->label() ?? '—',
+                'external_order_number' => $order?->external_order_number ?: $order?->external_order_id,
+                'payment_method' => $method?->value ?? (string) $payment->getRawOriginal('payment_method'),
+                'payment_method_label' => $method?->label() ?? (string) $payment->getRawOriginal('payment_method'),
+                'amount' => round((float) $payment->amount, 2),
+                'reference_number' => $payment->reference_number,
+                'cashier_name' => $order?->cashier?->name ?? '—',
+                'order_total' => round((float) ($order?->total ?? 0), 2),
+            ];
+        })->values();
+
+        $byMethod = $entries
+            ->groupBy('payment_method')
+            ->map(function (Collection $group, string $method): array {
+                $label = $group->first()['payment_method_label'] ?? $method;
+
+                return [
+                    'payment_method' => $method,
+                    'payment_method_label' => $label,
+                    'transactions_count' => $group->count(),
+                    'total_amount' => round($group->sum('amount'), 2),
+                ];
+            })
+            ->sortByDesc('total_amount')
+            ->values();
+
+        $dailyTotals = $entries
+            ->groupBy('date')
+            ->map(function (Collection $group, string $date): array {
+                return [
+                    'date' => $date,
+                    'transactions_count' => $group->count(),
+                    'total_amount' => round($group->sum('amount'), 2),
+                ];
+            })
+            ->sortBy('date')
+            ->values();
+
+        $platformMethods = [
+            PaymentMethod::TalabatPay->value,
+            PaymentMethod::JahezPay->value,
+            PaymentMethod::Online->value,
+        ];
+
+        return [
+            'entries' => $entries,
+            'summary' => [
+                'transactions_count' => $entries->count(),
+                'total_amount' => round($entries->sum('amount'), 2),
+                'platform_amount' => round(
+                    $entries->whereIn('payment_method', $platformMethods)->sum('amount'),
+                    2,
+                ),
+                'instapay_amount' => round(
+                    $entries->where('payment_method', PaymentMethod::InstaPay->value)->sum('amount'),
+                    2,
+                ),
+            ],
+            'by_method' => $byMethod,
+            'daily_totals' => $dailyTotals,
+        ];
     }
 
     public function getCardPaymentsByTerminal(?string $dateFrom = null, ?string $dateTo = null): array

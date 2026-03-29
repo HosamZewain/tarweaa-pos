@@ -13,12 +13,14 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Navigation\NavigationGroup;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Illuminate\Contracts\View\View;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -38,6 +40,10 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => Color::Orange,
                 'info'    => Color::Blue,
             ])
+            ->renderHook(
+                PanelsRenderHook::TOPBAR_START,
+                fn (): View => view('filament.components.topbar-date-time'),
+            )
             ->navigationGroups([
                 NavigationGroup::make()->label('لوحة التحكم'),
                 NavigationGroup::make()->label('العمليات'),

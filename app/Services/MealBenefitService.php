@@ -256,9 +256,12 @@ class MealBenefitService
         }
 
         $entries = $profile->ledgerEntries()
-            ->whereDate('benefit_period_start', '>=', $bounds['start'])
-            ->whereDate('benefit_period_end', '<=', $bounds['end'])
-            ->get();
+            ->get()
+            ->filter(function ($entry) use ($bounds): bool {
+                return optional($entry->benefit_period_start)->toDateString() === $bounds['start']
+                    && optional($entry->benefit_period_end)->toDateString() === $bounds['end'];
+            })
+            ->values();
 
         $monthlyAllowanceUsed = round((float) $entries
             ->where('entry_type', MealBenefitLedgerEntryType::MonthlyAllowanceUsage)

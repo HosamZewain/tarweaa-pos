@@ -224,6 +224,7 @@ class AdminActivityLogService
             \App\Models\CashierDrawerSession::class => ['drawer_sessions', 'جلسة درج'],
             \App\Models\MenuCategory::class => ['menu_categories', 'فئة قائمة'],
             \App\Models\MenuItem::class => ['menu_items', 'صنف'],
+            \App\Models\MenuItemChannelPrice::class => ['menu_items', 'تسعير قناة للصنف'],
             \App\Models\InventoryItem::class => ['inventory_items', 'مادة مخزنية'],
             \App\Models\Supplier::class => ['suppliers', 'مورد'],
             \App\Models\Purchase::class => ['purchases', 'أمر شراء'],

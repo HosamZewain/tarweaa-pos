@@ -451,6 +451,10 @@
         <div class="pay-methods" id="pay-methods-grid">
             <div class="pay-method active" data-method="cash" onclick="selectPayMethod('cash')">💵 نقدي</div>
             <div class="pay-method" data-method="card" onclick="selectPayMethod('card')">💳 بطاقة</div>
+            <div class="pay-method" data-method="instapay" onclick="selectPayMethod('instapay')">📲 إنستاباي</div>
+            <div class="pay-method hidden" data-method="talabat_pay" data-context-method="talabat_pay" onclick="selectPayMethod('talabat_pay')">🛵 دفع طلبات</div>
+            <div class="pay-method hidden" data-method="jahez_pay" data-context-method="jahez_pay" onclick="selectPayMethod('jahez_pay')">📦 دفع جاهز</div>
+            <div class="pay-method hidden" data-method="online" data-context-method="online" onclick="selectPayMethod('online')">🌐 دفع إلكتروني</div>
             <div class="pay-method special hidden" data-method="owner_charge" data-special-method onclick="selectPayMethod('owner_charge')">🧾 تحميل مالك/إدارة</div>
             <div class="pay-method special hidden" data-method="employee_allowance" data-special-method onclick="selectPayMethod('employee_allowance')">👤 بدل موظف</div>
             <div class="pay-method special hidden" data-method="employee_free_meal" data-special-method onclick="selectPayMethod('employee_free_meal')">🍽️ وجبة موظف</div>
@@ -549,6 +553,22 @@
                 </div>
             </div>
             <div class="pay-preview-help" id="card-preview-help">اختر جهاز الدفع لعرض الرسوم وصافي التسوية.</div>
+        </div>
+
+        <div class="pay-card-section hidden" id="pay-talabat-section">
+            <div class="form-group mb-3">
+                <label class="form-label">رقم طلب طلبات</label>
+                <input type="text" id="pay-talabat-order-number" class="form-input form-input-lg" placeholder="مثال: TAL-123456">
+            </div>
+            <div class="pay-preview-help">أدخل رقم الطلب القادم من طلبات حتى يظهر في السجل والتقارير.</div>
+        </div>
+
+        <div class="pay-card-section hidden" id="pay-instapay-section">
+            <div class="form-group mb-3">
+                <label class="form-label">رقم هاتف المرسل</label>
+                <input type="text" id="pay-instapay-sender-phone" class="form-input form-input-lg" placeholder="مثال: 01001234567">
+            </div>
+            <div class="pay-preview-help">سيتم حفظ رقم هاتف المرسل كمرجع عملية إنستاباي.</div>
         </div>
 
         <div class="flex gap-2">
@@ -829,6 +849,18 @@
     let selectedSettlementPersonId = null;
     let selectedDifferencePayMethod = 'cash';
 
+    function currentMenuUrl() {
+        const params = new URLSearchParams();
+
+        if (selectedOrderType?.id) {
+            params.set('pos_order_type_id', selectedOrderType.id);
+        }
+
+        const query = params.toString();
+
+        return query ? `/pos/menu?${query}` : '/pos/menu';
+    }
+
     function userHasPermission(permission) {
         if (Array.isArray(currentUser.roles) && currentUser.roles.some((role) => role.name === 'admin')) {
             return true;
@@ -908,7 +940,48 @@
     function paymentMethodLabel(method) {
         if (method === 'cash') return 'نقدي';
         if (method === 'card') return 'بطاقة';
+        if (method === 'instapay') return 'إنستاباي';
+        if (method === 'talabat_pay') return 'دفع طلبات';
+        if (method === 'jahez_pay') return 'دفع جاهز';
+        if (method === 'online') return 'دفع إلكتروني';
         return method || '—';
+    }
+
+    function paymentReferenceLabel(method) {
+        if (method === 'talabat_pay') return 'رقم طلب طلبات';
+        if (method === 'instapay') return 'رقم هاتف المرسل';
+        if (method === 'card') return 'رقم المرجع';
+        return 'المرجع';
+    }
+
+    function getContextualExternalPayMethod() {
+        switch (selectedOrderType?.source) {
+            case 'talabat':
+                return 'talabat_pay';
+            case 'jahez':
+                return 'jahez_pay';
+            case 'hungerstation':
+            case 'other':
+                return 'online';
+            default:
+                return null;
+        }
+    }
+
+    function updateAvailablePayMethods() {
+        const contextualMethod = getContextualExternalPayMethod();
+
+        document.querySelectorAll('[data-context-method]').forEach((element) => {
+            element.classList.toggle('hidden', element.dataset.contextMethod !== contextualMethod);
+        });
+
+        const currentMethodElement = document.querySelector(`.pay-method[data-method="${selectedPayMethod}"]`);
+        if (currentMethodElement?.classList.contains('hidden')) {
+            selectedPayMethod = 'cash';
+            document.querySelectorAll('.pay-method').forEach((item) => {
+                item.classList.toggle('active', item.dataset.method === 'cash');
+            });
+        }
     }
 
     function openReceiptPrintWindow() {
@@ -1042,7 +1115,7 @@
         ${payments.map((payment) => `
             <div class="row"><span>الدفع (${escapeReceiptHtml(paymentMethodLabel(payment?.payment_method))})</span><strong>${escapeReceiptHtml(moneyValue(payment?.amount || 0))} ج.م</strong></div>
             ${payment?.terminal?.name ? `<div class="row"><span>الجهاز</span><strong>${escapeReceiptHtml(payment.terminal.name)}</strong></div>` : ''}
-            ${payment?.reference_number ? `<div class="row"><span>المرجع</span><strong>${escapeReceiptHtml(payment.reference_number)}</strong></div>` : ''}
+            ${payment?.reference_number ? `<div class="row"><span>${escapeReceiptHtml(paymentReferenceLabel(payment?.payment_method))}</span><strong>${escapeReceiptHtml(payment.reference_number)}</strong></div>` : ''}
         `).join('')}
         ${settlement ? `
             <div class="row"><span>نوع التسوية</span><strong>${escapeReceiptHtml(settlement?.settlement_type_label || settlement?.settlement_type || '—')}</strong></div>
@@ -1253,12 +1326,10 @@
 
             if (orderTypes.length > 0) {
                 const defaultOrderType = orderTypes.find((type) => Boolean(type.is_default)) || orderTypes[0];
-                selectType(defaultOrderType.id, { silent: true, closeModal: false });
+                await selectType(defaultOrderType.id, { silent: true, closeModal: false });
+            } else {
+                await loadMenuForSelectedOrderType();
             }
-
-            const menuRes = await api('/pos/menu');
-            menuData = menuRes?.data || [];
-            renderCategories();
             updateCustomerDisplay();
         } catch (err) {
             showToast(err.message || 'خطأ في تحميل البيانات', 'error');
@@ -1302,21 +1373,96 @@
         document.getElementById('type-modal').classList.add('hidden');
     }
 
-    function selectType(id, { silent = false, closeModal = true } = {}) {
+    async function selectType(id, { silent = false, closeModal = true } = {}) {
         selectedOrderType = orderTypes.find((type) => type.id === id) || null;
         renderOrderTypes();
 
         if (selectedOrderType) {
             document.getElementById('cart-order-type').textContent = selectedOrderType.name;
+            await loadMenuForSelectedOrderType();
+            repriceCartForSelectedOrderType();
             updateCustomerDisplay();
+            updateAvailablePayMethods();
 
             if (!silent) {
                 showToast(`نوع الطلب: ${selectedOrderType.name}`);
             }
+        } else {
+            await loadMenuForSelectedOrderType();
+            updateAvailablePayMethods();
         }
 
         if (closeModal) {
             closeTypeModal();
+        }
+    }
+
+    async function loadMenuForSelectedOrderType() {
+        const menuRes = await api(currentMenuUrl());
+        menuData = menuRes?.data || [];
+
+        if (activeCatId !== null && !menuData.some((category) => category.id === activeCatId)) {
+            activeCatId = null;
+        }
+
+        renderCategories();
+
+        if (currentConfigItem?.id) {
+            currentConfigItem = findMenuItemById(currentConfigItem.id) || currentConfigItem;
+            renderItemConfigBody();
+            updateConfigSummary();
+        }
+    }
+
+    function repriceCartForSelectedOrderType() {
+        if (!cart.length) {
+            renderCart();
+            return;
+        }
+
+        cart = cart.map((line) => {
+            const refreshedItem = findMenuItemById(line.menuItem.id) || line.menuItem;
+            const refreshedVariant = line.variant
+                ? (refreshedItem.variants || []).find((variant) => variant.id === line.variant.id) || line.variant
+                : null;
+            const config = {
+                quantity: line.qty,
+                variantId: refreshedVariant?.id || null,
+                modifiers: Object.fromEntries((line.modifiers || []).map((modifier) => [modifier.id, modifier.quantity])),
+            };
+            const summary = getConfigUnitPrice(refreshedItem, config);
+
+            return {
+                ...line,
+                menuItem: refreshedItem,
+                variant: summary.variant,
+                unitPrice: summary.unitPrice,
+                lineTotal: summary.unitPrice * line.qty,
+            };
+        });
+
+        renderCart();
+
+        const payModal = document.getElementById('pay-modal');
+
+        if (!payModal.classList.contains('hidden')) {
+            if (isSpecialSettlementMethod(selectedPayMethod) && selectedSettlementPersonId) {
+                refreshSettlementPreview().catch(() => {
+                    currentSettlementPreview = null;
+                    renderSettlementPreview();
+                });
+            } else {
+                renderPayShortcuts();
+                if (selectedPayMethod === 'cash') {
+                    setPayAmount(getCurrentPayableAmount());
+                }
+                if (selectedPayMethod === 'card') {
+                    document.getElementById('card-paid-preview').textContent = money(getCurrentPayableAmount());
+                    refreshCardPaymentPreview().catch(() => {
+                        resetCardPaymentPreview();
+                    });
+                }
+            }
         }
     }
 
@@ -2098,6 +2244,8 @@
     function resetCardPaymentForm() {
         document.getElementById('pay-terminal').value = '';
         document.getElementById('pay-reference-number').value = '';
+        document.getElementById('pay-talabat-order-number').value = '';
+        document.getElementById('pay-instapay-sender-phone').value = '';
         resetCardPaymentPreview();
     }
 
@@ -2188,6 +2336,7 @@
         document.querySelectorAll('[data-special-method]').forEach((element) => {
             element.classList.toggle('hidden', !canUseSpecialSettlement());
         });
+        updateAvailablePayMethods();
         document.getElementById('special-settlement-section').classList.add('hidden');
         document.getElementById('settlement-difference-section').classList.add('hidden');
         renderPayShortcuts();
@@ -2238,6 +2387,8 @@
         currentSettlementPreview = null;
         document.getElementById('pay-cash-section').style.display = method === 'cash' ? 'block' : 'none';
         document.getElementById('pay-card-section').classList.toggle('hidden', method !== 'card');
+        document.getElementById('pay-talabat-section').classList.toggle('hidden', method !== 'talabat_pay');
+        document.getElementById('pay-instapay-section').classList.toggle('hidden', method !== 'instapay');
 
         if (method === 'cash') {
             renderPayShortcuts();
@@ -2245,10 +2396,15 @@
             return;
         }
 
-        document.getElementById('card-paid-preview').textContent = money(getCurrentPayableAmount());
-        loadPaymentTerminals().then(() => refreshCardPaymentPreview()).catch((err) => {
-            showToast(err.message || 'تعذر تحميل أجهزة الدفع', 'error');
-        });
+        if (method === 'card') {
+            document.getElementById('card-paid-preview').textContent = money(getCurrentPayableAmount());
+            loadPaymentTerminals().then(() => refreshCardPaymentPreview()).catch((err) => {
+                showToast(err.message || 'تعذر تحميل أجهزة الدفع', 'error');
+            });
+            return;
+        }
+
+        resetCardPaymentForm();
     }
 
     function calcChange() {
@@ -2355,6 +2511,32 @@
                 amount: payableAmount,
                 terminal_id: terminalId,
                 reference_number: referenceNumber,
+            };
+        } else if (actualPaymentMethod === 'talabat_pay') {
+            const talabatOrderNumber = document.getElementById('pay-talabat-order-number').value.trim();
+
+            if (!talabatOrderNumber) {
+                showToast('أدخل رقم طلب طلبات قبل تأكيد الدفع', 'error');
+                return;
+            }
+
+            paymentPayload = {
+                method: actualPaymentMethod,
+                amount: payableAmount,
+                reference_number: talabatOrderNumber,
+            };
+        } else if (actualPaymentMethod === 'instapay') {
+            const senderPhone = document.getElementById('pay-instapay-sender-phone').value.trim();
+
+            if (!senderPhone) {
+                showToast('أدخل رقم هاتف المرسل قبل تأكيد دفع إنستاباي', 'error');
+                return;
+            }
+
+            paymentPayload = {
+                method: actualPaymentMethod,
+                amount: payableAmount,
+                reference_number: senderPhone,
             };
         } else if (!isSpecialSettlementMethod(selectedPayMethod)) {
             paymentPayload = {
@@ -2716,7 +2898,7 @@
             const stats = [
                 { label: 'إجمالي المبيعات', val: money(summary.cash_sales + summary.non_cash_sales), color: 'text-primary' },
                 { label: 'مبيعات نقدية', val: money(summary.cash_sales), color: 'text-success' },
-                { label: 'مبيعات أخرى (بطاقة)', val: money(summary.non_cash_sales), color: 'text-accent' },
+                { label: 'مبيعات غير نقدية', val: money(summary.non_cash_sales), color: 'text-accent' },
                 { label: 'الرصيد المتوقع بالدرج', val: money(summary.expected_cash), color: 'text-warning' },
                 { label: 'إيداع نقدي', val: money(summary.cash_in), color: 'text-success' },
                 { label: 'سحب نقدي', val: money(summary.cash_out), color: 'text-danger' },

@@ -79,6 +79,11 @@ class MenuItem extends Model
             ->withTimestamps();
     }
 
+    public function channelPrices(): HasMany
+    {
+        return $this->hasMany(MenuItemChannelPrice::class)->orderBy('pos_order_type_id')->orderBy('menu_item_variant_id');
+    }
+
     // ─────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────

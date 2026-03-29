@@ -59,11 +59,17 @@ class OrderPaymentService
 
                 if ($paymentData->method === PaymentMethod::Card) {
                     if (blank($paymentData->referenceNumber)) {
-                        throw OrderException::paymentReferenceRequired();
+                        throw OrderException::paymentReferenceRequired($paymentData->method->label());
                     }
 
                     $terminal = $this->paymentTerminalFeeService->getActiveTerminalOrFail($paymentData->terminalId);
                     $feeData = $this->paymentTerminalFeeService->calculate($terminal, $paymentData->amount);
+                }
+
+                if (in_array($paymentData->method, [PaymentMethod::TalabatPay, PaymentMethod::InstaPay], true)
+                    && blank($paymentData->referenceNumber)
+                ) {
+                    throw OrderException::paymentReferenceRequired($paymentData->method->label());
                 }
 
                 // Create payment record

@@ -43,6 +43,11 @@ class MenuItemVariant extends Model
         return $this->hasMany(OrderItem::class, 'menu_item_variant_id');
     }
 
+    public function channelPrices(): HasMany
+    {
+        return $this->hasMany(MenuItemChannelPrice::class, 'menu_item_variant_id');
+    }
+
     // ─────────────────────────────────────────
     // Scopes
     // ─────────────────────────────────────────

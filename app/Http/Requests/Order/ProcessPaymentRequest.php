@@ -35,22 +35,30 @@ class ProcessPaymentRequest extends FormRequest
                     $terminalId = $payment['terminal_id'] ?? null;
                     $reference = trim((string) ($payment['reference_number'] ?? ''));
 
-                    if ($method !== PaymentMethod::Card->value) {
+                    if ($method === PaymentMethod::Card->value) {
+                        if (!$terminalId) {
+                            $validator->errors()->add("payments.$index.terminal_id", 'جهاز الدفع الإلكتروني مطلوب لعمليات البطاقة.');
+                        } else {
+                            $terminal = PaymentTerminal::query()->find($terminalId);
+
+                            if (!$terminal || !$terminal->is_active) {
+                                $validator->errors()->add("payments.$index.terminal_id", 'جهاز الدفع الإلكتروني المحدد غير نشط أو غير موجود.');
+                            }
+                        }
+
+                        if ($reference === '') {
+                            $validator->errors()->add("payments.$index.reference_number", 'رقم المرجع أو الإيصال مطلوب لعمليات البطاقة.');
+                        }
+
                         continue;
                     }
 
-                    if (!$terminalId) {
-                        $validator->errors()->add("payments.$index.terminal_id", 'جهاز الدفع الإلكتروني مطلوب لعمليات البطاقة.');
-                    } else {
-                        $terminal = PaymentTerminal::query()->find($terminalId);
-
-                        if (!$terminal || !$terminal->is_active) {
-                            $validator->errors()->add("payments.$index.terminal_id", 'جهاز الدفع الإلكتروني المحدد غير نشط أو غير موجود.');
-                        }
+                    if ($method === PaymentMethod::TalabatPay->value && $reference === '') {
+                        $validator->errors()->add("payments.$index.reference_number", 'رقم طلب طلبات مطلوب عند اختيار دفع طلبات.');
                     }
 
-                    if ($reference === '') {
-                        $validator->errors()->add("payments.$index.reference_number", 'رقم المرجع أو الإيصال مطلوب لعمليات البطاقة.');
+                    if ($method === PaymentMethod::InstaPay->value && $reference === '') {
+                        $validator->errors()->add("payments.$index.reference_number", 'رقم هاتف المرسل مطلوب عند اختيار إنستاباي.');
                     }
                 }
             },

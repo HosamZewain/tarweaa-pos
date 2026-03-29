@@ -86,6 +86,7 @@ class SystemPermissions
             ['name' => 'reports.inventory.view', 'display_name' => 'عرض تقرير المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.inventory_movements.view', 'display_name' => 'عرض حركة المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.card_terminals.view', 'display_name' => 'عرض تقرير أجهزة الدفع', 'group' => 'التقارير'],
+            ['name' => 'reports.platform_transfers.view', 'display_name' => 'عرض تقرير تحويلات المنصات', 'group' => 'التقارير'],
             ['name' => 'settings.database_backups.manage', 'display_name' => 'إدارة النسخ الاحتياطية لقاعدة البيانات', 'group' => 'الإعدادات'],
         ];
     }

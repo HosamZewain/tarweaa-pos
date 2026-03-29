@@ -161,12 +161,12 @@ class DrawerSessionResource extends Resource
                         2
                     ))
                     ->money('EGP'),
-                Infolists\Components\TextEntry::make('card_sales_total')
-                    ->label('مبيعات بطاقة')
+                Infolists\Components\TextEntry::make('non_cash_sales_total')
+                    ->label('مبيعات غير نقدية')
                     ->state(fn (CashierDrawerSession $record) => round(
                         (float) $record->orders
                             ->flatMap->payments
-                            ->where('payment_method', PaymentMethod::Card)
+                            ->reject(fn ($payment) => $payment->payment_method === PaymentMethod::Cash)
                             ->sum('amount'),
                         2
                     ))
