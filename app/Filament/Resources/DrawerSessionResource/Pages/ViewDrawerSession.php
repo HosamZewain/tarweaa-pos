@@ -54,7 +54,7 @@ class ViewDrawerSession extends ViewRecord
     public function getPrimaryStats(): array
     {
         $record = $this->getRecord();
-        $orders = $record->orders;
+        $orders = $record->reportableOrdersCollection();
 
         return [
             [
@@ -86,7 +86,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getSecondaryStats(): array
     {
-        $orders = $this->getRecord()->orders;
+        $orders = $this->getRecord()->reportableOrdersCollection();
         $payments = $orders->flatMap->payments;
         $items = $orders->flatMap->items;
         $orderCount = max(1, $orders->count());
@@ -154,7 +154,7 @@ class ViewDrawerSession extends ViewRecord
     public function getFinancialSnapshot(): array
     {
         $record = $this->getRecord();
-        $orders = $record->orders;
+        $orders = $record->reportableOrdersCollection();
         $payments = $orders->flatMap->payments;
 
         return [
@@ -188,7 +188,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getPaymentMethodStats(): array
     {
-        $payments = $this->getRecord()->orders->flatMap->payments;
+        $payments = $this->getRecord()->reportableOrdersCollection()->flatMap->payments;
 
         return collect(PaymentMethod::cases())
             ->map(fn (PaymentMethod $method): array => [
@@ -204,7 +204,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getTopSellingItems(): array
     {
-        return $this->getRecord()->orders
+        return $this->getRecord()->reportableOrdersCollection()
             ->flatMap->items
             ->groupBy(fn ($item) => $item->item_name . ($item->variant_name ? ' - ' . $item->variant_name : ''))
             ->map(fn (Collection $items, string $name): array => [

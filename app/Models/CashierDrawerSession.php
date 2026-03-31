@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class CashierDrawerSession extends Model
 {
@@ -82,6 +83,16 @@ class CashierDrawerSession extends Model
         return $this->hasMany(Order::class, 'drawer_session_id');
     }
 
+    public function reportableOrders(): HasMany
+    {
+        return $this->orders()->reportable();
+    }
+
+    public function cancelledOrders(): HasMany
+    {
+        return $this->orders()->cancelled();
+    }
+
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class, 'drawer_session_id');
@@ -125,6 +136,28 @@ class CashierDrawerSession extends Model
     public function calculateExpectedBalance(): float
     {
         return $this->totalCashIn() - $this->totalCashOut();
+    }
+
+    public function reportableOrdersCollection(): Collection
+    {
+        $orders = $this->relationLoaded('orders')
+            ? $this->orders
+            : $this->orders()->get();
+
+        return $orders
+            ->filter(fn (Order $order) => $order->countsTowardSalesStats())
+            ->values();
+    }
+
+    public function cancelledOrdersCollection(): Collection
+    {
+        $orders = $this->relationLoaded('orders')
+            ? $this->orders
+            : $this->orders()->get();
+
+        return $orders
+            ->filter(fn (Order $order) => $order->isCancelled())
+            ->values();
     }
 
     // ─────────────────────────────────────────

@@ -59,7 +59,7 @@ class ViewShift extends ViewRecord
     public function getPrimaryStats(): array
     {
         $record = $this->getRecord();
-        $orders = $record->orders;
+        $orders = $record->reportableOrdersCollection();
         $payments = $orders->flatMap->payments;
 
         return [
@@ -95,7 +95,7 @@ class ViewShift extends ViewRecord
     public function getSecondaryStats(): array
     {
         $record = $this->getRecord();
-        $orders = $record->orders;
+        $orders = $record->reportableOrdersCollection();
         $payments = $orders->flatMap->payments;
         $items = $orders->flatMap->items;
         $orderCount = max(1, $orders->count());
@@ -153,7 +153,7 @@ class ViewShift extends ViewRecord
             ['label' => 'مدة الوردية', 'value' => $record->durationLabel()],
             ['label' => 'عدد الكاشير', 'value' => $this->formatNumber($record->drawerSessions->pluck('cashier_id')->unique()->count())],
             ['label' => 'أدراج مفتوحة', 'value' => $this->formatNumber($record->drawerSessions->where('status', DrawerSessionStatus::Open)->count())],
-            ['label' => 'طلبات ملغاة', 'value' => $this->formatNumber($record->orders->where('status', OrderStatus::Cancelled)->count())],
+            ['label' => 'طلبات ملغاة', 'value' => $this->formatNumber($record->cancelledOrdersCollection()->count())],
             ['label' => 'ملاحظات', 'value' => filled($record->notes) ? $record->notes : 'لا توجد ملاحظات مسجلة.'],
         ];
     }
@@ -161,7 +161,7 @@ class ViewShift extends ViewRecord
     public function getFinancialSnapshot(): array
     {
         $record = $this->getRecord();
-        $orders = $record->orders;
+        $orders = $record->reportableOrdersCollection();
 
         return [
             ['label' => 'النقد المتوقع', 'value' => $this->formatMoney($record->expected_cash)],
@@ -192,7 +192,7 @@ class ViewShift extends ViewRecord
 
     public function getPaymentMethodStats(): array
     {
-        $payments = $this->getRecord()->orders->flatMap->payments;
+        $payments = $this->getRecord()->reportableOrdersCollection()->flatMap->payments;
 
         return collect(PaymentMethod::cases())
             ->map(fn (PaymentMethod $method): array => [
@@ -208,7 +208,7 @@ class ViewShift extends ViewRecord
 
     public function getTopSellingItems(): array
     {
-        return $this->getRecord()->orders
+        return $this->getRecord()->reportableOrdersCollection()
             ->flatMap->items
             ->groupBy(fn ($item) => $item->item_name . ($item->variant_name ? ' - ' . $item->variant_name : ''))
             ->map(fn (Collection $items, string $name): array => [

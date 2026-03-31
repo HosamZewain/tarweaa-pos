@@ -195,6 +195,11 @@ class Order extends Model
         return $this->status === OrderStatus::Cancelled;
     }
 
+    public function countsTowardSalesStats(): bool
+    {
+        return !$this->isCancelled();
+    }
+
     public function isCancellable(): bool
     {
         return $this->status->isCancellable();
@@ -248,6 +253,16 @@ class Order extends Model
     public function remainingPayableAmount(): float
     {
         return max(0, round((float) $this->total - $this->settledAmount(), 2));
+    }
+
+    public function scopeReportable(Builder $query): Builder
+    {
+        return $query->where('status', '!=', OrderStatus::Cancelled->value);
+    }
+
+    public function scopeCancelled(Builder $query): Builder
+    {
+        return $query->where('status', OrderStatus::Cancelled->value);
     }
 
     public function getTypeLabelAttribute(): string

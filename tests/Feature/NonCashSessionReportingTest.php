@@ -11,6 +11,8 @@ use App\Enums\OrderType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
+use App\Filament\Resources\DrawerSessionResource\Pages\ViewDrawerSession;
+use App\Filament\Resources\ShiftResource\Pages\ViewShift;
 use App\Models\CashierDrawerSession;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
@@ -25,6 +27,7 @@ use App\Services\DrawerSessionService;
 use App\Services\OrderPaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class NonCashSessionReportingTest extends TestCase
@@ -83,6 +86,63 @@ class NonCashSessionReportingTest extends TestCase
             ->assertJsonPath('data.non_cash_sales', 140)
             ->assertJsonPath('data.expected_cash', 50);
 
+    }
+
+    public function test_cancelled_orders_are_excluded_from_sales_totals_in_drawer_and_shift_reporting(): void
+    {
+        [$cashier, $admin, $shift, $drawer] = $this->createSessionContext();
+
+        $cashOrder = $this->createOrder($cashier, $shift, $drawer, 'ACTIVE-CASH', OrderSource::Pos, 50);
+        $talabatOrder = $this->createOrder($cashier, $shift, $drawer, 'ACTIVE-TALABAT', OrderSource::Talabat, 80);
+        $cancelledTalabatOrder = $this->createOrder($cashier, $shift, $drawer, 'CANCELLED-TALABAT', OrderSource::Talabat, 25);
+
+        $paymentService = app(OrderPaymentService::class);
+
+        $paymentService->processPayment(
+            order: $cashOrder,
+            payments: [new ProcessPaymentData(method: PaymentMethod::Cash, amount: 50)],
+            actorId: $cashier->id,
+        );
+
+        $paymentService->processPayment(
+            order: $talabatOrder,
+            payments: [new ProcessPaymentData(method: PaymentMethod::TalabatPay, amount: 80, referenceNumber: 'T-OK')],
+            actorId: $cashier->id,
+        );
+
+        $paymentService->processPayment(
+            order: $cancelledTalabatOrder,
+            payments: [new ProcessPaymentData(method: PaymentMethod::TalabatPay, amount: 25, referenceNumber: 'T-CANCELLED')],
+            actorId: $cashier->id,
+        );
+
+        $cancelledTalabatOrder->update([
+            'status' => OrderStatus::Cancelled,
+            'cancelled_at' => now(),
+            'cancelled_by' => $admin->id,
+        ]);
+
+        $drawerSummary = app(DrawerSessionService::class)->getSessionSummary($drawer->fresh(), $admin->fresh());
+        $shiftSummary = app(CashManagementService::class)->getShiftSummary($shift->fresh());
+
+        $this->assertSame(2, $drawerSummary['order_count']);
+        $this->assertSame(2, $drawerSummary['paid_orders_count']);
+        $this->assertSame(80.0, round((float) $drawerSummary['non_cash_sales'], 2));
+        $this->assertSame(2, $shiftSummary['total_orders']);
+        $this->assertSame(130.0, round((float) $shiftSummary['gross_revenue'], 2));
+        $this->assertSame(80.0, round((float) ($shiftSummary['payment_breakdown'][PaymentMethod::TalabatPay->value] ?? 0), 2));
+
+        $this->actingAs($admin);
+
+        $shiftPage = Livewire::test(ViewShift::class, ['record' => $shift->id])->instance();
+        $drawerPage = Livewire::test(ViewDrawerSession::class, ['record' => $drawer->id])->instance();
+
+        $this->assertSame('130.00 ج.م', $shiftPage->getPrimaryStats()[0]['value']);
+        $this->assertSame('130.00 ج.م', $drawerPage->getPrimaryStats()[0]['value']);
+        $this->assertSame('80.00 ج.م', $shiftPage->getPrimaryStats()[2]['value']);
+        $this->assertSame('80.00 ج.م', $drawerPage->getSecondaryStats()[1]['value']);
+        $this->assertSame('65.00 ج.م', $shiftPage->getSecondaryStats()[1]['value']);
+        $this->assertSame('65.00 ج.م', $drawerPage->getSecondaryStats()[4]['value']);
     }
 
     protected function createSessionContext(): array

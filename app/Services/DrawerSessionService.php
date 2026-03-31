@@ -12,6 +12,7 @@ use App\Exceptions\ShiftException;
 use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
 use App\Models\CashMovement;
+use App\Models\OrderPayment;
 use App\Models\PosDevice;
 use App\Models\Shift;
 use App\Models\User;
@@ -446,7 +447,7 @@ class DrawerSessionService
     private function buildSessionSummary(CashierDrawerSession $session): array
     {
         $movements = $session->cashMovements()->orderBy('created_at')->get();
-        $orders    = $session->orders()->get();
+        $orders = $session->reportableOrders()->get();
 
         $byType = fn (string $type) => $movements
             ->filter(fn ($m) => $m->type->value === $type)
@@ -455,7 +456,7 @@ class DrawerSessionService
         $totalIn  = (float) $movements->where('direction.value', 'in')->sum('amount');
         $totalOut = (float) $movements->where('direction.value', 'out')->sum('amount');
 
-        $nonCashSales = \App\Models\OrderPayment::whereIn('order_id', $orders->pluck('id'))
+        $nonCashSales = OrderPayment::whereIn('order_id', $orders->pluck('id'))
             ->where('payment_method', '!=', \App\Enums\PaymentMethod::Cash)
             ->sum('amount');
 

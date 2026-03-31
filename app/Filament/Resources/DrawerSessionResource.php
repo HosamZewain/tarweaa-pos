@@ -142,13 +142,13 @@ class DrawerSessionResource extends Resource
                 Infolists\Components\TextEntry::make('closer.name')->label('أغلق بواسطة')->placeholder('—'),
                 Infolists\Components\TextEntry::make('orders_count')
                     ->label('عدد الطلبات')
-                    ->state(fn (CashierDrawerSession $record) => $record->orders->count()),
+                    ->state(fn (CashierDrawerSession $record) => $record->reportableOrdersCollection()->count()),
                 Infolists\Components\TextEntry::make('paid_orders_count')
                     ->label('طلبات مدفوعة')
-                    ->state(fn (CashierDrawerSession $record) => $record->orders->where('payment_status', PaymentStatus::Paid)->count()),
+                    ->state(fn (CashierDrawerSession $record) => $record->reportableOrdersCollection()->where('payment_status', PaymentStatus::Paid)->count()),
                 Infolists\Components\TextEntry::make('open_orders_count')
                     ->label('طلبات غير مكتملة')
-                    ->state(fn (CashierDrawerSession $record) => $record->orders->where('payment_status', '!=', PaymentStatus::Paid)->count()),
+                    ->state(fn (CashierDrawerSession $record) => $record->reportableOrdersCollection()->where('payment_status', '!=', PaymentStatus::Paid)->count()),
                 Infolists\Components\TextEntry::make('duration')
                     ->label('مدة الجلسة')
                     ->state(fn (CashierDrawerSession $record) => $record->ended_at
@@ -170,7 +170,7 @@ class DrawerSessionResource extends Resource
                 Infolists\Components\TextEntry::make('non_cash_sales_total')
                     ->label('مبيعات غير نقدية')
                     ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->orders
+                        (float) $record->reportableOrdersCollection()
                             ->flatMap->payments
                             ->reject(fn ($payment) => $payment->payment_method === PaymentMethod::Cash)
                             ->sum('amount'),
@@ -204,14 +204,15 @@ class DrawerSessionResource extends Resource
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('gross_sales_total')
                     ->label('إجمالي مبيعات الطلبات')
-                    ->state(fn (CashierDrawerSession $record) => round((float) $record->orders->sum('total'), 2))
+                    ->state(fn (CashierDrawerSession $record) => round((float) $record->reportableOrdersCollection()->sum('total'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('avg_ticket')
                     ->label('متوسط قيمة الطلب')
                     ->state(function (CashierDrawerSession $record): float {
-                        $count = max(1, $record->orders->count());
+                        $orders = $record->reportableOrdersCollection();
+                        $count = max(1, $orders->count());
 
-                        return round((float) $record->orders->sum('total') / $count, 2);
+                        return round((float) $orders->sum('total') / $count, 2);
                     })
                     ->money('EGP'),
             ])->columns(4),

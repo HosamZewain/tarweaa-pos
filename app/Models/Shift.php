@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
 
 class Shift extends Model
@@ -68,6 +69,16 @@ class Shift extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function reportableOrders(): HasMany
+    {
+        return $this->orders()->reportable();
+    }
+
+    public function cancelledOrders(): HasMany
+    {
+        return $this->orders()->cancelled();
+    }
+
     public function cashMovements(): HasMany
     {
         return $this->hasMany(CashMovement::class);
@@ -122,7 +133,7 @@ class Shift extends Model
      */
     public function totalRevenue(): string
     {
-        return $this->orders()
+        return $this->reportableOrders()
                     ->whereIn('payment_status', ['paid'])
                     ->sum('total');
     }
@@ -132,9 +143,29 @@ class Shift extends Model
      */
     public function totalOrders(): int
     {
-        return $this->orders()
-                    ->whereNotIn('status', ['cancelled'])
-                    ->count();
+        return $this->reportableOrders()->count();
+    }
+
+    public function reportableOrdersCollection(): Collection
+    {
+        $orders = $this->relationLoaded('orders')
+            ? $this->orders
+            : $this->orders()->get();
+
+        return $orders
+            ->filter(fn (Order $order) => $order->countsTowardSalesStats())
+            ->values();
+    }
+
+    public function cancelledOrdersCollection(): Collection
+    {
+        $orders = $this->relationLoaded('orders')
+            ? $this->orders
+            : $this->orders()->get();
+
+        return $orders
+            ->filter(fn (Order $order) => $order->isCancelled())
+            ->values();
     }
 
     /**

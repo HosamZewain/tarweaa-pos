@@ -181,50 +181,51 @@ class ShiftResource extends Resource
             \Filament\Schemas\Components\Section::make('الإحصاءات التشغيلية')->schema([
                 Infolists\Components\TextEntry::make('total_orders')
                     ->label('إجمالي الطلبات')
-                    ->state(fn (Shift $record) => $record->orders->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->count()),
                 Infolists\Components\TextEntry::make('paid_orders')
                     ->label('طلبات مدفوعة')
-                    ->state(fn (Shift $record) => $record->orders->where('payment_status', PaymentStatus::Paid)->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->where('payment_status', PaymentStatus::Paid)->count()),
                 Infolists\Components\TextEntry::make('pending_orders')
                     ->label('طلبات غير مدفوعة')
-                    ->state(fn (Shift $record) => $record->orders->where('payment_status', '!=', PaymentStatus::Paid)->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->where('payment_status', '!=', PaymentStatus::Paid)->count()),
                 Infolists\Components\TextEntry::make('cancelled_orders')
                     ->label('طلبات ملغاة')
-                    ->state(fn (Shift $record) => $record->orders->where('status', OrderStatus::Cancelled)->count()),
+                    ->state(fn (Shift $record) => $record->cancelledOrdersCollection()->count()),
                 Infolists\Components\TextEntry::make('confirmed_orders')
                     ->label('طلبات مؤكدة')
-                    ->state(fn (Shift $record) => $record->orders->where('status', OrderStatus::Confirmed)->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->where('status', OrderStatus::Confirmed)->count()),
                 Infolists\Components\TextEntry::make('preparing_orders')
                     ->label('طلبات قيد التحضير')
-                    ->state(fn (Shift $record) => $record->orders->where('status', OrderStatus::Preparing)->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->where('status', OrderStatus::Preparing)->count()),
                 Infolists\Components\TextEntry::make('ready_orders')
                     ->label('طلبات جاهزة')
-                    ->state(fn (Shift $record) => $record->orders->where('status', OrderStatus::Ready)->count()),
+                    ->state(fn (Shift $record) => $record->reportableOrdersCollection()->where('status', OrderStatus::Ready)->count()),
                 Infolists\Components\TextEntry::make('avg_order_value')
                     ->label('متوسط قيمة الطلب')
                     ->state(function (Shift $record): float {
-                        $count = max(1, $record->orders->count());
+                        $orders = $record->reportableOrdersCollection();
+                        $count = max(1, $orders->count());
 
-                        return round((float) $record->orders->sum('total') / $count, 2);
+                        return round((float) $orders->sum('total') / $count, 2);
                     })
                     ->money('EGP'),
             ])->columns(4),
             \Filament\Schemas\Components\Section::make('الملخص المالي')->schema([
                 Infolists\Components\TextEntry::make('gross_revenue')
                     ->label('إجمالي المبيعات')
-                    ->state(fn (Shift $record) => round((float) $record->orders->sum('total'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('total'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('cash_sales')
                     ->label('مبيعات نقدية')
                     ->state(fn (Shift $record) => round(
-                        (float) $record->orders->flatMap->payments->where('payment_method', PaymentMethod::Cash)->sum('amount'),
+                        (float) $record->reportableOrdersCollection()->flatMap->payments->where('payment_method', PaymentMethod::Cash)->sum('amount'),
                         2
                     ))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('non_cash_sales')
                     ->label('مبيعات غير نقدية')
                     ->state(fn (Shift $record) => round(
-                        (float) $record->orders->flatMap->payments->reject(
+                        (float) $record->reportableOrdersCollection()->flatMap->payments->reject(
                             fn ($payment) => $payment->payment_method === PaymentMethod::Cash
                         )->sum('amount'),
                         2
@@ -232,19 +233,19 @@ class ShiftResource extends Resource
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('total_discounts')
                     ->label('إجمالي الخصومات')
-                    ->state(fn (Shift $record) => round((float) $record->orders->sum('discount_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('discount_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('total_tax')
                     ->label('إجمالي الضريبة')
-                    ->state(fn (Shift $record) => round((float) $record->orders->sum('tax_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('tax_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('delivery_fees')
                     ->label('رسوم التوصيل')
-                    ->state(fn (Shift $record) => round((float) $record->orders->sum('delivery_fee'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('delivery_fee'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('refund_total')
                     ->label('إجمالي الاسترجاعات')
-                    ->state(fn (Shift $record) => round((float) $record->orders->sum('refund_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('refund_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('expected_cash')->label('النقد المتوقع')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('actual_cash')->label('النقد الفعلي')->money('EGP')->placeholder('—'),
@@ -275,7 +276,7 @@ class ShiftResource extends Resource
                     Infolists\Components\TextEntry::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—'),
                     Infolists\Components\TextEntry::make('orders_count')
                         ->label('الطلبات')
-                        ->state(fn (CashierDrawerSession $record) => $record->orders->count()),
+                        ->state(fn (CashierDrawerSession $record) => $record->reportableOrdersCollection()->count()),
                     Infolists\Components\TextEntry::make('cash_sales_total')
                         ->label('مبيعات نقدية')
                         ->state(fn (CashierDrawerSession $record) => round(
