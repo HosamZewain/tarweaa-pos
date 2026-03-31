@@ -220,6 +220,17 @@ class Order extends Model
         return $this->remainingPayableAmount() <= 0;
     }
 
+    public function hasNonCashPayments(): bool
+    {
+        if ($this->relationLoaded('payments')) {
+            return $this->payments->contains(fn (OrderPayment $payment) => $payment->payment_method !== PaymentMethod::Cash);
+        }
+
+        return $this->payments()
+            ->where('payment_method', '!=', PaymentMethod::Cash->value)
+            ->exists();
+    }
+
     public function coveredAmount(): float
     {
         $settlement = $this->relationLoaded('settlement')

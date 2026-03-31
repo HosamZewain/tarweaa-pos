@@ -67,6 +67,14 @@ class Customer extends Model
         $this->increment('total_spent', $amount);
     }
 
+    public function reverseRecordedOrder(float $amount): void
+    {
+        $this->update([
+            'total_orders' => max(0, (int) $this->total_orders - 1),
+            'total_spent' => max(0, round((float) $this->total_spent - $amount, 2)),
+        ]);
+    }
+
     // ─────────────────────────────────────────
     // Scopes
     // ─────────────────────────────────────────

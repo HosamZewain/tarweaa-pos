@@ -206,7 +206,19 @@ class POSController extends Controller
         }
 
         $types = $this->posOrderTypeService->activeQuery()
-            ->get(['id', 'name', 'type', 'source', 'pricing_rule_type', 'pricing_rule_value', 'is_default', 'sort_order']);
+            ->get(['id', 'name', 'type', 'source', 'pricing_rule_type', 'pricing_rule_value', 'is_default', 'sort_order'])
+            ->map(fn (PosOrderType $type) => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'type' => $type->type,
+                'source' => $type->source,
+                'pricing_rule_type' => $type->pricing_rule_type?->value ?? $type->getRawOriginal('pricing_rule_type'),
+                'pricing_rule_value' => $type->pricing_rule_value,
+                'is_default' => (bool) $type->is_default,
+                'sort_order' => $type->sort_order,
+                'contextual_payment_method' => $this->posOrderTypeService->contextualPaymentMethod($type),
+            ])
+            ->values();
 
         return $this->success($types);
     }

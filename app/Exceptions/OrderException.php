@@ -179,6 +179,11 @@ class OrderException extends \RuntimeException
         return new self('بيانات المرجع مطلوبة لطريقة الدفع المحددة.', 422);
     }
 
+    public static function deletionRequiresManualExternalReversal(): self
+    {
+        return new self('لا يمكن حذف الطلب آلياً لأنه يحتوي على دفعات غير نقدية. يجب تنفيذ الاسترجاع أو التسوية الخارجية أولاً.', 422);
+    }
+
     public static function handoverRequiresPaidOrder(): self
     {
         return new self('لا يمكن تسليم طلب غير مدفوع.', 422);

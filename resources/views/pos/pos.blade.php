@@ -961,20 +961,38 @@
     }
 
     function getContextualExternalPayMethod() {
+        const contextualPaymentMethod = normalizeOrderTypeSource(selectedOrderType?.contextual_payment_method);
         const source = normalizeOrderTypeSource(selectedOrderType?.source);
         const name = normalizeOrderTypeSource(selectedOrderType?.name);
 
-        if (source === 'talabat' || name.includes('طلبات') || name.includes('talabat')) {
+        if (contextualPaymentMethod === 'talabat_pay') {
             return 'talabat_pay';
         }
 
-        if (source === 'jahez' || name.includes('جاهز') || name.includes('jahez')) {
+        if (contextualPaymentMethod === 'jahez_pay') {
+            return 'jahez_pay';
+        }
+
+        if (contextualPaymentMethod === 'online') {
+            return 'online';
+        }
+
+        if (source.includes('talabat') || source.includes('طلبات') || name.includes('طلبات') || name.includes('talabat')) {
+            return 'talabat_pay';
+        }
+
+        if (source.includes('jahez') || source.includes('جاهز') || name.includes('جاهز') || name.includes('jahez')) {
             return 'jahez_pay';
         }
 
         if (
-            source === 'hungerstation'
-            || source === 'other'
+            source.includes('hungerstation')
+            || source.includes('hunger')
+            || source.includes('هنقر')
+            || source.includes('other')
+            || source.includes('online')
+            || source.includes('اونلاين')
+            || source.includes('أونلاين')
             || name.includes('هنقر')
             || name.includes('hunger')
             || name.includes('online')

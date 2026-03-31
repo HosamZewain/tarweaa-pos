@@ -23,13 +23,13 @@ class DatabaseSeeder extends Seeder
         $this->seedRolesAndPermissions();
         $this->seedOperationalDefaults();
 
-        $admin = User::updateOrCreate(
+        $admin = User::firstOrCreate(
             ['email' => 'admin@pos.com'],
             [
                 'name' => 'Admin Cashier',
                 'username' => 'admin',
                 'password' => Hash::make('password'),
-                'pin' => '1234', // Required for POS login screen
+                'pin' => '1234',
                 'phone' => '0000000000',
                 'is_active' => true,
             ]

@@ -13,6 +13,7 @@ use App\Models\DiscountLog;
 use App\Models\Order;
 use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
+use App\Services\OrderDeletionService;
 use App\Services\OrderLifecycleService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
@@ -123,6 +124,35 @@ class OrderResource extends Resource
                             newValues: [
                                 'status' => $record->status,
                                 'cancellation_reason' => $data['reason'],
+                            ],
+                        );
+                    }),
+                \Filament\Actions\Action::make('safe_delete')
+                    ->label('حذف آمن')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('حذف الطلب مع عكس العمليات')
+                    ->modalDescription('سيتم عكس المخزون والمدفوعات النقدية والتسويات المرتبطة ثم إخفاء الطلب من النظام.')
+                    ->form([
+                        Forms\Components\Textarea::make('reason')->label('سبب الحذف')->required(),
+                    ])
+                    ->visible(fn (Order $record) => !$record->trashed() && !$record->hasNonCashPayments() && auth()->user()?->hasPermission('orders.delete'))
+                    ->action(function (Order $record, array $data) {
+                        abort_unless(auth()->user()?->hasPermission('orders.delete'), 403);
+
+                        app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                            app(OrderDeletionService::class)->deleteWithReversal($record, auth()->user(), $data['reason']);
+                        });
+
+                        app(AdminActivityLogService::class)->logAction(
+                            action: 'deleted',
+                            subject: $record,
+                            description: 'تم حذف الطلب مع عكس العمليات من لوحة الإدارة.',
+                            newValues: [
+                                'status' => OrderStatus::Cancelled->value,
+                                'deletion_reason' => $data['reason'],
+                                'deleted_at' => now(),
                             ],
                         );
                     }),

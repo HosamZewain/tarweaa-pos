@@ -6,6 +6,7 @@ use App\Enums\InventoryTransactionType;
 use App\Models\InventoryItem;
 use App\Models\InventoryLocation;
 use App\Models\InventoryLocationStock;
+use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +82,97 @@ class RecipeInventoryService
 
             $item->update([
                 'stock_deducted_at' => now(),
+                'updated_by' => $actorId,
+            ]);
+        });
+    }
+
+    public function restorePendingForOrder(Order $order, int $actorId): void
+    {
+        $order->loadMissing('items.menuItem.recipeLines.inventoryItem');
+
+        foreach ($order->items as $item) {
+            if ($item->stock_deducted_at === null) {
+                continue;
+            }
+
+            $this->restoreForOrderItem($item, $actorId);
+        }
+    }
+
+    public function restoreForOrderItem(OrderItem $orderItem, int $actorId): void
+    {
+        DB::transaction(function () use ($orderItem, $actorId): void {
+            $item = OrderItem::query()
+                ->lockForUpdate()
+                ->with(['order', 'menuItem.recipeLines.inventoryItem'])
+                ->findOrFail($orderItem->id);
+
+            if ($item->stock_deducted_at === null) {
+                return;
+            }
+
+            $menuItem = $item->menuItem;
+            if (!$menuItem || $menuItem->recipeLines->isEmpty()) {
+                $item->update([
+                    'stock_deducted_at' => null,
+                    'updated_by' => $actorId,
+                ]);
+
+                return;
+            }
+
+            $deductionTransactions = InventoryTransaction::query()
+                ->with('inventoryLocation')
+                ->where('reference_type', 'order_item')
+                ->where('reference_id', $item->id)
+                ->where('type', InventoryTransactionType::SaleDeduction)
+                ->orderBy('id')
+                ->get()
+                ->groupBy('inventory_item_id')
+                ->map(fn ($group) => $group->values()->all())
+                ->all();
+
+            foreach ($menuItem->recipeLines as $recipeLine) {
+                $inventoryItem = $recipeLine->inventoryItem;
+                if (!$inventoryItem) {
+                    continue;
+                }
+
+                $baseQuantity = round($recipeLine->baseQuantity() * (float) $item->quantity, 6);
+
+                if ($baseQuantity <= 0) {
+                    continue;
+                }
+
+                $deductionTransaction = null;
+
+                if (isset($deductionTransactions[$inventoryItem->id]) && count($deductionTransactions[$inventoryItem->id]) > 0) {
+                    $deductionTransaction = array_shift($deductionTransactions[$inventoryItem->id]);
+                }
+
+                $location = $deductionTransaction?->inventoryLocation;
+
+                if (!$location) {
+                    $location = $this->inventoryLocationService->defaultRecipeDeductionLocation();
+                }
+
+                $this->inventoryService->addStock(
+                    item: $inventoryItem,
+                    quantity: $baseQuantity,
+                    actorId: $actorId,
+                    type: InventoryTransactionType::Return,
+                    unitCost: $deductionTransaction?->unit_cost !== null ? (float) $deductionTransaction->unit_cost : null,
+                    refType: 'order_item',
+                    refId: $item->id,
+                    notes: "عكس خصم مكونات وصفة {$item->item_name} للطلب {$item->order->order_number}",
+                    location: $location,
+                    updateGlobalStock: true,
+                );
+            }
+
+            $item->update([
+                'stock_deducted_at' => null,
                 'updated_by' => $actorId,
             ]);
         });

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\DTOs\CreateOrderData;
 use App\Enums\OrderSource;
 use App\Enums\OrderType;
+use App\Enums\PaymentMethod;
 use App\Filament\Resources\PosOrderTypeResource\Pages\CreatePosOrderType;
 use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
@@ -126,6 +127,55 @@ class PosOrderTypeManagementTest extends TestCase
         $this->assertTrue($response[0]['is_default']);
         $this->assertFalse(collect($response)->contains(fn (array $type) => $type['name'] === 'مؤرشف'));
         $this->assertFalse(collect($response)->contains(fn (array $type) => $type['name'] === 'غير نشط'));
+    }
+
+    public function test_pos_order_types_endpoint_exposes_contextual_payment_method_for_external_channels(): void
+    {
+        PosOrderType::query()->create([
+            'name' => 'طلبات أونلاين',
+            'type' => OrderType::Delivery->value,
+            'source' => OrderSource::Talabat->value,
+            'is_active' => true,
+            'is_default' => false,
+            'sort_order' => 10,
+        ]);
+
+        PosOrderType::query()->create([
+            'name' => 'طلبات قديم',
+            'type' => OrderType::Delivery->value,
+            'source' => 'طلبات',
+            'is_active' => true,
+            'is_default' => false,
+            'sort_order' => 11,
+        ]);
+
+        PosOrderType::query()->create([
+            'name' => 'جاهز',
+            'type' => OrderType::Delivery->value,
+            'source' => OrderSource::Jahez->value,
+            'is_active' => true,
+            'is_default' => false,
+            'sort_order' => 12,
+        ]);
+
+        Sanctum::actingAs($this->adminUser->fresh());
+
+        $response = collect($this->getJson('/api/pos/order-types')->assertOk()->json('data'));
+
+        $this->assertSame(
+            PaymentMethod::TalabatPay->value,
+            $response->firstWhere('name', 'طلبات أونلاين')['contextual_payment_method'] ?? null,
+        );
+
+        $this->assertSame(
+            PaymentMethod::TalabatPay->value,
+            $response->firstWhere('name', 'طلبات قديم')['contextual_payment_method'] ?? null,
+        );
+
+        $this->assertSame(
+            PaymentMethod::JahezPay->value,
+            $response->firstWhere('name', 'جاهز')['contextual_payment_method'] ?? null,
+        );
     }
 
     public function test_order_creation_stores_selected_pos_order_type_snapshot(): void
