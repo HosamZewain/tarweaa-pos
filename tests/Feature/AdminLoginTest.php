@@ -69,4 +69,75 @@ class AdminLoginTest extends TestCase
 
         $this->assertGuest();
     }
+
+    public function test_admin_panel_login_accepts_active_user_with_accounting_permissions(): void
+    {
+        $this->artisan('db:seed');
+
+        $accountantRole = Role::firstOrCreate(
+            ['name' => 'accountant'],
+            ['display_name' => 'Accountant']
+        );
+
+        $accountantRole->givePermissionTo([
+            'expenses.viewAny',
+            'expense_categories.viewAny',
+            'reports.expenses.view',
+        ]);
+
+        $accountant = User::factory()->create([
+            'name' => 'Accountant User',
+            'username' => 'accountant.user',
+            'email' => 'accountant@example.com',
+            'password' => 'password123',
+            'is_active' => true,
+        ]);
+
+        $accountant->roles()->attach($accountantRole->id);
+
+        Livewire::test(Login::class)
+            ->fillForm([
+                'login' => 'accountant.user',
+                'password' => 'password123',
+            ])
+            ->call('authenticate')
+            ->assertHasNoFormErrors();
+
+        $this->assertAuthenticatedAs($accountant);
+    }
+
+    public function test_admin_panel_login_rejects_operational_only_user_without_admin_permissions(): void
+    {
+        $this->artisan('db:seed');
+
+        $kitchenRole = Role::firstOrCreate(
+            ['name' => 'kitchen'],
+            ['display_name' => 'Kitchen']
+        );
+
+        $kitchenRole->givePermissionTo([
+            'view_kitchen',
+            'mark_order_ready',
+        ]);
+
+        $kitchenUser = User::factory()->create([
+            'name' => 'Kitchen User',
+            'username' => 'kitchen.user',
+            'email' => 'kitchen@example.com',
+            'password' => 'password123',
+            'is_active' => true,
+        ]);
+
+        $kitchenUser->roles()->attach($kitchenRole->id);
+
+        Livewire::test(Login::class)
+            ->fillForm([
+                'login' => 'kitchen.user',
+                'password' => 'password123',
+            ])
+            ->call('authenticate')
+            ->assertHasFormErrors(['login']);
+
+        $this->assertGuest();
+    }
 }

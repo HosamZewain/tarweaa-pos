@@ -93,6 +93,28 @@ class RbacManagementTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_non_manager_with_accounting_permissions_can_access_admin_financial_resources(): void
+    {
+        $accountant = User::factory()->create([
+            'name' => 'Accountant User',
+            'email' => 'accountant@example.com',
+            'username' => 'accountant-user',
+            'is_active' => true,
+        ]);
+
+        $accountantRole = Role::firstOrCreate(
+            ['name' => 'accountant'],
+            ['display_name' => 'Accountant'],
+        );
+
+        $accountantRole->givePermissionTo('expenses.viewAny');
+        $accountant->roles()->sync([$accountantRole->id]);
+
+        $this->actingAs($accountant)
+            ->get('/admin/expenses')
+            ->assertSuccessful();
+    }
+
     public function test_system_permission_catalog_is_seeded_completely(): void
     {
         $this->assertSame(count(SystemPermissions::all()), Permission::count());

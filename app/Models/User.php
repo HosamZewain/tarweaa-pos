@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ShiftStatus;
 use App\Enums\DrawerSessionStatus;
+use App\Support\SystemPermissions;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,6 +17,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 class User extends Authenticatable implements FilamentUser
 {
@@ -23,7 +25,11 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->is_active && $this->hasRole(['admin', 'manager', 'owner']);
+        return $this->is_active
+            && (
+                $this->hasRole(['admin', 'manager', 'owner'])
+                || $this->hasAnyPermission(static::adminPanelAccessPermissions())
+            );
     }
 
     protected $fillable = [
@@ -235,6 +241,19 @@ class User extends Authenticatable implements FilamentUser
         ])->saveQuietly();
     }
 
+    public static function activePinConflictExists(?string $pin, ?int $ignoreUserId = null): bool
+    {
+        if (blank($pin)) {
+            return false;
+        }
+
+        return static::query()
+            ->where('pin', $pin)
+            ->where('is_active', true)
+            ->when($ignoreUserId !== null, fn (Builder $query) => $query->whereKeyNot($ignoreUserId))
+            ->exists();
+    }
+
     public function canAccessPosSurface(): bool
     {
         return $this->is_active && $this->hasRole(['admin', 'manager', 'cashier']);
@@ -273,6 +292,43 @@ class User extends Authenticatable implements FilamentUser
     public function canCloseDrawerWithVariance(): bool
     {
         return $this->hasRole(['admin', 'manager']);
+    }
+
+    /**
+     * Back-office permissions that justify access to the admin panel itself.
+     *
+     * Operational-only permissions like kitchen/counter/POS actions are
+     * intentionally excluded so those users do not gain /admin access.
+     */
+    public static function adminPanelAccessPermissions(): array
+    {
+        $resourcePermissions = collect(SystemPermissions::resourcePermissions())
+            ->pluck('name');
+
+        $pagePermissions = collect(SystemPermissions::pagePermissions())
+            ->pluck('name');
+
+        $adminActionPermissions = collect([
+            'shifts.open',
+            'shifts.close',
+            'drawers.open',
+            'drawers.close',
+            'drawers.cash_in',
+            'drawers.cash_out',
+            'orders.cancel',
+            'orders.apply_special_settlement',
+            'expenses.approve',
+            'inventory_items.adjust_stock',
+            'inventory_items.add_stock',
+            'reports.meal_benefits.view',
+        ]);
+
+        return $resourcePermissions
+            ->merge($pagePermissions)
+            ->merge($adminActionPermissions)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     // ─────────────────────────────────────────

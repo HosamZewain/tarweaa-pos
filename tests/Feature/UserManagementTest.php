@@ -33,7 +33,7 @@ class UserManagementTest extends TestCase
                 'email' => null,
                 'phone' => null,
                 'password' => 'password123',
-                'pin' => '1234',
+                'pin' => '9876',
                 'is_active' => true,
                 'roles' => [$cashierRole->id],
             ])

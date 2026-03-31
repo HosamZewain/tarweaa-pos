@@ -130,7 +130,7 @@ class Login extends BaseLogin
     protected function throwUnauthorizedPanelAccessValidationException(): never
     {
         throw ValidationException::withMessages([
-            'data.login' => 'هذا الحساب لا يملك صلاحية دخول لوحة الإدارة. يلزم دور مدير أو مسؤول مع حساب نشط.',
+            'data.login' => 'هذا الحساب لا يملك صلاحية دخول لوحة الإدارة. يلزم حساب نشط مع صلاحيات إدارية مناسبة.',
         ]);
     }
 

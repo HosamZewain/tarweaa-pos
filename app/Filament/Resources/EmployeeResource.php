@@ -11,9 +11,11 @@ use App\Services\EmployeeManagementService;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
 
@@ -68,10 +70,21 @@ class EmployeeResource extends Resource
                 Forms\Components\TextInput::make('pin')
                     ->label('رمز PIN')
                     ->password()
-                    ->helperText('اختياري. من 4 إلى 6 أرقام عند الحاجة للدخول من شاشات التشغيل.')
+                    ->helperText('اختياري. من 4 إلى 6 أرقام عند الحاجة للدخول من شاشات التشغيل، ويجب أن يكون فريدًا بين الحسابات النشطة.')
                     ->minLength(4)
                     ->maxLength(6)
                     ->rule('regex:/^[0-9]{4,6}$/')
+                    ->rule(function (Get $get, ?Employee $record): \Closure {
+                        return function (string $attribute, $value, \Closure $fail) use ($get, $record): void {
+                            if (blank($value) || !(bool) $get('is_active')) {
+                                return;
+                            }
+
+                            if (User::activePinConflictExists((string) $value, $record?->id)) {
+                                $fail('رمز PIN مستخدم بالفعل بواسطة حساب نشط آخر.');
+                            }
+                        };
+                    })
                     ->dehydrated(fn ($state) => filled($state)),
                 Forms\Components\Toggle::make('is_active')
                     ->label('نشط')
@@ -210,6 +223,16 @@ class EmployeeResource extends Resource
                     ->color(fn (Employee $record) => $record->is_active ? 'danger' : 'success')
                     ->requiresConfirmation()
                     ->action(function (Employee $record): void {
+                        if (!$record->is_active && User::activePinConflictExists($record->pin, $record->id)) {
+                            Notification::make()
+                                ->title('لا يمكن تفعيل الموظف')
+                                ->body('رمز PIN الحالي مستخدم بواسطة حساب نشط آخر. عدّل رمز PIN أولًا ثم أعد المحاولة.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         $oldState = (bool) $record->is_active;
                         app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->update(['is_active' => !$record->is_active]));
                         $record->refresh();
