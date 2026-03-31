@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Enums\InventoryTransactionType;
+use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
+use App\Models\InventoryLocationStock;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +14,7 @@ class RecipeInventoryService
 {
     public function __construct(
         private readonly InventoryService $inventoryService,
+        private readonly InventoryLocationService $inventoryLocationService,
     ) {}
 
     public function shouldDeductForOrder(Order $order): bool
@@ -60,6 +64,8 @@ class RecipeInventoryService
                     continue;
                 }
 
+                $consumptionLocation = $this->resolveConsumptionLocationForItem($inventoryItem, $actorId);
+
                 $this->inventoryService->deductStock(
                     item: $inventoryItem,
                     quantity: $baseQuantity,
@@ -68,6 +74,8 @@ class RecipeInventoryService
                     refType: 'order_item',
                     refId: $item->id,
                     notes: "خصم مكونات وصفة {$item->item_name} للطلب {$item->order->order_number}",
+                    location: $consumptionLocation,
+                    updateGlobalStock: true,
                 );
             }
 
@@ -76,5 +84,39 @@ class RecipeInventoryService
                 'updated_by' => $actorId,
             ]);
         });
+    }
+
+    private function resolveConsumptionLocationForItem(InventoryItem $inventoryItem, int $actorId): ?InventoryLocation
+    {
+        $location = $this->inventoryLocationService->defaultRecipeDeductionLocation();
+
+        if (!$location) {
+            return null;
+        }
+
+        $existingStock = $inventoryItem->locationStocks()
+            ->where('inventory_location_id', $location->id)
+            ->first();
+
+        if ($existingStock) {
+            return $location;
+        }
+
+        if ($inventoryItem->locationStocks()->count() === 0) {
+            InventoryLocationStock::query()->create([
+                'inventory_item_id' => $inventoryItem->id,
+                'inventory_location_id' => $location->id,
+                'current_stock' => $inventoryItem->current_stock,
+                'minimum_stock' => $inventoryItem->minimum_stock,
+                'maximum_stock' => $inventoryItem->maximum_stock,
+                'unit_cost' => $inventoryItem->unit_cost,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ]);
+
+            return $location;
+        }
+
+        return null;
     }
 }

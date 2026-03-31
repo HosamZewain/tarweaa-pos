@@ -164,6 +164,20 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_inventory_locations_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/inventory-locations')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_inventory_transfers_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/inventory-transfers')
+            ->assertSuccessful();
+    }
+
     public function test_admin_can_view_orders_resource()
     {
         $this->actingAs($this->adminUser)
@@ -458,6 +472,13 @@ class FilamentIntegrationTest extends TestCase
         $this->actingAs($this->adminUser)
              ->get('/admin/inventory-report')
              ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_inventory_locations_report_page(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/inventory-locations-report')
+            ->assertSuccessful();
     }
 
     private function invokeProtectedMethod(object $instance, string $method): mixed

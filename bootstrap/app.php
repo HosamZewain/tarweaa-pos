@@ -19,7 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'surface' => \App\Http\Middleware\EnsureSurfaceAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $businessError = function (\Throwable $e) {

@@ -23,26 +23,16 @@ class CounterScreenTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_can_load_counter_shell_and_login_redirect_target(): void
+    public function test_guest_is_redirected_to_unified_login_from_counter_routes(): void
     {
         $this->get('/counter')
-            ->assertSuccessful()
-            ->assertSee('شاشة التسليم والاستلام')
-            ->assertSee('شاشة كل الطلبات')
-            ->assertSee('رقم الطلب')
-            ->assertSee('اضغط Enter للتسليم')
-            ->assertSee('فاتح');
+            ->assertRedirect('/?redirect=%2Fcounter');
 
         $this->get('/counter/odd')
-            ->assertSuccessful()
-            ->assertSee('شاشة التسليم والاستلام')
-            ->assertSee('شاشة الفردية')
-            ->assertSee('رقم الطلب')
-            ->assertSee('اضغط Enter للتسليم')
-            ->assertSee('فاتح');
+            ->assertRedirect('/?redirect=%2Fcounter%2Fodd');
 
         $this->get('/counter-screen/odd')
-            ->assertRedirect('/counter/odd');
+            ->assertRedirect('/?redirect=%2Fcounter-screen%2Fodd');
 
         $this->get('/pos/login?redirect=%2Fcounter%2Fodd')
             ->assertSuccessful();

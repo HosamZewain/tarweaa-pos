@@ -3,6 +3,9 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PurchaseResource\Pages;
+use App\Filament\Resources\PurchaseResource\RelationManagers\PurchaseItemsRelationManager;
+use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
 use App\Models\Purchase;
 use App\Support\BusinessTime;
 use Filament\Forms;
@@ -32,6 +35,17 @@ class PurchaseResource extends Resource
                     ->required()
                     ->searchable()
                     ->preload(),
+                Forms\Components\Select::make('destination_location_id')
+                    ->label('موقع الاستلام')
+                    ->relationship('destinationLocation', 'name', fn ($query) => $query->active()->orderBy('name'))
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->default(fn () => InventoryLocation::query()
+                        ->where('is_default_purchase_destination', true)
+                        ->where('is_active', true)
+                        ->value('id'))
+                    ->disabled(fn (?Purchase $record) => $record?->items()->where('quantity_received', '>', 0)->exists() ?? false),
                 Forms\Components\Select::make('status')
                     ->label('الحالة')
                     ->options([
@@ -41,6 +55,7 @@ class PurchaseResource extends Resource
                         'cancelled' => 'ملغي',
                     ])
                     ->default('draft')
+                    ->helperText('إذا اخترت "مستلم" مع إضافة البنود أدناه، سيتم إدخالها مباشرة إلى المخزون في موقع الاستلام.')
                     ->required(),
                 Forms\Components\TextInput::make('invoice_number')
                     ->label('رقم الفاتورة')
@@ -51,6 +66,7 @@ class PurchaseResource extends Resource
                     ->label('المجموع الفرعي')
                     ->numeric()
                     ->prefix('ج.م')
+                    ->default(0)
                     ->minValue(0),
                 Forms\Components\TextInput::make('tax_amount')
                     ->label('الضريبة')
@@ -96,6 +112,57 @@ class PurchaseResource extends Resource
                     ->label('ملاحظات')
                     ->columnSpanFull(),
             ])->columns(2),
+            \Filament\Schemas\Components\Section::make('بنود الشراء الأولية')
+                ->description('اختياري. يمكنك إدخال بنود أمر الشراء أثناء الإنشاء بدل إضافتها لاحقًا.')
+                ->schema([
+                    Forms\Components\Repeater::make('items_payload')
+                        ->label('البنود')
+                        ->defaultItems(0)
+                        ->schema([
+                            Forms\Components\Select::make('inventory_item_id')
+                                ->label('المادة')
+                                ->options(fn () => InventoryItem::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                                ->searchable()
+                                ->preload()
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function ($state, callable $set): void {
+                                    $item = InventoryItem::query()->find($state);
+                                    $set('unit', $item?->unit);
+                                    $set('unit_price', $item?->unit_cost);
+                                }),
+                            Forms\Components\TextInput::make('unit')
+                                ->label('الوحدة')
+                                ->required()
+                                ->disabled()
+                                ->dehydrated(),
+                            Forms\Components\TextInput::make('unit_price')
+                                ->label('سعر الوحدة')
+                                ->numeric()
+                                ->required()
+                                ->prefix('ج.م')
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $get, callable $set) => $set('total', round(((float) $get('quantity_ordered')) * (float) $state, 2))),
+                            Forms\Components\TextInput::make('quantity_ordered')
+                                ->label('الكمية المطلوبة')
+                                ->numeric()
+                                ->required()
+                                ->minValue(0.001)
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(fn ($state, callable $get, callable $set) => $set('total', round(((float) $state) * (float) $get('unit_price'), 2))),
+                            Forms\Components\TextInput::make('total')
+                                ->label('الإجمالي')
+                                ->numeric()
+                                ->disabled()
+                                ->dehydrated(),
+                            Forms\Components\Textarea::make('notes')
+                                ->label('ملاحظات')
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(3)
+                        ->columnSpanFull()
+                        ->hidden(fn (string $operation): bool => $operation !== 'create'),
+                ]),
         ]);
     }
 
@@ -113,6 +180,11 @@ class PurchaseResource extends Resource
                     ->label('المورد')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('destinationLocation.name')
+                    ->label('موقع الاستلام')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('الحالة')
                     ->badge()
@@ -182,6 +254,11 @@ class PurchaseResource extends Resource
                     ->relationship('supplier', 'name')
                     ->searchable()
                     ->preload(),
+                Tables\Filters\SelectFilter::make('destination_location_id')
+                    ->label('موقع الاستلام')
+                    ->relationship('destinationLocation', 'name')
+                    ->searchable()
+                    ->preload(),
                 Tables\Filters\Filter::make('created_at')
                     ->label('نطاق التاريخ')
                     ->form([
@@ -207,6 +284,7 @@ class PurchaseResource extends Resource
             \Filament\Schemas\Components\Section::make('بيانات أمر الشراء')->schema([
                 Infolists\Components\TextEntry::make('purchase_number')->label('رقم الشراء'),
                 Infolists\Components\TextEntry::make('supplier.name')->label('المورد'),
+                Infolists\Components\TextEntry::make('destinationLocation.name')->label('موقع الاستلام')->placeholder('—'),
                 Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()
                     ->formatStateUsing(fn (string $state) => match($state) {
                         'draft' => 'مسودة', 'ordered' => 'تم الطلب',
@@ -232,6 +310,13 @@ class PurchaseResource extends Resource
                 Infolists\Components\TextEntry::make('notes')->label('')->placeholder('لا توجد ملاحظات')->columnSpanFull(),
             ])->collapsible()->collapsed(),
         ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            PurchaseItemsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

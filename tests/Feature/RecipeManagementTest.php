@@ -13,6 +13,8 @@ use App\Enums\ShiftStatus;
 use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
 use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
+use App\Models\InventoryLocationStock;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\MenuItemRecipeLine;
@@ -84,6 +86,57 @@ class RecipeManagementTest extends TestCase
 
         $this->assertSame('62.50', $menuItem->cost_price);
         $this->assertSame(62.5, $menuItem->recipeCost());
+    }
+
+    public function test_recipe_cost_prefers_restaurant_location_average_cost_when_available(): void
+    {
+        $item = InventoryItem::create([
+            'name' => 'فراخ',
+            'unit' => 'كجم',
+            'unit_cost' => 200,
+            'current_stock' => 10,
+            'minimum_stock' => 1,
+            'is_active' => true,
+        ]);
+
+        $restaurant = InventoryLocation::query()->where('code', 'restaurant')->firstOrFail();
+
+        InventoryLocationStock::query()->create([
+            'inventory_item_id' => $item->id,
+            'inventory_location_id' => $restaurant->id,
+            'current_stock' => 6,
+            'minimum_stock' => 1,
+            'maximum_stock' => 20,
+            'unit_cost' => 120,
+        ]);
+
+        $category = MenuCategory::create([
+            'name' => 'وجبات',
+            'is_active' => true,
+        ]);
+
+        $menuItem = MenuItem::create([
+            'category_id' => $category->id,
+            'name' => 'شاورما فراخ',
+            'type' => 'simple',
+            'base_price' => 90,
+            'is_available' => true,
+            'is_active' => true,
+        ]);
+
+        MenuItemRecipeLine::create([
+            'menu_item_id' => $menuItem->id,
+            'inventory_item_id' => $item->id,
+            'quantity' => 250,
+            'unit' => 'جم',
+            'unit_conversion_rate' => 0.001,
+        ]);
+
+        app(\App\Services\RecipeService::class)->syncMenuItemCostsForInventoryItem($item);
+
+        $this->assertSame(30.0, $menuItem->fresh()->recipeCost());
+        $this->assertSame(30.0, $menuItem->fresh()->effectiveCostPrice());
+        $this->assertSame('30.00', $menuItem->fresh()->cost_price);
     }
 
     public function test_paid_order_deducts_recipe_quantities_from_inventory(): void
@@ -190,11 +243,18 @@ class RecipeManagementTest extends TestCase
 
         $inventoryItem->refresh();
         $orderItem->refresh();
+        $restaurant = InventoryLocation::query()->where('code', 'restaurant')->firstOrFail();
+        $restaurantStock = InventoryLocationStock::query()
+            ->where('inventory_item_id', $inventoryItem->id)
+            ->where('inventory_location_id', $restaurant->id)
+            ->firstOrFail();
 
         $this->assertSame('4.600', $inventoryItem->current_stock);
+        $this->assertSame('4.600', $restaurantStock->current_stock);
         $this->assertNotNull($orderItem->stock_deducted_at);
         $this->assertDatabaseHas('inventory_transactions', [
             'inventory_item_id' => $inventoryItem->id,
+            'inventory_location_id' => $restaurant->id,
             'type' => InventoryTransactionType::SaleDeduction->value,
             'reference_type' => 'order_item',
             'reference_id' => $orderItem->id,

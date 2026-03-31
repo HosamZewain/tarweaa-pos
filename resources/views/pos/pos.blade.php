@@ -2995,9 +2995,7 @@
     }
 
     function logout() {
-        api('/auth/logout', { method: 'POST' }).catch(() => {});
-        clearAuth();
-        window.location.href = '/pos/login';
+        logoutPortal('/');
     }
 
     function goToCloseDrawer() {

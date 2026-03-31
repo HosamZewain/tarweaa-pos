@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\RecipeService;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,10 @@ class MenuItemRecipeLine extends Model
 
     public function lineCost(): float
     {
-        return round($this->baseQuantity() * (float) ($this->inventoryItem?->unit_cost ?? 0), 2);
+        return app(RecipeService::class)->calculateLineCost(
+            quantity: (float) $this->quantity,
+            conversionRate: (float) $this->unit_conversion_rate,
+            inventoryItem: $this->inventoryItem,
+        );
     }
 }

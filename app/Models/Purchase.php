@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\InventoryLocationService;
 use App\Support\BusinessTime;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Purchase extends Model
 {
@@ -17,6 +19,7 @@ class Purchase extends Model
     protected $fillable = [
         'purchase_number',
         'supplier_id',
+        'destination_location_id',
         'status',
         'invoice_number',
         'invoice_date',
@@ -55,6 +58,11 @@ class Purchase extends Model
         return $this->hasMany(PurchaseItem::class);
     }
 
+    public function destinationLocation(): BelongsTo
+    {
+        return $this->belongsTo(InventoryLocation::class, 'destination_location_id');
+    }
+
     // ─────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────
@@ -82,6 +90,33 @@ class Purchase extends Model
         ]);
     }
 
+    public function pendingItemsCount(): int
+    {
+        return $this->items()->get()->filter(fn (PurchaseItem $item) => $item->pendingQuantity() > 0)->count();
+    }
+
+    public function receiveAllPendingItems(): int
+    {
+        return DB::transaction(function (): int {
+            $this->loadMissing('items.inventoryItem');
+
+            $receivedLines = 0;
+
+            foreach ($this->items as $item) {
+                $pending = $item->pendingQuantity();
+
+                if ($pending <= 0) {
+                    continue;
+                }
+
+                $item->receive($pending);
+                $receivedLines++;
+            }
+
+            return $receivedLines;
+        });
+    }
+
     // ─────────────────────────────────────────
     // Auto-generate purchase number
     // ─────────────────────────────────────────
@@ -89,6 +124,17 @@ class Purchase extends Model
     protected static function booted(): void
     {
         static::creating(function (Purchase $purchase) {
+            $purchase->subtotal ??= 0;
+            $purchase->tax_amount ??= 0;
+            $purchase->discount_amount ??= 0;
+            $purchase->paid_amount ??= 0;
+            $purchase->total ??= max(0, (float) $purchase->subtotal - (float) $purchase->discount_amount + (float) $purchase->tax_amount);
+
+            if (empty($purchase->destination_location_id)) {
+                $purchase->destination_location_id = app(InventoryLocationService::class)
+                    ->defaultPurchaseDestination()?->id;
+            }
+
             if (empty($purchase->purchase_number)) {
                 $date = BusinessTime::localDateKey();
                 [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());

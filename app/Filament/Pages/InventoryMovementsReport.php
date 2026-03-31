@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Models\InventoryLocation;
 use App\Services\ReportService;
 use App\Support\BusinessTime;
 use Filament\Forms;
@@ -27,6 +28,7 @@ class InventoryMovementsReport extends Page implements HasForms
 
     public ?string $date_from = null;
     public ?string $date_to = null;
+    public ?int $location_id = null;
     public ?array $reportData = null;
 
     public function mount(): void
@@ -41,12 +43,17 @@ class InventoryMovementsReport extends Page implements HasForms
         return $form->schema([
             Forms\Components\DatePicker::make('date_from')->label('من تاريخ')->required(),
             Forms\Components\DatePicker::make('date_to')->label('إلى تاريخ')->required(),
-        ])->columns(2);
+            Forms\Components\Select::make('location_id')
+                ->label('الموقع')
+                ->options(InventoryLocation::query()->active()->orderBy('name')->pluck('name', 'id'))
+                ->searchable()
+                ->placeholder('كل المواقع'),
+        ])->columns(3);
     }
 
     public function generateReport(): void
     {
-        $movements = app(ReportService::class)->getInventoryMovements($this->date_from, $this->date_to);
+        $movements = app(ReportService::class)->getInventoryMovements($this->date_from, $this->date_to, $this->location_id);
 
         $this->reportData = [
             'movements' => $movements,

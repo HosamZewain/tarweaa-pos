@@ -1,8 +1,8 @@
 <x-filament-panels::page>
     @php
         $movementRows = collect($reportData['movements'] ?? []);
-        $inboundTypes = ['purchase', 'adjustment_add', 'return'];
-        $outboundTypes = ['sale', 'waste', 'adjustment_sub'];
+        $inboundTypes = ['purchase', 'return', 'transfer_in'];
+        $outboundTypes = ['sale_deduction', 'waste', 'transfer_out'];
 
         $totalInbound = $movementRows->sum(function (array $row) use ($inboundTypes) {
             return collect($row['movements'])
@@ -96,6 +96,7 @@
                         <table class="admin-data-table">
                             <thead>
                                 <tr>
+                                    <th>الموقع</th>
                                     <th>المادة</th>
                                     <th>التصنيف</th>
                                     <th>الوحدة</th>
@@ -105,9 +106,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($reportData['movements'] as $row)
+                                    @foreach ($reportData['movements'] as $row)
                                     @php
                                         $item = $row['item'];
+                                        $location = $row['location'];
                                         $movements = collect($row['movements']);
                                         $inbound = $movements
                                             ->filter(fn (array $value, string $type): bool => in_array($type, $inboundTypes, true))
@@ -120,6 +122,7 @@
                                             ->sum(fn (array $value): float => (float) ($value['quantity'] ?? 0));
                                     @endphp
                                     <tr>
+                                        <td>{{ $location?->name ?? 'عام / بدون موقع' }}</td>
                                         <td>
                                             <div class="font-semibold text-gray-900 dark:text-white">{{ $item->name ?? '—' }}</div>
                                             <div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{{ $item->sku ?? '—' }}</div>

@@ -56,6 +56,11 @@ class InventoryTransactionResource extends Resource
                     ->label('التصنيف')
                     ->sortable()
                     ->toggleable(),
+                Tables\Columns\TextColumn::make('inventoryLocation.name')
+                    ->label('الموقع')
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('type')
                     ->label('النوع')
                     ->badge()
@@ -106,6 +111,11 @@ class InventoryTransactionResource extends Resource
                 Tables\Filters\SelectFilter::make('inventory_item_id')
                     ->label('المادة')
                     ->relationship('inventoryItem', 'name')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('inventory_location_id')
+                    ->label('الموقع')
+                    ->relationship('inventoryLocation', 'name')
                     ->searchable()
                     ->preload(),
                 Tables\Filters\Filter::make('created_at')

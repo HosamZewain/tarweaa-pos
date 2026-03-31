@@ -9,6 +9,8 @@ use App\Models\EmployeeProfileAttachment;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
+use App\Models\InventoryTransfer;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\MenuItemChannelPrice;
@@ -23,6 +25,9 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserMealBenefitProfile;
 use App\Observers\AdminActivityObserver;
+use App\Services\PortalAccessService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -53,6 +58,8 @@ class AppServiceProvider extends ServiceProvider
             MenuItem::class,
             MenuItemChannelPrice::class,
             InventoryItem::class,
+            InventoryLocation::class,
+            InventoryTransfer::class,
             Supplier::class,
             Purchase::class,
             Expense::class,
@@ -64,5 +71,28 @@ class AppServiceProvider extends ServiceProvider
         ] as $modelClass) {
             $modelClass::observe(AdminActivityObserver::class);
         }
+
+        View::composer('layouts.app', function ($view): void {
+            if (!Auth::check()) {
+                return;
+            }
+
+            $user = Auth::user();
+
+            if (!$user instanceof User) {
+                return;
+            }
+
+            $portalAccessService = app(PortalAccessService::class);
+            $session = request()->session();
+
+            if (!$portalAccessService->hasAnyAccess($user)) {
+                return;
+            }
+
+            $view
+                ->with('portalBootstrapAuth', $portalAccessService->getFrontendBootstrapPayload($user, $session))
+                ->with('portalHomeUrl', $portalAccessService->resolveHome($user));
+        });
     }
 }

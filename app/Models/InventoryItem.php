@@ -50,9 +50,19 @@ class InventoryItem extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    public function locationStocks(): HasMany
+    {
+        return $this->hasMany(InventoryLocationStock::class);
+    }
+
     public function purchaseItems(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    public function transferItems(): HasMany
+    {
+        return $this->hasMany(InventoryTransferItem::class);
     }
 
     public function recipeLines(): HasMany

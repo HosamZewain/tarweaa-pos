@@ -9,14 +9,10 @@ class KitchenAccessTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_can_load_kitchen_shell(): void
+    public function test_guest_is_redirected_to_unified_login_for_kitchen(): void
     {
         $this->get('/kitchen')
-            ->assertSuccessful()
-            ->assertSee('رقم الطلب')
-            ->assertSee('اضغط Enter للتجهيز')
-            ->assertSee('Totals')
-            ->assertSee('فاتح');
+            ->assertRedirect('/?redirect=%2Fkitchen');
     }
 
     public function test_kitchen_login_page_accepts_redirect_target(): void

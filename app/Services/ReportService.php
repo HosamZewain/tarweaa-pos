@@ -6,10 +6,14 @@ use App\Models\CashierDrawerSession;
 use App\Models\DiscountLog;
 use App\Models\Expense;
 use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
+use App\Models\InventoryLocationStock;
 use App\Models\InventoryTransaction;
+use App\Models\InventoryTransfer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderPayment;
+use App\Models\Purchase;
 use App\Enums\PaymentMethod;
 use App\Support\BusinessTime;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -373,6 +377,128 @@ class ReportService
         ];
     }
 
+    public function getInventoryValuationByLocation(?int $locationId = null): array
+    {
+        $rows = InventoryLocationStock::query()
+            ->with(['inventoryLocation:id,name,type'])
+            ->whereHas('inventoryItem', fn ($query) => $query->where('is_active', true))
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->selectRaw('inventory_location_id, SUM(current_stock * unit_cost) as total_value, SUM(current_stock) as total_items, COUNT(*) as item_count')
+            ->groupBy('inventory_location_id')
+            ->get()
+            ->map(function (InventoryLocationStock $row): array {
+                return [
+                    'location_id' => $row->inventory_location_id,
+                    'location_name' => $row->inventoryLocation?->name ?? '—',
+                    'location_type' => $row->inventoryLocation?->type ?? 'other',
+                    'total_value' => round((float) $row->total_value, 2),
+                    'total_items' => round((float) $row->total_items, 3),
+                    'item_count' => (int) $row->item_count,
+                ];
+            })
+            ->values();
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'total_value' => round($rows->sum('total_value'), 2),
+                'total_items' => round($rows->sum('total_items'), 3),
+                'locations_count' => $rows->count(),
+            ],
+        ];
+    }
+
+    public function getStockByLocation(?int $locationId = null): Collection
+    {
+        return InventoryLocationStock::query()
+            ->with(['inventoryLocation:id,name,type', 'inventoryItem:id,name,sku,category,unit,is_active'])
+            ->whereHas('inventoryItem', fn ($query) => $query->where('is_active', true))
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->orderBy('inventory_location_id')
+            ->get()
+            ->map(function (InventoryLocationStock $stock): array {
+                return [
+                    'location_id' => $stock->inventory_location_id,
+                    'location_name' => $stock->inventoryLocation?->name ?? '—',
+                    'location_type' => $stock->inventoryLocation?->type ?? 'other',
+                    'item_id' => $stock->inventory_item_id,
+                    'item_name' => $stock->inventoryItem?->name ?? '—',
+                    'item_sku' => $stock->inventoryItem?->sku,
+                    'category' => $stock->inventoryItem?->category,
+                    'unit' => $stock->inventoryItem?->unit,
+                    'current_stock' => round((float) $stock->current_stock, 3),
+                    'minimum_stock' => round((float) $stock->minimum_stock, 3),
+                    'maximum_stock' => round((float) $stock->maximum_stock, 3),
+                    'unit_cost' => round((float) $stock->unit_cost, 2),
+                    'stock_value' => round((float) $stock->current_stock * (float) $stock->unit_cost, 2),
+                ];
+            })
+            ->values();
+    }
+
+    public function getLowStockByLocation(?int $locationId = null): Collection
+    {
+        return InventoryLocationStock::query()
+            ->with(['inventoryLocation:id,name,type', 'inventoryItem:id,name,sku,category,unit,is_active'])
+            ->whereHas('inventoryItem', fn ($query) => $query->where('is_active', true))
+            ->whereColumn('current_stock', '<=', 'minimum_stock')
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->orderByRaw('current_stock - minimum_stock ASC')
+            ->get()
+            ->map(function (InventoryLocationStock $stock): array {
+                return [
+                    'location_id' => $stock->inventory_location_id,
+                    'location_name' => $stock->inventoryLocation?->name ?? '—',
+                    'item_name' => $stock->inventoryItem?->name ?? '—',
+                    'item_sku' => $stock->inventoryItem?->sku,
+                    'category' => $stock->inventoryItem?->category,
+                    'unit' => $stock->inventoryItem?->unit,
+                    'current_stock' => round((float) $stock->current_stock, 3),
+                    'minimum_stock' => round((float) $stock->minimum_stock, 3),
+                    'deficit' => round((float) $stock->minimum_stock - (float) $stock->current_stock, 3),
+                ];
+            })
+            ->values();
+    }
+
+    public function getStockReconciliation(): array
+    {
+        $rows = InventoryItem::query()
+            ->where('is_active', true)
+            ->with(['locationStocks:id,inventory_item_id,current_stock', 'defaultSupplier:id,name'])
+            ->orderBy('name')
+            ->get()
+            ->map(function (InventoryItem $item): array {
+                $locationsTotal = round((float) $item->locationStocks->sum('current_stock'), 3);
+                $globalStock = round((float) $item->current_stock, 3);
+                $variance = round($globalStock - $locationsTotal, 3);
+
+                return [
+                    'item_id' => $item->id,
+                    'item_name' => $item->name,
+                    'item_sku' => $item->sku,
+                    'category' => $item->category,
+                    'unit' => $item->unit,
+                    'global_stock' => $globalStock,
+                    'locations_total_stock' => $locationsTotal,
+                    'variance' => $variance,
+                    'has_variance' => abs($variance) > 0.0005,
+                ];
+            });
+
+        return [
+            'rows' => $rows,
+            'variance_rows' => $rows->where('has_variance', true)->values(),
+            'summary' => [
+                'items_checked' => $rows->count(),
+                'mismatched_items' => $rows->where('has_variance', true)->count(),
+                'matched_items' => $rows->where('has_variance', false)->count(),
+                'global_total_stock' => round($rows->sum('global_stock'), 3),
+                'locations_total_stock' => round($rows->sum('locations_total_stock'), 3),
+            ],
+        ];
+    }
+
     public function getSalesByShift(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
         return BusinessTime::applyUtcDateRange(
@@ -444,19 +570,21 @@ class ReportService
             ->get();
     }
 
-    public function getInventoryMovements(?string $dateFrom = null, ?string $dateTo = null): Collection
+    public function getInventoryMovements(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): Collection
     {
         return BusinessTime::applyUtcDateRange(
-            InventoryTransaction::with('inventoryItem:id,name,sku,category,unit'),
+            InventoryTransaction::with('inventoryItem:id,name,sku,category,unit', 'inventoryLocation:id,name,type'),
             $dateFrom,
             $dateTo,
         )
-            ->selectRaw('inventory_item_id, type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost')
-            ->groupBy('inventory_item_id', 'type')
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->selectRaw('inventory_item_id, inventory_location_id, type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost')
+            ->groupBy('inventory_item_id', 'inventory_location_id', 'type')
             ->get()
-            ->groupBy('inventory_item_id')
+            ->groupBy(fn (InventoryTransaction $transaction) => ($transaction->inventory_location_id ?? 'none') . ':' . $transaction->inventory_item_id)
             ->map(function ($transactionsByItem) {
                 $item = $transactionsByItem->first()->inventoryItem;
+                $location = $transactionsByItem->first()->inventoryLocation;
                 $summary = [];
                 foreach ($transactionsByItem as $trx) {
                     $summary[$trx->type->value] = [
@@ -465,10 +593,140 @@ class ReportService
                     ];
                 }
                 return [
+                    'location' => $location,
                     'item'      => $item,
                     'movements' => $summary,
                 ];
             })
             ->values();
+    }
+
+    public function getPurchasesByLocation(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): array
+    {
+        $purchases = BusinessTime::applyUtcDateRange(
+            Purchase::query()
+                ->with(['supplier:id,name', 'destinationLocation:id,name,type'])
+                ->orderByDesc('created_at'),
+            $dateFrom,
+            $dateTo,
+        )
+            ->when($locationId, fn ($query, $id) => $query->where('destination_location_id', $id))
+            ->get();
+
+        $byLocation = $purchases
+            ->groupBy(fn (Purchase $purchase) => $purchase->destinationLocation?->name ?? '—')
+            ->map(function (Collection $group, string $location): array {
+                return [
+                    'location_name' => $location,
+                    'purchases_count' => $group->count(),
+                    'received_count' => $group->where('status', 'received')->count(),
+                    'total_amount' => round($group->sum('total'), 2),
+                ];
+            })
+            ->sortByDesc('total_amount')
+            ->values();
+
+        return [
+            'entries' => $purchases,
+            'by_location' => $byLocation,
+            'summary' => [
+                'purchases_count' => $purchases->count(),
+                'total_amount' => round($purchases->sum('total'), 2),
+                'locations_count' => $byLocation->count(),
+            ],
+        ];
+    }
+
+    public function getReceivedStockByLocation(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): array
+    {
+        $entries = BusinessTime::applyUtcDateRange(
+            InventoryTransaction::query()
+                ->with([
+                    'inventoryItem:id,name,sku,category,unit',
+                    'inventoryLocation:id,name,type',
+                    'performer:id,name',
+                ])
+                ->where('type', 'purchase')
+                ->whereNotNull('inventory_location_id')
+                ->orderByDesc('created_at'),
+            $dateFrom,
+            $dateTo,
+        )
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->get();
+
+        $byLocation = $entries
+            ->groupBy(fn (InventoryTransaction $entry) => $entry->inventoryLocation?->name ?? '—')
+            ->map(function (Collection $group, string $location): array {
+                return [
+                    'location_name' => $location,
+                    'transactions_count' => $group->count(),
+                    'received_quantity' => round($group->sum('quantity'), 3),
+                    'received_value' => round($group->sum('total_cost'), 2),
+                ];
+            })
+            ->sortByDesc('received_value')
+            ->values();
+
+        return [
+            'entries' => $entries,
+            'by_location' => $byLocation,
+            'summary' => [
+                'transactions_count' => $entries->count(),
+                'received_quantity' => round($entries->sum('quantity'), 3),
+                'received_value' => round($entries->sum('total_cost'), 2),
+                'locations_count' => $byLocation->count(),
+            ],
+        ];
+    }
+
+    public function getInventoryTransfersReport(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): array
+    {
+        $transfers = BusinessTime::applyUtcDateRange(
+            InventoryTransfer::query()
+                ->with([
+                    'sourceLocation:id,name,type',
+                    'destinationLocation:id,name,type',
+                    'requester:id,name',
+                    'transferredBy:id,name',
+                    'receivedBy:id,name',
+                    'items:id,inventory_transfer_id,inventory_item_id,quantity_sent,quantity_received',
+                ])
+                ->orderByDesc('created_at'),
+            $dateFrom,
+            $dateTo,
+        )
+            ->when($locationId, function ($query, $id) {
+                $query->where(function ($inner) use ($id) {
+                    $inner->where('source_location_id', $id)
+                        ->orWhere('destination_location_id', $id);
+                });
+            })
+            ->get();
+
+        $byStatus = $transfers
+            ->groupBy('status')
+            ->map(function (Collection $group, string $status): array {
+                return [
+                    'status' => $status,
+                    'transfers_count' => $group->count(),
+                    'items_count' => $group->sum(fn (InventoryTransfer $transfer) => $transfer->items->count()),
+                    'quantity_sent' => round($group->sum(fn (InventoryTransfer $transfer) => $transfer->items->sum('quantity_sent')), 3),
+                    'quantity_received' => round($group->sum(fn (InventoryTransfer $transfer) => $transfer->items->sum('quantity_received')), 3),
+                ];
+            })
+            ->values();
+
+        return [
+            'entries' => $transfers,
+            'by_status' => $byStatus,
+            'summary' => [
+                'transfers_count' => $transfers->count(),
+                'sent_count' => $transfers->where('status', 'sent')->count(),
+                'received_count' => $transfers->where('status', 'received')->count(),
+                'total_quantity_sent' => round($transfers->sum(fn (InventoryTransfer $transfer) => $transfer->items->sum('quantity_sent')), 3),
+                'total_quantity_received' => round($transfers->sum(fn (InventoryTransfer $transfer) => $transfer->items->sum('quantity_received')), 3),
+            ],
+        ];
     }
 }

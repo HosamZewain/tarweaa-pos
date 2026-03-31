@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Enums\InventoryTransactionType;
 use App\Models\InventoryItem;
+use App\Models\InventoryLocation;
+use App\Models\InventoryLocationStock;
 use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\DB;
 
@@ -11,6 +13,7 @@ class InventoryService
 {
     public function __construct(
         private readonly RecipeService $recipeService,
+        private readonly InventoryLocationService $inventoryLocationService,
     ) {}
 
     /**
@@ -26,42 +29,82 @@ class InventoryService
         ?string                $refType    = null,
         ?int                   $refId      = null,
         ?string                $notes      = null,
+        ?InventoryLocation     $location   = null,
+        bool                   $updateGlobalStock = true,
     ): InventoryTransaction {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('الكمية يجب أن تكون موجبة');
         }
 
-        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $unitCost, $refType, $refId, $notes) {
-            // Lock the row to prevent race conditions
-            $fresh = InventoryItem::lockForUpdate()->findOrFail($item->id);
+        if (!$updateGlobalStock && !$location) {
+            throw new \InvalidArgumentException('يجب تحديد موقع عند تعطيل تحديث الرصيد العام.');
+        }
 
-            $before = (float) $fresh->current_stock;
-            $after  = $before + $quantity;
-            $currentAverageCost = (float) ($fresh->unit_cost ?? 0);
-            $appliedUnitCost = $unitCost !== null ? (float) $unitCost : $currentAverageCost;
+        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $unitCost, $refType, $refId, $notes, $location, $updateGlobalStock) {
+            $fresh = $updateGlobalStock
+                ? InventoryItem::lockForUpdate()->findOrFail($item->id)
+                : InventoryItem::query()->findOrFail($item->id);
 
-            if ($unitCost !== null) {
-                $currentStockValue = $before * $currentAverageCost;
-                $incomingStockValue = $quantity * (float) $unitCost;
-                $appliedUnitCost = $after > 0
-                    ? round(($currentStockValue + $incomingStockValue) / $after, 2)
-                    : (float) $unitCost;
+            $globalBefore = (float) $fresh->current_stock;
+            $globalAfter = $globalBefore;
+            $globalAverageCost = (float) ($fresh->unit_cost ?? 0);
+            $globalAppliedUnitCost = $unitCost !== null ? (float) $unitCost : $globalAverageCost;
+
+            if ($updateGlobalStock) {
+                $globalAfter = $globalBefore + $quantity;
+
+                if ($unitCost !== null) {
+                    $currentStockValue = $globalBefore * $globalAverageCost;
+                    $incomingStockValue = $quantity * (float) $unitCost;
+                    $globalAppliedUnitCost = $globalAfter > 0
+                        ? round(($currentStockValue + $incomingStockValue) / $globalAfter, 2)
+                        : (float) $unitCost;
+                }
+
+                $fresh->update([
+                    'current_stock' => $globalAfter,
+                    'unit_cost'     => $globalAppliedUnitCost,
+                    'updated_by'    => $actorId,
+                ]);
             }
 
-            $fresh->update([
-                'current_stock' => $after,
-                'unit_cost'     => $appliedUnitCost,
-                'updated_by'    => $actorId,
-            ]);
+            $transactionBefore = $globalBefore;
+            $transactionAfter = $globalAfter;
+            $transactionUnitCost = $unitCost ?? ($updateGlobalStock ? $fresh->unit_cost : $fresh->unit_cost);
 
-            $item->refresh();
+            if ($location) {
+                $locationStock = $this->lockLocationStock($fresh, $location, $actorId);
+                $locationBefore = (float) $locationStock->current_stock;
+                $locationAfter = $locationBefore + $quantity;
+                $locationCurrentUnitCost = (float) ($locationStock->unit_cost ?? $fresh->unit_cost ?? 0);
+                $locationAppliedUnitCost = $unitCost !== null ? (float) $unitCost : $locationCurrentUnitCost;
+
+                if ($unitCost !== null) {
+                    $locationStockValue = $locationBefore * $locationCurrentUnitCost;
+                    $incomingStockValue = $quantity * (float) $unitCost;
+                    $locationAppliedUnitCost = $locationAfter > 0
+                        ? round(($locationStockValue + $incomingStockValue) / $locationAfter, 2)
+                        : (float) $unitCost;
+                }
+
+                $locationStock->update([
+                    'current_stock' => $locationAfter,
+                    'unit_cost' => $locationAppliedUnitCost,
+                    'updated_by' => $actorId,
+                ]);
+
+                $transactionBefore = $locationBefore;
+                $transactionAfter = $locationAfter;
+                $transactionUnitCost = $unitCost ?? $locationStock->unit_cost;
+            }
 
             $transaction = $fresh->transactions()->create([
+                'inventory_location_id' => $location?->id,
                 'type'            => $type,
                 'quantity'        => $quantity,
-                'quantity_before' => $before,
-                'quantity_after'  => $after,
-                'unit_cost'       => $unitCost ?? $fresh->unit_cost,
+                'quantity_before' => $transactionBefore,
+                'quantity_after'  => $transactionAfter,
+                'unit_cost'       => $transactionUnitCost,
                 'total_cost'      => $unitCost ? $quantity * $unitCost : null,
                 'reference_type'  => $refType,
                 'reference_id'    => $refId,
@@ -71,7 +114,10 @@ class InventoryService
                 'updated_by'      => $actorId,
             ]);
 
-            $this->recipeService->syncMenuItemCostsForInventoryItem($fresh->fresh());
+            if ($updateGlobalStock || $this->shouldSyncRecipeCostsForLocation($location)) {
+                $item->refresh();
+                $this->recipeService->syncMenuItemCostsForInventoryItem($fresh->fresh());
+            }
 
             return $transaction;
         });
@@ -88,37 +134,76 @@ class InventoryService
         ?string                $refType  = null,
         ?int                   $refId    = null,
         ?string                $notes    = null,
+        ?InventoryLocation     $location = null,
+        bool                   $updateGlobalStock = true,
     ): InventoryTransaction {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('الكمية يجب أن تكون موجبة');
         }
 
-        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $refType, $refId, $notes) {
-            $fresh = InventoryItem::lockForUpdate()->findOrFail($item->id);
+        if (!$updateGlobalStock && !$location) {
+            throw new \InvalidArgumentException('يجب تحديد موقع عند تعطيل تحديث الرصيد العام.');
+        }
 
-            if ((float) $fresh->current_stock < $quantity) {
-                throw new \RuntimeException(
-                    "المخزون غير كافٍ. المتاح: {$fresh->current_stock} {$fresh->unit}"
-                );
+        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $refType, $refId, $notes, $location, $updateGlobalStock) {
+            $fresh = $updateGlobalStock
+                ? InventoryItem::lockForUpdate()->findOrFail($item->id)
+                : InventoryItem::query()->findOrFail($item->id);
+
+            $transactionBefore = 0.0;
+            $transactionAfter = 0.0;
+            $transactionUnitCost = (float) $fresh->unit_cost;
+
+            if ($location) {
+                $locationStock = $this->lockLocationStock($fresh, $location, $actorId);
+
+                if ((float) $locationStock->current_stock < $quantity) {
+                    throw new \RuntimeException(
+                        "مخزون الموقع غير كافٍ. المتاح: {$locationStock->current_stock} {$fresh->unit}"
+                    );
+                }
+
+                $transactionBefore = (float) $locationStock->current_stock;
+                $transactionAfter = $transactionBefore - $quantity;
+                $transactionUnitCost = (float) ($locationStock->unit_cost ?? $fresh->unit_cost);
+
+                $locationStock->update([
+                    'current_stock' => $transactionAfter,
+                    'updated_by' => $actorId,
+                ]);
             }
 
-            $before = (float) $fresh->current_stock;
-            $after  = $before - $quantity;
+            if ($updateGlobalStock) {
+                if ((float) $fresh->current_stock < $quantity) {
+                    throw new \RuntimeException(
+                        "المخزون غير كافٍ. المتاح: {$fresh->current_stock} {$fresh->unit}"
+                    );
+                }
 
-            $fresh->update([
-                'current_stock' => $after,
-                'updated_by'    => $actorId,
-            ]);
-            
-            $item->refresh();
+                $globalBefore = (float) $fresh->current_stock;
+                $globalAfter  = $globalBefore - $quantity;
+
+                $fresh->update([
+                    'current_stock' => $globalAfter,
+                    'updated_by'    => $actorId,
+                ]);
+
+                if (!$location) {
+                    $transactionBefore = $globalBefore;
+                    $transactionAfter = $globalAfter;
+                }
+
+                $item->refresh();
+            }
 
             return $fresh->transactions()->create([
+                'inventory_location_id' => $location?->id,
                 'type'            => $type,
                 'quantity'        => -$quantity,   // negative = out
-                'quantity_before' => $before,
-                'quantity_after'  => $after,
-                'unit_cost'       => $fresh->unit_cost,
-                'total_cost'      => (float) $fresh->unit_cost * $quantity,
+                'quantity_before' => $transactionBefore,
+                'quantity_after'  => $transactionAfter,
+                'unit_cost'       => $transactionUnitCost,
+                'total_cost'      => $transactionUnitCost * $quantity,
                 'reference_type'  => $refType,
                 'reference_id'    => $refId,
                 'notes'           => $notes,
@@ -161,5 +246,92 @@ class InventoryService
                 'updated_by'      => $actorId,
             ]);
         });
+    }
+
+    /**
+     * Manual adjustment for a specific location while keeping the global balance aligned.
+     */
+    public function adjustLocationTo(
+        InventoryItem $item,
+        InventoryLocation $location,
+        float $newQuantity,
+        int $actorId,
+        string $notes = '',
+    ): InventoryTransaction {
+        if ($newQuantity < 0) {
+            throw new \InvalidArgumentException('الكمية الجديدة لا يمكن أن تكون سالبة');
+        }
+
+        return DB::transaction(function () use ($item, $location, $newQuantity, $actorId, $notes) {
+            $fresh = InventoryItem::lockForUpdate()->findOrFail($item->id);
+            $locationStock = $this->lockLocationStock($fresh, $location, $actorId);
+
+            $locationBefore = (float) $locationStock->current_stock;
+            $locationAfter = (float) $newQuantity;
+            $diff = $locationAfter - $locationBefore;
+
+            $globalBefore = (float) $fresh->current_stock;
+            $globalAfter = $globalBefore + $diff;
+
+            if ($globalAfter < 0) {
+                throw new \RuntimeException('الرصيد العام لا يسمح بهذا التعديل على الموقع.');
+            }
+
+            $locationStock->update([
+                'current_stock' => $locationAfter,
+                'updated_by' => $actorId,
+            ]);
+
+            $fresh->update([
+                'current_stock' => $globalAfter,
+                'updated_by' => $actorId,
+            ]);
+
+            return $fresh->transactions()->create([
+                'inventory_location_id' => $location->id,
+                'type' => InventoryTransactionType::Adjustment,
+                'quantity' => $diff,
+                'quantity_before' => $locationBefore,
+                'quantity_after' => $locationAfter,
+                'unit_cost' => (float) ($locationStock->unit_cost ?? $fresh->unit_cost),
+                'notes' => $notes ?: "تعديل رصيد موقع {$location->name} من {$locationBefore} إلى {$locationAfter}",
+                'performed_by' => $actorId,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ]);
+        });
+    }
+
+    private function lockLocationStock(InventoryItem $item, InventoryLocation $location, int $actorId): InventoryLocationStock
+    {
+        $stock = InventoryLocationStock::query()
+            ->where('inventory_item_id', $item->id)
+            ->where('inventory_location_id', $location->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($stock) {
+            return $stock;
+        }
+
+        return InventoryLocationStock::query()->create([
+            'inventory_item_id' => $item->id,
+            'inventory_location_id' => $location->id,
+            'current_stock' => 0,
+            'minimum_stock' => $item->minimum_stock,
+            'maximum_stock' => $item->maximum_stock,
+            'unit_cost' => $item->unit_cost,
+            'created_by' => $actorId,
+            'updated_by' => $actorId,
+        ]);
+    }
+
+    private function shouldSyncRecipeCostsForLocation(?InventoryLocation $location): bool
+    {
+        if (!$location) {
+            return false;
+        }
+
+        return $location->id === $this->inventoryLocationService->defaultRecipeDeductionLocation()?->id;
     }
 }

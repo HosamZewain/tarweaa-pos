@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\RecipeService;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -114,9 +115,7 @@ class MenuItem extends Model
 
     public function recipeCost(): float
     {
-        $this->loadMissing('recipeLines.inventoryItem');
-
-        return round($this->recipeLines->sum(fn (MenuItemRecipeLine $line) => $line->lineCost()), 2);
+        return app(RecipeService::class)->calculateRecipeCost($this);
     }
 
     public function effectiveCostPrice(?MenuItemVariant $variant = null): float

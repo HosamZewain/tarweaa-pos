@@ -18,6 +18,7 @@ class InventoryTransaction extends Model
 
     protected $fillable = [
         'inventory_item_id',
+        'inventory_location_id',
         'type',
         'quantity',
         'quantity_before',
@@ -65,6 +66,11 @@ class InventoryTransaction extends Model
     public function inventoryItem(): BelongsTo
     {
         return $this->belongsTo(InventoryItem::class);
+    }
+
+    public function inventoryLocation(): BelongsTo
+    {
+        return $this->belongsTo(InventoryLocation::class);
     }
 
     public function performer(): BelongsTo

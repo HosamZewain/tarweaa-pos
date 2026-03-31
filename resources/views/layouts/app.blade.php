@@ -415,6 +415,10 @@
            GLOBAL JS UTILITIES
            ═══════════════════════════════════════ */
 
+        const PORTAL_BOOTSTRAP_AUTH = @json($portalBootstrapAuth ?? null);
+        const PORTAL_HOME_URL = @json($portalHomeUrl ?? null);
+        const PORTAL_LOGOUT_URL = @json(route('portal.logout'));
+
         // Token management
         const TOKEN_KEY = 'pos_token';
         const USER_KEY  = 'pos_user';
@@ -458,6 +462,10 @@
             return candidate;
         }
         function getAuthorizedHome(user = getUser()) {
+            if (typeof PORTAL_HOME_URL === 'string' && PORTAL_HOME_URL.length > 0) {
+                return PORTAL_HOME_URL;
+            }
+
             if (canAccessPosSurface(user)) {
                 return '/pos/drawer';
             }
@@ -477,7 +485,39 @@
         }
         function redirectToLogin(redirectTo = getCurrentPathWithQuery()) {
             const target = getSafeRedirectTarget(redirectTo, '/pos/drawer');
-            window.location.href = `/pos/login?redirect=${encodeURIComponent(target)}`;
+            window.location.href = `/?redirect=${encodeURIComponent(target)}`;
+        }
+        function syncBootstrapAuth() {
+            if (!PORTAL_BOOTSTRAP_AUTH?.token || !PORTAL_BOOTSTRAP_AUTH?.user) {
+                return;
+            }
+
+            setToken(PORTAL_BOOTSTRAP_AUTH.token);
+            setUser(PORTAL_BOOTSTRAP_AUTH.user);
+        }
+        async function logoutPortal(redirectTo = '/') {
+            try {
+                if (getToken()) {
+                    await api('/auth/logout', { method: 'POST' });
+                }
+            } catch (error) {
+                // ignore token logout failures
+            }
+
+            try {
+                await fetch(PORTAL_LOGOUT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                });
+            } catch (error) {
+                // ignore session logout failures
+            }
+
+            clearAuth();
+            window.location.href = redirectTo;
         }
 
         // API helper
@@ -536,6 +576,8 @@
             }
             return true;
         }
+
+        syncBootstrapAuth();
 
         /* ═══════════════════════════════════════
            GLOBAL NUMERIC KEYPAD LOGIC

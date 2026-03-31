@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InventoryTransactionType;
+use App\Services\InventoryLocationService;
 use App\Services\InventoryService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -60,6 +61,10 @@ class PurchaseItem extends Model
      */
     public function receive(float $quantity): void
     {
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('الكمية المستلمة يجب أن تكون موجبة');
+        }
+
         if ($quantity > $this->pendingQuantity()) {
             throw new \InvalidArgumentException(
                 "الكمية المستلمة ({$quantity}) تتجاوز الكمية المتبقية ({$this->pendingQuantity()})"
@@ -68,16 +73,38 @@ class PurchaseItem extends Model
 
         $this->increment('quantity_received', $quantity);
 
+        $destinationLocation = $this->purchase->destinationLocation
+            ?? app(InventoryLocationService::class)->defaultPurchaseDestination();
+        $actorId = auth()->id()
+            ?? $this->purchase->updated_by
+            ?? $this->purchase->created_by
+            ?? throw new \RuntimeException('تعذر تحديد المستخدم الذي قام باستلام المشتريات.');
+
         // Update inventory stock
         app(InventoryService::class)->addStock(
             item:        $this->inventoryItem,
             quantity:    $quantity,
-            actorId:     $this->purchase->updated_by ?? $this->purchase->created_by ?? 1,
+            actorId:     $actorId,
             type:        InventoryTransactionType::Purchase,
             unitCost:    (float) $this->unit_price,
             refType:     'purchase',
             refId:       $this->purchase_id,
             notes:       "استلام مشتريات رقم {$this->purchase->purchase_number}",
+            location:    $destinationLocation,
         );
+
+        $purchase = $this->purchase->fresh('items');
+        $purchaseUpdates = [
+            'updated_by' => $actorId,
+        ];
+
+        if ($purchase->isFullyReceived()) {
+            $purchaseUpdates['status'] = 'received';
+            $purchaseUpdates['received_at'] = now();
+        } elseif ($purchase->status === 'draft') {
+            $purchaseUpdates['status'] = 'ordered';
+        }
+
+        $purchase->update($purchaseUpdates);
     }
 }
