@@ -101,13 +101,13 @@ class DatabaseSeeder extends Seeder
     private function seedRolesAndPermissions(): void
     {
         foreach ([
-            ['name' => 'owner', 'display_name' => 'Owner'],
-            ['name' => 'admin', 'display_name' => 'Administrator'],
-            ['name' => 'manager', 'display_name' => 'Manager'],
-            ['name' => 'cashier', 'display_name' => 'Cashier'],
-            ['name' => 'kitchen', 'display_name' => 'Kitchen'],
-            ['name' => 'counter', 'display_name' => 'Counter'],
-            ['name' => 'employee', 'display_name' => 'Employee'],
+            ['name' => 'owner', 'display_name' => 'Owner', 'show_in_employee_resource' => false],
+            ['name' => 'admin', 'display_name' => 'Administrator', 'show_in_employee_resource' => false],
+            ['name' => 'manager', 'display_name' => 'Manager', 'show_in_employee_resource' => false],
+            ['name' => 'cashier', 'display_name' => 'Cashier', 'show_in_employee_resource' => true],
+            ['name' => 'kitchen', 'display_name' => 'Kitchen', 'show_in_employee_resource' => true],
+            ['name' => 'counter', 'display_name' => 'Counter', 'show_in_employee_resource' => true],
+            ['name' => 'employee', 'display_name' => 'Employee', 'show_in_employee_resource' => true],
         ] as $roleData) {
             Role::updateOrCreate(
                 ['name' => $roleData['name']],

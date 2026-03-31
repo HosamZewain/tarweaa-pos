@@ -118,6 +118,88 @@ class EmployeeResourceManagementTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_operational_employees_and_back_office_users_do_not_overlap_between_users_and_employees_resources(): void
+    {
+        $cashierEmployee = User::factory()->create([
+            'name' => 'Cashier Employee',
+            'username' => 'cashier-employee',
+            'is_active' => true,
+        ]);
+        $cashierEmployee->roles()->sync([Role::firstWhere('name', 'cashier')->id]);
+
+        $accountantRole = Role::firstOrCreate(
+            ['name' => 'accountant'],
+            ['display_name' => 'Accountant'],
+        );
+        $accountantRole->givePermissionTo([
+            'expenses.viewAny',
+            'expense_categories.viewAny',
+            'reports.expenses.view',
+        ]);
+
+        $accountantUser = User::factory()->create([
+            'name' => 'Accountant User',
+            'username' => 'accountant-user',
+            'is_active' => true,
+        ]);
+        $accountantUser->roles()->sync([$accountantRole->id]);
+
+        $this->actingAs($this->adminUser)
+            ->get('/admin/users')
+            ->assertSuccessful()
+            ->assertSee('accountant-user')
+            ->assertDontSee('cashier-employee');
+
+        $this->actingAs($this->adminUser)
+            ->get('/admin/employees')
+            ->assertSuccessful()
+            ->assertSee('cashier-employee')
+            ->assertDontSee('accountant-user');
+    }
+
+    public function test_role_flag_controls_whether_role_appears_in_employee_resource(): void
+    {
+        $deliveryRole = Role::create([
+            'name' => 'delivery_runner',
+            'display_name' => 'Delivery Runner',
+            'is_active' => true,
+            'show_in_employee_resource' => true,
+        ]);
+
+        $backOfficeRole = Role::create([
+            'name' => 'auditor',
+            'display_name' => 'Auditor',
+            'is_active' => true,
+            'show_in_employee_resource' => false,
+        ]);
+
+        $deliveryUser = User::factory()->create([
+            'name' => 'Delivery User',
+            'username' => 'delivery-user',
+            'is_active' => true,
+        ]);
+        $deliveryUser->roles()->sync([$deliveryRole->id]);
+
+        $auditorUser = User::factory()->create([
+            'name' => 'Auditor User',
+            'username' => 'auditor-user',
+            'is_active' => true,
+        ]);
+        $auditorUser->roles()->sync([$backOfficeRole->id]);
+
+        $this->actingAs($this->adminUser)
+            ->get('/admin/employees')
+            ->assertSuccessful()
+            ->assertSee('delivery-user')
+            ->assertDontSee('auditor-user');
+
+        $this->actingAs($this->adminUser)
+            ->get('/admin/users')
+            ->assertSuccessful()
+            ->assertSee('auditor-user')
+            ->assertDontSee('delivery-user');
+    }
+
     public function test_manager_can_update_employee_profile_details(): void
     {
         $employee = User::factory()->create([

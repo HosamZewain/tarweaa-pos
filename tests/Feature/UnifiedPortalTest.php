@@ -44,6 +44,13 @@ class UnifiedPortalTest extends TestCase
         $this->get('/pos/drawer')->assertSuccessful();
     }
 
+    public function test_entry_page_shows_save_login_info_option(): void
+    {
+        $this->get('/')
+            ->assertSuccessful()
+            ->assertSee('حفظ بيانات الدخول');
+    }
+
     public function test_launcher_redirects_single_surface_users_directly_to_their_only_surface(): void
     {
         $user = User::factory()->create([

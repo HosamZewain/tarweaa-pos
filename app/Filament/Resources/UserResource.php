@@ -13,6 +13,7 @@ use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
 use Filament\Notifications\Notification;
 
@@ -100,6 +101,7 @@ class UserResource extends Resource
         $businessTimezone = BusinessTime::timezone();
 
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->withoutOperationalEmployeeRoles()->with('roles'))
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('username')->label('اسم المستخدم')->searchable()->sortable(),
@@ -153,6 +155,13 @@ class UserResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->withoutOperationalEmployeeRoles()
+            ->with('roles');
     }
 
     public static function getRelations(): array

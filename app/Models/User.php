@@ -219,7 +219,12 @@ class User extends Authenticatable implements FilamentUser
 
     public static function assignableEmployeeRoleNames(): array
     {
-        return ['employee', 'cashier', 'kitchen', 'counter'];
+        return Role::employeeResourceRoleNames();
+    }
+
+    public function hasOperationalEmployeeRole(): bool
+    {
+        return $this->hasRole(static::assignableEmployeeRoleNames());
     }
 
     public function isManageableEmployee(): bool
@@ -402,5 +407,19 @@ class User extends Authenticatable implements FilamentUser
     public function scopeWithRole($query, string $role)
     {
         return $query->whereHas('roles', fn ($q) => $q->where('name', $role));
+    }
+
+    public function scopeOperationalEmployees(Builder $query): Builder
+    {
+        return $query->whereHas('roles', function (Builder $roleQuery): void {
+            $roleQuery->whereIn('name', static::assignableEmployeeRoleNames());
+        });
+    }
+
+    public function scopeWithoutOperationalEmployeeRoles(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('roles', function (Builder $roleQuery): void {
+            $roleQuery->whereIn('name', static::assignableEmployeeRoleNames());
+        });
     }
 }

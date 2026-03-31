@@ -18,9 +18,7 @@ class Employee extends User
 
     public function scopeManageable(Builder $query): Builder
     {
-        return $query->whereDoesntHave('roles', function (Builder $roleQuery): void {
-            $roleQuery->whereIn('name', User::privilegedRoleNames());
-        });
+        return $query->operationalEmployees();
     }
 
     public function employeeProfile(): HasOne

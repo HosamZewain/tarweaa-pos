@@ -98,6 +98,27 @@
             text-align: center;
             margin-bottom: 1rem;
         }
+
+        .remember-login {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+        }
+
+        .remember-login input {
+            width: 1rem;
+            height: 1rem;
+            accent-color: var(--accent);
+        }
+
+        .remember-login small {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.1rem;
+        }
     </style>
 @endsection
 
@@ -163,6 +184,13 @@
                                 <input type="password" id="password" class="form-input" placeholder="أدخل كلمة المرور"
                                     autocomplete="current-password">
                             </div>
+                            <label class="remember-login">
+                                <input type="checkbox" id="remember-login-info">
+                                <span>
+                                    حفظ بيانات الدخول
+                                    <small>سيتم حفظ اسم المستخدم وكلمة المرور على هذا الجهاز فقط.</small>
+                                </span>
+                            </label>
                             <button type="submit" class="btn btn-primary btn-lg btn-block" id="pwd-submit">
                                 تسجيل الدخول
                             </button>
@@ -182,6 +210,7 @@
         const REQUESTED_REDIRECT = @json($requestedRedirect);
         const PIN_MIN_LENGTH = 4;
         const PIN_MAX_LENGTH = 6;
+        const SAVED_LOGIN_KEY = 'tarweaa_saved_login_info';
 
         let currentTab = 'pin';
         let pinValue = '';
@@ -227,7 +256,7 @@
             document.getElementById('pin-error').textContent = '';
         }
 
-        async function portalLogin(endpoint, body, errorElementId, buttonId, defaultLabel) {
+        async function portalLogin(endpoint, body, errorElementId, buttonId, defaultLabel, onSuccess = null) {
             const errEl = document.getElementById(errorElementId);
             const btn = document.getElementById(buttonId);
 
@@ -258,6 +287,11 @@
 
                 setToken(data.data.token);
                 setUser(data.data.user);
+
+                if (typeof onSuccess === 'function') {
+                    onSuccess(data);
+                }
+
                 window.location.href = data.data.redirect_url;
             } catch (error) {
                 errEl.textContent = error.message || 'خطأ في تسجيل الدخول';
@@ -279,10 +313,47 @@
         async function passwordLogin(event) {
             event.preventDefault();
 
-            await portalLogin('/portal/login', {
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value,
-            }, 'pwd-error', 'pwd-submit', 'تسجيل الدخول');
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const rememberLoginInfo = document.getElementById('remember-login-info')?.checked === true;
+
+            await portalLogin(
+                '/portal/login',
+                {
+                    username,
+                    password,
+                },
+                'pwd-error',
+                'pwd-submit',
+                'تسجيل الدخول',
+                () => {
+                    if (rememberLoginInfo) {
+                        localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({
+                            username,
+                            password,
+                        }));
+                    } else {
+                        localStorage.removeItem(SAVED_LOGIN_KEY);
+                    }
+                },
+            );
         }
+
+        (function restoreSavedLoginInfo() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
+
+                if (!saved || !saved.username || !saved.password) {
+                    return;
+                }
+
+                document.getElementById('username').value = saved.username;
+                document.getElementById('password').value = saved.password;
+                document.getElementById('remember-login-info').checked = true;
+                switchTab('password');
+            } catch (_) {
+                localStorage.removeItem(SAVED_LOGIN_KEY);
+            }
+        })();
     </script>
 @endsection

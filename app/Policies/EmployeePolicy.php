@@ -15,14 +15,14 @@ class EmployeePolicy
     public function view(User $user, $model): bool
     {
         return $model instanceof Employee
-            && $model->isManageableEmployee()
+            && $model->hasOperationalEmployeeRole()
             && $user->hasPermission($this->permissionPrefix . '.view');
     }
 
     public function update(User $user, $model): bool
     {
         return $model instanceof Employee
-            && $model->isManageableEmployee()
+            && $model->hasOperationalEmployeeRole()
             && $user->hasPermission($this->permissionPrefix . '.update');
     }
 

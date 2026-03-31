@@ -50,6 +50,10 @@ class RoleResource extends Resource
                 Forms\Components\Toggle::make('is_active')
                     ->label('نشط')
                     ->default(true),
+                Forms\Components\Toggle::make('show_in_employee_resource')
+                    ->label('يظهر في قائمة الموظفين')
+                    ->helperText('إذا فُعّل، يمكن اختيار هذا الدور من شاشة الموظفين وسيظهر أصحاب هذا الدور في admin/employees.')
+                    ->default(false),
             ])->columns(2),
 
             \Filament\Schemas\Components\Section::make('الصلاحيات')->schema([
@@ -160,6 +164,9 @@ class RoleResource extends Resource
                     ->badge()
                     ->color('success')
                     ->sortable(),
+                Tables\Columns\IconColumn::make('show_in_employee_resource')
+                    ->label('ضمن الموظفين')
+                    ->boolean(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('نشط')
                     ->boolean(),
