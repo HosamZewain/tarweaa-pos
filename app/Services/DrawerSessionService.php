@@ -12,7 +12,6 @@ use App\Exceptions\ShiftException;
 use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
 use App\Models\CashMovement;
-use App\Models\OrderPayment;
 use App\Models\PosDevice;
 use App\Models\Shift;
 use App\Models\User;
@@ -447,20 +446,20 @@ class DrawerSessionService
     private function buildSessionSummary(CashierDrawerSession $session): array
     {
         $movements = $session->cashMovements()->orderBy('created_at')->get();
-        $orders = $session->reportableOrders()->get();
+        $orders = $session->reportableOrders()->with(['payments', 'settlement'])->get();
 
         $byType = fn (string $type) => $movements
             ->filter(fn ($m) => $m->type->value === $type)
             ->sum(fn ($m) => (float) $m->amount);
 
-        $totalIn  = (float) $movements->where('direction.value', 'in')->sum('amount');
-        $totalOut = (float) $movements->where('direction.value', 'out')->sum('amount');
-
-        $nonCashSales = OrderPayment::whereIn('order_id', $orders->pluck('id'))
-            ->where('payment_method', '!=', \App\Enums\PaymentMethod::Cash)
-            ->sum('amount');
-
+        $cashSales = round($orders->sum(fn ($order) => $order->reportableCashPaidAmount()), 2);
+        $nonCashSales = round($orders->sum(fn ($order) => $order->reportableNonCashPaidAmount()), 2);
+        $cashIn = (float) $byType('cash_in');
+        $cashOut = (float) $byType('cash_out');
+        $refunds = (float) $byType('refund');
         $expectedCash = $session->calculateExpectedBalance();
+        $grossIn = round((float) $session->opening_balance + $cashSales + $cashIn, 2);
+        $grossOut = round($refunds + $cashOut, 2);
 
         return [
             'session_number'       => $session->session_number,
@@ -470,13 +469,13 @@ class DrawerSessionService
             'started_at'           => $session->started_at,
             'ended_at'             => $session->ended_at,
             'opening_balance'      => (float) $session->opening_balance,
-            'cash_sales'           => $byType('sale'),
-            'non_cash_sales'       => (float) $nonCashSales,
-            'total_refunds'        => $byType('refund'),
-            'cash_in'              => $byType('cash_in'),
-            'cash_out'             => $byType('cash_out'),
-            'gross_in'             => $totalIn,
-            'gross_out'            => $totalOut,
+            'cash_sales'           => $cashSales,
+            'non_cash_sales'       => $nonCashSales,
+            'total_refunds'        => $refunds,
+            'cash_in'              => $cashIn,
+            'cash_out'             => $cashOut,
+            'gross_in'             => $grossIn,
+            'gross_out'            => $grossOut,
             'expected_cash'        => $expectedCash,
             'expected_balance'     => $expectedCash,
             'closing_balance'      => $session->closing_balance ? (float) $session->closing_balance : null,

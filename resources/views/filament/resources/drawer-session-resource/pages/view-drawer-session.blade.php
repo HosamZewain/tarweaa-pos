@@ -202,13 +202,13 @@
                                     <td class="px-4 py-3 whitespace-nowrap">{{ $this->formatNumber($order->items->sum('quantity')) }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         <div class="font-semibold text-gray-900 dark:text-white">{{ $this->formatMoney($order->total) }}</div>
-                                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">مدفوع {{ $this->formatMoney($order->paid_amount) }}</div>
+                                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">مدفوع {{ $this->formatMoney($order->reportablePaidAmount()) }}</div>
                                     </td>
                                     <td class="px-4 py-3 min-w-56">
                                         <div class="space-y-1">
-                                            @forelse ($order->payments as $payment)
+                                            @forelse ($order->reportablePaymentBreakdown() as $method => $amount)
                                                 <div class="text-xs text-gray-600 dark:text-gray-300">
-                                                    {{ $payment->payment_method->label() }} {{ $this->formatMoney($payment->amount) }}
+                                                    {{ \App\Enums\PaymentMethod::from($method)->label() }} {{ $this->formatMoney($amount) }}
                                                 </div>
                                             @empty
                                                 <div class="text-xs text-gray-400">—</div>

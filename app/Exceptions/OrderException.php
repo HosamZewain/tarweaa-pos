@@ -194,6 +194,11 @@ class OrderException extends \RuntimeException
         return new self('بيانات المرجع مطلوبة لطريقة الدفع المحددة.', 422);
     }
 
+    public static function nonCashOverpaymentNotAllowed(): self
+    {
+        return new self('لا يمكن إدخال مبلغ زائد على طرق الدفع غير النقدية. الزيادة مسموحة فقط عند الدفع النقدي لاحتساب الباقي.', 422);
+    }
+
     public static function deletionRequiresManualExternalReversal(): self
     {
         return new self('لا يمكن حذف الطلب آلياً لأنه يحتوي على دفعات غير نقدية. يجب تنفيذ الاسترجاع أو التسوية الخارجية أولاً.', 422);

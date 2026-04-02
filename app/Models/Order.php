@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class Order extends Model
 {
@@ -248,6 +249,63 @@ class Order extends Model
     public function settledAmount(): float
     {
         return round((float) $this->paid_amount + $this->coveredAmount(), 2);
+    }
+
+    public function reportablePaymentBreakdown(): array
+    {
+        /** @var Collection<int, OrderPayment> $payments */
+        $payments = $this->relationLoaded('payments')
+            ? $this->payments
+            : $this->payments()->orderBy('id')->get();
+
+        $remaining = max(0, round((float) $this->total - $this->coveredAmount(), 2));
+        $breakdown = [];
+
+        foreach ($payments->sortBy('id') as $payment) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $method = $payment->payment_method instanceof PaymentMethod
+                ? $payment->payment_method
+                : PaymentMethod::from((string) $payment->payment_method);
+
+            $appliedAmount = min(round((float) $payment->amount, 2), $remaining);
+
+            if ($appliedAmount <= 0) {
+                continue;
+            }
+
+            $breakdown[$method->value] = round(($breakdown[$method->value] ?? 0) + $appliedAmount, 2);
+            $remaining = max(0, round($remaining - $appliedAmount, 2));
+        }
+
+        return $breakdown;
+    }
+
+    public function reportablePaidAmountForMethod(PaymentMethod $method): float
+    {
+        return round((float) ($this->reportablePaymentBreakdown()[$method->value] ?? 0), 2);
+    }
+
+    public function reportableCashPaidAmount(): float
+    {
+        return $this->reportablePaidAmountForMethod(PaymentMethod::Cash);
+    }
+
+    public function reportableNonCashPaidAmount(): float
+    {
+        return round(
+            collect($this->reportablePaymentBreakdown())
+                ->reject(fn ($_, string $method) => $method === PaymentMethod::Cash->value)
+                ->sum(),
+            2,
+        );
+    }
+
+    public function reportablePaidAmount(): float
+    {
+        return round(array_sum($this->reportablePaymentBreakdown()), 2);
     }
 
     public function remainingPayableAmount(): float

@@ -60,7 +60,9 @@ class ViewShift extends ViewRecord
     {
         $record = $this->getRecord();
         $orders = $record->reportableOrdersCollection();
-        $payments = $orders->flatMap->payments;
+        $this->loadOrderPaymentContext($orders);
+        $cashSales = round($orders->sum(fn (Order $order) => $order->reportableCashPaidAmount()), 2);
+        $nonCashSales = round($orders->sum(fn (Order $order) => $order->reportableNonCashPaidAmount()), 2);
 
         return [
             [
@@ -71,15 +73,13 @@ class ViewShift extends ViewRecord
             ],
             [
                 'title' => 'مبيعات نقدية',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Cash)->sum('amount')),
+                'value' => $this->formatMoney($cashSales),
                 'hint' => 'محصلة عبر الأدراج',
                 'tone' => 'success',
             ],
             [
                 'title' => 'مبيعات غير نقدية',
-                'value' => $this->formatMoney($payments->reject(
-                    fn ($payment) => $payment->payment_method === PaymentMethod::Cash
-                )->sum('amount')),
+                'value' => $this->formatMoney($nonCashSales),
                 'hint' => 'بطاقة، طلبات، إنستاباي وغيرها',
                 'tone' => 'info',
             ],
@@ -96,7 +96,9 @@ class ViewShift extends ViewRecord
     {
         $record = $this->getRecord();
         $orders = $record->reportableOrdersCollection();
-        $payments = $orders->flatMap->payments;
+        $this->loadOrderPaymentContext($orders);
+        $cardPayments = $orders->flatMap->payments
+            ->where('payment_method', PaymentMethod::Card);
         $items = $orders->flatMap->items;
         $orderCount = max(1, $orders->count());
 
@@ -115,13 +117,13 @@ class ViewShift extends ViewRecord
             ],
             [
                 'title' => 'رسوم البطاقات',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('fee_amount')),
+                'value' => $this->formatMoney($cardPayments->sum('fee_amount')),
                 'hint' => 'رسوم منفصلة عن المبيعات',
                 'tone' => 'danger',
             ],
             [
                 'title' => 'صافي تسوية البطاقات',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('net_settlement_amount')),
+                'value' => $this->formatMoney($cardPayments->sum('net_settlement_amount')),
                 'hint' => 'بعد خصم الرسوم',
                 'tone' => 'primary',
             ],
@@ -164,7 +166,7 @@ class ViewShift extends ViewRecord
         $orders = $record->reportableOrdersCollection();
 
         return [
-            ['label' => 'النقد المتوقع', 'value' => $this->formatMoney($record->expected_cash)],
+            ['label' => 'النقد المتوقع', 'value' => $this->formatMoney($record->calculateExpectedCashFromDrawers())],
             ['label' => 'النقد الفعلي', 'value' => $this->formatMoney($record->actual_cash)],
             ['label' => 'إجمالي الخصومات', 'value' => $this->formatMoney($orders->sum('discount_amount'))],
             ['label' => 'إجمالي الضريبة', 'value' => $this->formatMoney($orders->sum('tax_amount'))],
@@ -192,13 +194,14 @@ class ViewShift extends ViewRecord
 
     public function getPaymentMethodStats(): array
     {
-        $payments = $this->getRecord()->reportableOrdersCollection()->flatMap->payments;
+        $orders = $this->getRecord()->reportableOrdersCollection();
+        $this->loadOrderPaymentContext($orders);
 
         return collect(PaymentMethod::cases())
             ->map(fn (PaymentMethod $method): array => [
                 'label' => $method->label(),
-                'value' => $this->formatMoney($payments->where('payment_method', $method)->sum('amount')),
-                'count' => $payments->where('payment_method', $method)->count(),
+                'value' => $this->formatMoney(round($orders->sum(fn (Order $order) => $order->reportablePaidAmountForMethod($method)), 2)),
+                'count' => $orders->filter(fn (Order $order) => $order->reportablePaidAmountForMethod($method) > 0)->count(),
                 'tone' => $this->paymentMethodTone($method),
             ])
             ->filter(fn (array $row): bool => $row['count'] > 0)
@@ -254,5 +257,12 @@ class ViewShift extends ViewRecord
             $difference < 0 => 'عجز مسجل على الوردية',
             default => 'الجرد مطابق',
         };
+    }
+
+    private function loadOrderPaymentContext(Collection $orders): void
+    {
+        if ($orders->isNotEmpty()) {
+            $orders->loadMissing('payments', 'settlement');
+        }
     }
 }

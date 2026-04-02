@@ -157,46 +157,32 @@ class DrawerSessionResource extends Resource
             ])->columns(4),
             \Filament\Schemas\Components\Section::make('المؤشرات المالية')->schema([
                 Infolists\Components\TextEntry::make('opening_balance')->label('رصيد الفتح')->money('EGP'),
-                Infolists\Components\TextEntry::make('expected_balance')->label('الرصيد المتوقع')->money('EGP')->placeholder('—'),
+                Infolists\Components\TextEntry::make('expected_balance')
+                    ->label('الرصيد المتوقع')
+                    ->state(fn (CashierDrawerSession $record) => $record->calculateExpectedBalance())
+                    ->money('EGP')
+                    ->placeholder('—'),
                 Infolists\Components\TextEntry::make('closing_balance')->label('رصيد الإغلاق')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('cash_sales_total')
                     ->label('مبيعات نقدية')
-                    ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->cashMovements->where('type', CashMovementType::Sale)->sum('amount'),
-                        2
-                    ))
+                    ->state(fn (CashierDrawerSession $record) => $record->reportableCashSalesTotal())
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('non_cash_sales_total')
                     ->label('مبيعات غير نقدية')
-                    ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->reportableOrdersCollection()
-                            ->flatMap->payments
-                            ->reject(fn ($payment) => $payment->payment_method === PaymentMethod::Cash)
-                            ->sum('amount'),
-                        2
-                    ))
+                    ->state(fn (CashierDrawerSession $record) => $record->reportableNonCashSalesTotal())
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('refund_total')
                     ->label('استرجاعات نقدية')
-                    ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->cashMovements->where('type', CashMovementType::Refund)->sum('amount'),
-                        2
-                    ))
+                    ->state(fn (CashierDrawerSession $record) => $record->refundCashTotal())
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('cash_in_total')
                     ->label('إيداعات نقدية')
-                    ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->cashMovements->where('type', CashMovementType::CashIn)->sum('amount'),
-                        2
-                    ))
+                    ->state(fn (CashierDrawerSession $record) => $record->manualCashInTotal())
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('cash_out_total')
                     ->label('سحوبات نقدية')
-                    ->state(fn (CashierDrawerSession $record) => round(
-                        (float) $record->cashMovements->where('type', CashMovementType::CashOut)->sum('amount'),
-                        2
-                    ))
+                    ->state(fn (CashierDrawerSession $record) => $record->manualCashOutTotal())
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('expenses_total')
                     ->label('مصروفات نقدية')
@@ -236,12 +222,15 @@ class DrawerSessionResource extends Resource
                     Infolists\Components\TextEntry::make('source_label')->label('المصدر'),
                     Infolists\Components\TextEntry::make('customer_name')->label('العميل')->placeholder('—'),
                     Infolists\Components\TextEntry::make('total')->label('الإجمالي')->money('EGP'),
-                    Infolists\Components\TextEntry::make('paid_amount')->label('المدفوع')->money('EGP'),
+                    Infolists\Components\TextEntry::make('paid_amount')
+                        ->label('المدفوع')
+                        ->state(fn (Order $record) => $record->reportablePaidAmount())
+                        ->money('EGP'),
                     Infolists\Components\TextEntry::make('change_amount')->label('الباقي')->money('EGP'),
                     Infolists\Components\TextEntry::make('payment_methods_summary')
                         ->label('طرق الدفع')
-                        ->state(fn (Order $record) => $record->payments
-                            ->map(fn ($payment) => $payment->payment_method->label() . ' ' . number_format((float) $payment->amount, 2) . ' ج.م')
+                        ->state(fn (Order $record) => collect($record->reportablePaymentBreakdown())
+                            ->map(fn ($amount, $method) => PaymentMethod::from($method)->label() . ' ' . number_format((float) $amount, 2) . ' ج.م')
                             ->implode('، '))
                         ->placeholder('—')
                         ->columnSpan(2),

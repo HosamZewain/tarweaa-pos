@@ -55,6 +55,7 @@ class ViewDrawerSession extends ViewRecord
     {
         $record = $this->getRecord();
         $orders = $record->reportableOrdersCollection();
+        $this->loadOrderPaymentContext($orders);
 
         return [
             [
@@ -71,7 +72,7 @@ class ViewDrawerSession extends ViewRecord
             ],
             [
                 'title' => 'الرصيد المتوقع',
-                'value' => $this->formatMoney($record->expected_balance),
+                'value' => $this->formatMoney($record->calculateExpectedBalance()),
                 'hint' => 'قبل الجرد الفعلي',
                 'tone' => 'warning',
             ],
@@ -87,34 +88,36 @@ class ViewDrawerSession extends ViewRecord
     public function getSecondaryStats(): array
     {
         $orders = $this->getRecord()->reportableOrdersCollection();
-        $payments = $orders->flatMap->payments;
+        $this->loadOrderPaymentContext($orders);
         $items = $orders->flatMap->items;
         $orderCount = max(1, $orders->count());
+        $cashSales = round($orders->sum(fn (Order $order) => $order->reportableCashPaidAmount()), 2);
+        $nonCashSales = round($orders->sum(fn (Order $order) => $order->reportableNonCashPaidAmount()), 2);
+        $cardPayments = $orders->flatMap->payments
+            ->where('payment_method', PaymentMethod::Card);
 
         return [
             [
                 'title' => 'مبيعات نقدية',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Cash)->sum('amount')),
+                'value' => $this->formatMoney($cashSales),
                 'hint' => 'تدخل ضمن رصيد الدرج',
                 'tone' => 'success',
             ],
             [
                 'title' => 'مبيعات غير نقدية',
-                'value' => $this->formatMoney($payments->reject(
-                    fn ($payment) => $payment->payment_method === PaymentMethod::Cash
-                )->sum('amount')),
+                'value' => $this->formatMoney($nonCashSales),
                 'hint' => 'بطاقة، طلبات، إنستاباي وغيرها',
                 'tone' => 'info',
             ],
             [
                 'title' => 'رسوم البطاقات',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('fee_amount')),
+                'value' => $this->formatMoney($cardPayments->sum('fee_amount')),
                 'hint' => 'تُسجل منفصلة عن قيمة الطلب',
                 'tone' => 'danger',
             ],
             [
                 'title' => 'صافي تسوية البطاقات',
-                'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('net_settlement_amount')),
+                'value' => $this->formatMoney($cardPayments->sum('net_settlement_amount')),
                 'hint' => 'بعد خصم الرسوم',
                 'tone' => 'primary',
             ],
@@ -155,18 +158,21 @@ class ViewDrawerSession extends ViewRecord
     {
         $record = $this->getRecord();
         $orders = $record->reportableOrdersCollection();
-        $payments = $orders->flatMap->payments;
+        $this->loadOrderPaymentContext($orders);
+        $cardPayments = $orders->flatMap->payments
+            ->where('payment_method', PaymentMethod::Card);
+        $totalPaid = round($orders->sum(fn (Order $order) => $order->reportablePaidAmount()), 2);
 
         return [
             ['label' => 'رصيد الفتح', 'value' => $this->formatMoney($record->opening_balance)],
             ['label' => 'إجمالي مبيعات الطلبات', 'value' => $this->formatMoney($orders->sum('total'))],
-            ['label' => 'إجمالي المدفوع', 'value' => $this->formatMoney($orders->sum('paid_amount'))],
-            ['label' => 'إيداعات نقدية', 'value' => $this->formatMoney($record->cashMovements->where('type', CashMovementType::CashIn)->sum('amount'))],
-            ['label' => 'سحوبات نقدية', 'value' => $this->formatMoney($record->cashMovements->where('type', CashMovementType::CashOut)->sum('amount'))],
-            ['label' => 'استرجاعات', 'value' => $this->formatMoney($record->cashMovements->where('type', CashMovementType::Refund)->sum('amount'))],
+            ['label' => 'إجمالي المدفوع', 'value' => $this->formatMoney($totalPaid)],
+            ['label' => 'إيداعات نقدية', 'value' => $this->formatMoney($record->manualCashInTotal())],
+            ['label' => 'سحوبات نقدية', 'value' => $this->formatMoney($record->manualCashOutTotal())],
+            ['label' => 'استرجاعات', 'value' => $this->formatMoney($record->refundCashTotal())],
             ['label' => 'مصروفات الجلسة', 'value' => $this->formatMoney($record->expenses->sum('amount'))],
-            ['label' => 'رسوم البطاقات', 'value' => $this->formatMoney($payments->where('payment_method', PaymentMethod::Card)->sum('fee_amount'))],
-            ['label' => 'الرصيد المتوقع', 'value' => $this->formatMoney($record->expected_balance)],
+            ['label' => 'رسوم البطاقات', 'value' => $this->formatMoney($cardPayments->sum('fee_amount'))],
+            ['label' => 'الرصيد المتوقع', 'value' => $this->formatMoney($record->calculateExpectedBalance())],
             ['label' => 'الرصيد الفعلي', 'value' => $this->formatMoney($record->closing_balance)],
         ];
     }
@@ -188,13 +194,14 @@ class ViewDrawerSession extends ViewRecord
 
     public function getPaymentMethodStats(): array
     {
-        $payments = $this->getRecord()->reportableOrdersCollection()->flatMap->payments;
+        $orders = $this->getRecord()->reportableOrdersCollection();
+        $this->loadOrderPaymentContext($orders);
 
         return collect(PaymentMethod::cases())
             ->map(fn (PaymentMethod $method): array => [
                 'label' => $method->label(),
-                'value' => $this->formatMoney($payments->where('payment_method', $method)->sum('amount')),
-                'count' => $payments->where('payment_method', $method)->count(),
+                'value' => $this->formatMoney(round($orders->sum(fn (Order $order) => $order->reportablePaidAmountForMethod($method)), 2)),
+                'count' => $orders->filter(fn (Order $order) => $order->reportablePaidAmountForMethod($method) > 0)->count(),
                 'tone' => $this->paymentMethodTone($method),
             ])
             ->filter(fn (array $row): bool => $row['count'] > 0)
@@ -245,5 +252,12 @@ class ViewDrawerSession extends ViewRecord
             $difference < 0 => 'يوجد عجز مسجل',
             default => 'الجرد مطابق',
         };
+    }
+
+    private function loadOrderPaymentContext(Collection $orders): void
+    {
+        if ($orders->isNotEmpty()) {
+            $orders->loadMissing('payments', 'settlement');
+        }
     }
 }

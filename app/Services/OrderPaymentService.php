@@ -42,19 +42,33 @@ class OrderPaymentService
 
         $totalProvided = collect($payments)->sum(fn (ProcessPaymentData $p) => $p->amount);
         $amountDue     = $order->remainingPayableAmount();
+        $nonCashProvided = collect($payments)
+            ->reject(fn (ProcessPaymentData $p) => $p->method === PaymentMethod::Cash)
+            ->sum(fn (ProcessPaymentData $p) => $p->amount);
 
         if ($totalProvided < $amountDue) {
             throw OrderException::insufficientPayment($amountDue, $totalProvided);
         }
 
+        if ($nonCashProvided > $amountDue) {
+            throw OrderException::nonCashOverpaymentNotAllowed();
+        }
+
         return DB::transaction(function () use ($order, $payments, $totalProvided, $amountDue, $actorId): Order {
             $wasPaid = $order->payment_status === PaymentStatus::Paid;
+            $remainingDueToApply = round($amountDue, 2);
 
             foreach ($payments as $paymentData) {
+                $appliedAmount = min(round($paymentData->amount, 2), $remainingDueToApply);
+
+                if ($appliedAmount <= 0) {
+                    continue;
+                }
+
                 $terminal = null;
                 $feeData = [
                     'fee_amount' => 0.0,
-                    'net_settlement_amount' => round($paymentData->amount, 2),
+                    'net_settlement_amount' => round($appliedAmount, 2),
                 ];
 
                 if ($paymentData->method === PaymentMethod::Card) {
@@ -63,7 +77,7 @@ class OrderPaymentService
                     }
 
                     $terminal = $this->paymentTerminalFeeService->getActiveTerminalOrFail($paymentData->terminalId);
-                    $feeData = $this->paymentTerminalFeeService->calculate($terminal, $paymentData->amount);
+                    $feeData = $this->paymentTerminalFeeService->calculate($terminal, $appliedAmount);
                 }
 
                 if (in_array($paymentData->method, [PaymentMethod::TalabatPay, PaymentMethod::InstaPay], true)
@@ -75,7 +89,7 @@ class OrderPaymentService
                 // Create payment record
                 $order->payments()->create([
                     'payment_method'   => $paymentData->method,
-                    'amount'           => $paymentData->amount,
+                    'amount'           => $appliedAmount,
                     'terminal_id'      => $terminal?->id,
                     'reference_number' => $paymentData->referenceNumber,
                     'fee_amount'       => $feeData['fee_amount'],
@@ -83,7 +97,7 @@ class OrderPaymentService
                     'created_by'       => $actorId,
                 ]);
 
-                $order->increment('paid_amount', $paymentData->amount);
+                $order->increment('paid_amount', $appliedAmount);
 
                 if ($order->isFullyPaid()) {
                     $order->update(['payment_status' => PaymentStatus::Paid]);
@@ -95,20 +109,19 @@ class OrderPaymentService
                 if ($paymentData->method === PaymentMethod::Cash) {
                     $order->drawerSession->addMovement(
                         type:          CashMovementType::Sale,
-                        amount:        $paymentData->amount,
+                        amount:        $appliedAmount,
                         performedBy:   $actorId,
                         referenceType: 'order',
                         referenceId:   $order->id,
                     );
                 }
 
+                $remainingDueToApply = max(0, round($remainingDueToApply - $appliedAmount, 2));
             }
 
             // Store change given back to customer
             $change = max(0, round($totalProvided - $amountDue, 2));
-            if ($change > 0) {
-                $order->update(['change_amount' => $change]);
-            }
+            $order->update(['change_amount' => $change]);
 
             $this->orderSettlementService->recordSupplementalPayment(
                 order: $order->fresh(['settlement']),

@@ -98,13 +98,11 @@ class CashManagementService
             ->filter(fn ($m) => $m->type->value === $type)
             ->sum(fn ($m) => (float) $m->amount);
 
-        $totalIn  = $movements->filter(fn ($m) => $m->direction->value === 'in')
-                              ->sum(fn ($m) => (float) $m->amount);
-
-        $totalOut = $movements->filter(fn ($m) => $m->direction->value === 'out')
-                              ->sum(fn ($m) => (float) $m->amount);
-
-        $expected = round($totalIn - $totalOut, 2);
+        $cashSales = $session->reportableCashSalesTotal();
+        $cashIn = round((float) $sum('cash_in'), 2);
+        $cashOut = round((float) $sum('cash_out'), 2);
+        $refunds = round((float) $sum('refund'), 2);
+        $expected = $session->calculateExpectedBalance();
 
         return [
             'session_number'   => $session->session_number,
@@ -115,10 +113,10 @@ class CashManagementService
             'ended_at'         => BusinessTime::formatDateTime($session->ended_at),
             // Money breakdown
             'opening_balance'  => round((float) $session->opening_balance, 2),
-            'total_sales'      => $sum('sale'),
-            'total_refunds'    => $sum('refund'),
-            'total_cash_in'    => $sum('cash_in'),
-            'total_cash_out'   => $sum('cash_out'),
+            'total_sales'      => $cashSales,
+            'total_refunds'    => $refunds,
+            'total_cash_in'    => $cashIn,
+            'total_cash_out'   => $cashOut,
             'expected_balance' => $expected,
             // Post-close (nulls until closed)
             'closing_balance'  => $session->closing_balance ? round((float) $session->closing_balance, 2) : null,
@@ -155,14 +153,19 @@ class CashManagementService
                           ->get();
 
         $orders = $shift->orders()
-                        ->with('payments')
+                        ->with(['payments', 'settlement'])
                         ->whereNotIn('status', [OrderStatus::Cancelled->value])
                         ->get();
 
         // Revenue by payment method
-        $paymentBreakdown = $orders->flatMap->payments
-            ->groupBy(fn ($p) => $p->payment_method->value)
-            ->map(fn ($payments) => round($payments->sum(fn ($p) => (float) $p->amount), 2));
+        $paymentBreakdown = collect(PaymentMethod::cases())
+            ->mapWithKeys(fn (PaymentMethod $method) => [
+                $method->value => round(
+                    $orders->sum(fn ($order) => $order->reportablePaidAmountForMethod($method)),
+                    2,
+                ),
+            ])
+            ->filter(fn (float $amount) => $amount > 0);
 
         // Order status breakdown
         $statusBreakdown = $orders->groupBy(fn ($o) => $o->status->value)

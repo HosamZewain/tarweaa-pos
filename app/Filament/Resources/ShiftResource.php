@@ -218,16 +218,18 @@ class ShiftResource extends Resource
                 Infolists\Components\TextEntry::make('cash_sales')
                     ->label('مبيعات نقدية')
                     ->state(fn (Shift $record) => round(
-                        (float) $record->reportableOrdersCollection()->flatMap->payments->where('payment_method', PaymentMethod::Cash)->sum('amount'),
+                        $record->reportableOrdersCollection()->loadMissing('payments', 'settlement')->sum(
+                            fn (Order $order) => $order->reportableCashPaidAmount()
+                        ),
                         2
                     ))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('non_cash_sales')
                     ->label('مبيعات غير نقدية')
                     ->state(fn (Shift $record) => round(
-                        (float) $record->reportableOrdersCollection()->flatMap->payments->reject(
-                            fn ($payment) => $payment->payment_method === PaymentMethod::Cash
-                        )->sum('amount'),
+                        $record->reportableOrdersCollection()->loadMissing('payments', 'settlement')->sum(
+                            fn (Order $order) => $order->reportableNonCashPaidAmount()
+                        ),
                         2
                     ))
                     ->money('EGP'),
@@ -247,7 +249,11 @@ class ShiftResource extends Resource
                     ->label('إجمالي الاسترجاعات')
                     ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('refund_amount'), 2))
                     ->money('EGP'),
-                Infolists\Components\TextEntry::make('expected_cash')->label('النقد المتوقع')->money('EGP')->placeholder('—'),
+                Infolists\Components\TextEntry::make('expected_cash')
+                    ->label('النقد المتوقع')
+                    ->state(fn (Shift $record) => $record->calculateExpectedCashFromDrawers())
+                    ->money('EGP')
+                    ->placeholder('—'),
                 Infolists\Components\TextEntry::make('actual_cash')->label('النقد الفعلي')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—'),
                 Infolists\Components\TextEntry::make('expenses_total')
@@ -271,7 +277,11 @@ class ShiftResource extends Resource
                     Infolists\Components\TextEntry::make('status')->label('الحالة')->badge()
                         ->formatStateUsing(fn (DrawerSessionStatus $state) => $state->label()),
                     Infolists\Components\TextEntry::make('opening_balance')->label('رصيد الفتح')->money('EGP'),
-                    Infolists\Components\TextEntry::make('expected_balance')->label('المتوقع')->money('EGP')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('expected_balance')
+                        ->label('المتوقع')
+                        ->state(fn (CashierDrawerSession $record) => $record->calculateExpectedBalance())
+                        ->money('EGP')
+                        ->placeholder('—'),
                     Infolists\Components\TextEntry::make('closing_balance')->label('الإغلاق')->money('EGP')->placeholder('—'),
                     Infolists\Components\TextEntry::make('cash_difference')->label('الفرق')->money('EGP')->placeholder('—'),
                     Infolists\Components\TextEntry::make('orders_count')
@@ -279,10 +289,7 @@ class ShiftResource extends Resource
                         ->state(fn (CashierDrawerSession $record) => $record->reportableOrdersCollection()->count()),
                     Infolists\Components\TextEntry::make('cash_sales_total')
                         ->label('مبيعات نقدية')
-                        ->state(fn (CashierDrawerSession $record) => round(
-                            (float) $record->cashMovements->where('type', CashMovementType::Sale)->sum('amount'),
-                            2
-                        ))
+                        ->state(fn (CashierDrawerSession $record) => $record->reportableCashSalesTotal())
                         ->money('EGP'),
                     Infolists\Components\TextEntry::make('started_at')->label('البداية')->dateTime()->timezone($businessTimezone),
                     Infolists\Components\TextEntry::make('ended_at')->label('النهاية')->dateTime()->timezone($businessTimezone)->placeholder('—'),
@@ -304,12 +311,15 @@ class ShiftResource extends Resource
                     Infolists\Components\TextEntry::make('payment_status')->label('الدفع')->badge()
                         ->formatStateUsing(fn (PaymentStatus $state) => $state->label()),
                     Infolists\Components\TextEntry::make('total')->label('الإجمالي')->money('EGP'),
-                    Infolists\Components\TextEntry::make('paid_amount')->label('المدفوع')->money('EGP'),
+                    Infolists\Components\TextEntry::make('paid_amount')
+                        ->label('المدفوع')
+                        ->state(fn (Order $record) => $record->reportablePaidAmount())
+                        ->money('EGP'),
                     Infolists\Components\TextEntry::make('change_amount')->label('الباقي')->money('EGP'),
                     Infolists\Components\TextEntry::make('payment_methods_summary')
                         ->label('طرق الدفع')
-                        ->state(fn (Order $record) => $record->payments
-                            ->map(fn ($payment) => $payment->payment_method->label() . ' ' . number_format((float) $payment->amount, 2) . ' ج.م')
+                        ->state(fn (Order $record) => collect($record->reportablePaymentBreakdown())
+                            ->map(fn ($amount, $method) => PaymentMethod::from($method)->label() . ' ' . number_format((float) $amount, 2) . ' ج.م')
                             ->implode('، '))
                         ->placeholder('—')
                         ->columnSpan(2),

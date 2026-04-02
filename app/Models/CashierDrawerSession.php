@@ -130,12 +130,62 @@ class CashierDrawerSession extends Model
                             ->sum('amount');
     }
 
+    public function manualCashInTotal(): float
+    {
+        return round($this->movementAmountByType(CashMovementType::CashIn), 2);
+    }
+
+    public function manualCashOutTotal(): float
+    {
+        return round($this->movementAmountByType(CashMovementType::CashOut), 2);
+    }
+
+    public function refundCashTotal(): float
+    {
+        return round($this->movementAmountByType(CashMovementType::Refund), 2);
+    }
+
+    public function reportableCashSalesTotal(): float
+    {
+        $orders = $this->reportableOrdersCollection();
+
+        if ($orders->isNotEmpty()) {
+            $orders->loadMissing('payments', 'settlement');
+        }
+
+        return round(
+            $orders->sum(fn (Order $order) => $order->reportableCashPaidAmount()),
+            2,
+        );
+    }
+
+    public function reportableNonCashSalesTotal(): float
+    {
+        $orders = $this->reportableOrdersCollection();
+
+        if ($orders->isNotEmpty()) {
+            $orders->loadMissing('payments', 'settlement');
+        }
+
+        return round(
+            $orders->sum(fn (Order $order) => $order->reportableNonCashPaidAmount()),
+            2,
+        );
+    }
+
     /**
      * Expected balance = all cash-in movements − all cash-out movements.
      */
     public function calculateExpectedBalance(): float
     {
-        return $this->totalCashIn() - $this->totalCashOut();
+        return round(
+            (float) $this->opening_balance
+            + $this->reportableCashSalesTotal()
+            + $this->manualCashInTotal()
+            - $this->manualCashOutTotal()
+            - $this->refundCashTotal(),
+            2,
+        );
     }
 
     public function reportableOrdersCollection(): Collection
@@ -189,6 +239,19 @@ class CashierDrawerSession extends Model
             'created_by'     => $performedBy,
             'updated_by'     => $performedBy,
         ]);
+    }
+
+    private function movementAmountByType(CashMovementType $type): float
+    {
+        if ($this->relationLoaded('cashMovements')) {
+            return (float) $this->cashMovements
+                ->where('type', $type)
+                ->sum('amount');
+        }
+
+        return (float) $this->cashMovements()
+            ->where('type', $type->value)
+            ->sum('amount');
     }
 
     // ─────────────────────────────────────────

@@ -393,7 +393,7 @@ class DrawerAuthorizationTest extends TestCase
         $previewResponse
             ->assertOk()
             ->assertJsonPath('data.can_close', true)
-            ->assertJsonPath('data.variance', 90);
+            ->assertJsonPath('data.variance', -10);
 
         $token = $previewResponse->json('data.preview_token');
 
@@ -457,8 +457,8 @@ class DrawerAuthorizationTest extends TestCase
             'id' => $session->id,
             'status' => DrawerSessionStatus::Closed->value,
             'closing_balance' => 90.00,
-            'expected_balance' => 0.00,
-            'cash_difference' => 90.00,
+            'expected_balance' => 100.00,
+            'cash_difference' => -10.00,
             'notes' => 'نقص في العد بعد الجرد النهائي',
         ]);
     }

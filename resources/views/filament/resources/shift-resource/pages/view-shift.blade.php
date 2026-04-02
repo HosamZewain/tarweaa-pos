@@ -193,7 +193,7 @@
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         <x-admin.badge :tone="$this->drawerStatusTone($session->status)">{{ $session->status->label() }}</x-admin.badge>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap">{{ $this->formatMoney($session->expected_balance) }}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap">{{ $this->formatMoney($session->calculateExpectedBalance()) }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap">{{ $this->formatMoney($session->closing_balance) }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         <x-admin.badge :tone="$this->differenceTone($session->cash_difference)">{{ $this->formatMoney($session->cash_difference) }}</x-admin.badge>
@@ -253,7 +253,7 @@
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <div class="font-semibold text-gray-900 dark:text-white">{{ $this->formatMoney($order->total) }}</div>
-                                            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">مدفوع {{ $this->formatMoney($order->paid_amount) }}</div>
+                                            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">مدفوع {{ $this->formatMoney($order->reportablePaidAmount()) }}</div>
                                         </td>
                                         <td class="px-4 py-3">{{ $order->customer_name ?: 'عميل نقدي' }}</td>
                                         <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{{ $this->formatDateTime($order->created_at) }}</td>
