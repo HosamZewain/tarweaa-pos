@@ -157,6 +157,17 @@ class Shift extends Model
             ->values();
     }
 
+    public function revenueOrdersCollection(): Collection
+    {
+        $orders = $this->relationLoaded('orders')
+            ? $this->orders
+            : $this->orders()->get();
+
+        return $orders
+            ->filter(fn (Order $order) => $order->countsTowardRevenueStats())
+            ->values();
+    }
+
     public function cancelledOrdersCollection(): Collection
     {
         $orders = $this->relationLoaded('orders')

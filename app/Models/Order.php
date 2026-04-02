@@ -201,6 +201,12 @@ class Order extends Model
         return !$this->isCancelled();
     }
 
+    public function countsTowardRevenueStats(): bool
+    {
+        return $this->countsTowardSalesStats()
+            && $this->payment_status === PaymentStatus::Paid;
+    }
+
     public function isCancellable(): bool
     {
         return $this->status->isCancellable();
@@ -316,6 +322,13 @@ class Order extends Model
     public function scopeReportable(Builder $query): Builder
     {
         return $query->where('status', '!=', OrderStatus::Cancelled->value);
+    }
+
+    public function scopeRevenueReportable(Builder $query): Builder
+    {
+        return $query
+            ->reportable()
+            ->where('payment_status', PaymentStatus::Paid->value);
     }
 
     public function scopeCancelled(Builder $query): Builder

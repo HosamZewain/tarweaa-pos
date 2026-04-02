@@ -190,12 +190,12 @@ class DrawerSessionResource extends Resource
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('gross_sales_total')
                     ->label('إجمالي مبيعات الطلبات')
-                    ->state(fn (CashierDrawerSession $record) => round((float) $record->reportableOrdersCollection()->sum('total'), 2))
+                    ->state(fn (CashierDrawerSession $record) => round((float) $record->revenueOrdersCollection()->sum('total'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('avg_ticket')
                     ->label('متوسط قيمة الطلب')
                     ->state(function (CashierDrawerSession $record): float {
-                        $orders = $record->reportableOrdersCollection();
+                        $orders = $record->revenueOrdersCollection();
                         $count = max(1, $orders->count());
 
                         return round((float) $orders->sum('total') / $count, 2);

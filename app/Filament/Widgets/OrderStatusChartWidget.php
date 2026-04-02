@@ -13,7 +13,7 @@ class OrderStatusChartWidget extends ChartWidget
     use InteractsWithDashboardAnalyticsVisibility;
 
     protected ?string $heading = 'حالات الطلبات هذا الشهر';
-    protected ?string $description = 'مقارنة سريعة لتوزيع الطلبات حسب حالة المعالجة.';
+    protected ?string $description = 'توزيع الطلبات المدفوعة وغير الملغاة حسب حالة المعالجة.';
     protected int | string | array $columnSpan = 4;
     protected ?string $maxHeight = '320px';
 
@@ -22,6 +22,7 @@ class OrderStatusChartWidget extends ChartWidget
         [$monthStart, $monthEnd] = BusinessTime::utcRangeForLocalMonth();
 
         $stats = Order::whereBetween('created_at', [$monthStart, $monthEnd])
+            ->revenueReportable()
             ->groupBy('status')
             ->selectRaw('status, count(*) as count')
             ->pluck('count', 'status');

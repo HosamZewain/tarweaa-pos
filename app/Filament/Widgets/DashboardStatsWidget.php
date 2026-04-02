@@ -31,10 +31,10 @@ class DashboardStatsWidget extends StatsOverviewWidget
         $yesterday = $today->copy()->subDay();
 
         $todayOrders = BusinessTime::applyUtcDate(Order::query(), $today)
-            ->whereNotIn('status', ['cancelled']);
+            ->revenueReportable();
 
         $yesterdayRevenue = (float) BusinessTime::applyUtcDate(Order::query(), $yesterday)
-            ->whereNotIn('status', ['cancelled'])
+            ->revenueReportable()
             ->sum('total');
 
         $todayRevenue    = (float) $todayOrders->sum('total');
@@ -43,7 +43,7 @@ class DashboardStatsWidget extends StatsOverviewWidget
         $weeklyRevenueTrend = collect(range(6, 0))
             ->map(function (int $offset) use ($today): float {
                 return (float) BusinessTime::applyUtcDate(Order::query(), $today->copy()->subDays($offset))
-                    ->whereNotIn('status', ['cancelled'])
+                    ->revenueReportable()
                     ->sum('total');
             })
             ->all();
@@ -51,7 +51,7 @@ class DashboardStatsWidget extends StatsOverviewWidget
         $weeklyOrderTrend = collect(range(6, 0))
             ->map(function (int $offset) use ($today): int {
                 return (int) BusinessTime::applyUtcDate(Order::query(), $today->copy()->subDays($offset))
-                    ->whereNotIn('status', ['cancelled'])
+                    ->revenueReportable()
                     ->count();
             })
             ->all();
@@ -68,12 +68,12 @@ class DashboardStatsWidget extends StatsOverviewWidget
 
         [$monthStart, $monthEnd] = BusinessTime::utcRangeForLocalMonth($today);
         $thisMonthRevenue = (float) Order::whereBetween('created_at', [$monthStart, $monthEnd])
-            ->whereNotIn('status', ['cancelled'])
+            ->revenueReportable()
             ->sum('total');
 
         [$lastMonthStart, $lastMonthEnd] = BusinessTime::utcRangeForLocalMonth($today->copy()->subMonthNoOverflow());
         $lastMonthRevenue = (float) Order::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])
-            ->whereNotIn('status', ['cancelled'])
+            ->revenueReportable()
             ->sum('total');
 
         $thisMonthExpenses = (float) Expense::where('expense_date', '>=', $today->copy()->startOfMonth()->toDateString())
@@ -129,7 +129,7 @@ class DashboardStatsWidget extends StatsOverviewWidget
                 ->icon('heroicon-o-currency-dollar');
 
             $stats[] = Stat::make('طلبات اليوم', number_format($todayOrderCount))
-                ->description('طلبات مكتملة ونشطة')
+                ->description('طلبات مدفوعة وغير ملغاة')
                 ->color('info')
                 ->icon('heroicon-o-shopping-cart')
                 ->chart($weeklyOrderTrend)

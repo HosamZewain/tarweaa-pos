@@ -12,7 +12,7 @@ class OrderVolumeChartWidget extends ChartWidget
     use InteractsWithDashboardAnalyticsVisibility;
 
     protected ?string $heading = 'عدد الطلبات خلال آخر 14 يومًا';
-    protected ?string $description = 'مقارنة يومية لحركة الطلبات في آخر أسبوعين.';
+    protected ?string $description = 'مقارنة يومية للطلبات المدفوعة وغير الملغاة في آخر أسبوعين.';
     protected static ?int $sort = 3;
     protected int | string | array $columnSpan = 8;
     protected ?string $maxHeight = '320px';
@@ -26,7 +26,7 @@ class OrderVolumeChartWidget extends ChartWidget
             $date = BusinessTime::today()->subDays($i);
             $labels[] = $date->format('d/m');
             $data[] = (int) BusinessTime::applyUtcDate(Order::query(), $date)
-                ->whereNotIn('status', ['cancelled'])
+                ->revenueReportable()
                 ->count();
         }
 

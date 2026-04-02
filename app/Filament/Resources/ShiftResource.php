@@ -203,7 +203,7 @@ class ShiftResource extends Resource
                 Infolists\Components\TextEntry::make('avg_order_value')
                     ->label('متوسط قيمة الطلب')
                     ->state(function (Shift $record): float {
-                        $orders = $record->reportableOrdersCollection();
+                        $orders = $record->revenueOrdersCollection();
                         $count = max(1, $orders->count());
 
                         return round((float) $orders->sum('total') / $count, 2);
@@ -213,12 +213,12 @@ class ShiftResource extends Resource
             \Filament\Schemas\Components\Section::make('الملخص المالي')->schema([
                 Infolists\Components\TextEntry::make('gross_revenue')
                     ->label('إجمالي المبيعات')
-                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('total'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->revenueOrdersCollection()->sum('total'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('cash_sales')
                     ->label('مبيعات نقدية')
                     ->state(fn (Shift $record) => round(
-                        $record->reportableOrdersCollection()->loadMissing('payments', 'settlement')->sum(
+                        $record->revenueOrdersCollection()->loadMissing('payments', 'settlement')->sum(
                             fn (Order $order) => $order->reportableCashPaidAmount()
                         ),
                         2
@@ -227,7 +227,7 @@ class ShiftResource extends Resource
                 Infolists\Components\TextEntry::make('non_cash_sales')
                     ->label('مبيعات غير نقدية')
                     ->state(fn (Shift $record) => round(
-                        $record->reportableOrdersCollection()->loadMissing('payments', 'settlement')->sum(
+                        $record->revenueOrdersCollection()->loadMissing('payments', 'settlement')->sum(
                             fn (Order $order) => $order->reportableNonCashPaidAmount()
                         ),
                         2
@@ -235,19 +235,19 @@ class ShiftResource extends Resource
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('total_discounts')
                     ->label('إجمالي الخصومات')
-                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('discount_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->revenueOrdersCollection()->sum('discount_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('total_tax')
                     ->label('إجمالي الضريبة')
-                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('tax_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->revenueOrdersCollection()->sum('tax_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('delivery_fees')
                     ->label('رسوم التوصيل')
-                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('delivery_fee'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->revenueOrdersCollection()->sum('delivery_fee'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('refund_total')
                     ->label('إجمالي الاسترجاعات')
-                    ->state(fn (Shift $record) => round((float) $record->reportableOrdersCollection()->sum('refund_amount'), 2))
+                    ->state(fn (Shift $record) => round((float) $record->revenueOrdersCollection()->sum('refund_amount'), 2))
                     ->money('EGP'),
                 Infolists\Components\TextEntry::make('expected_cash')
                     ->label('النقد المتوقع')

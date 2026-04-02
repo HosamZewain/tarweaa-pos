@@ -12,7 +12,7 @@ class SalesChartWidget extends ChartWidget
     use InteractsWithDashboardAnalyticsVisibility;
 
     protected ?string $heading = 'اتجاه المبيعات خلال آخر 14 يومًا';
-    protected ?string $description = 'صافي قيمة الطلبات غير الملغاة يومًا بيوم.';
+    protected ?string $description = 'قيمة الطلبات المدفوعة وغير الملغاة يومًا بيوم.';
     protected static ?int $sort = 2;
     protected int | string | array $columnSpan = 8;
     protected ?string $maxHeight = '320px';
@@ -26,7 +26,7 @@ class SalesChartWidget extends ChartWidget
             $date = BusinessTime::today()->subDays($i);
             $labels[] = $date->format('d/m');
             $data[] = (float) BusinessTime::applyUtcDate(Order::query(), $date)
-                ->whereNotIn('status', ['cancelled'])
+                ->revenueReportable()
                 ->sum('total');
         }
 

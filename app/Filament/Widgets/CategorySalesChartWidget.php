@@ -12,7 +12,7 @@ class CategorySalesChartWidget extends ChartWidget
     use InteractsWithDashboardAnalyticsVisibility;
 
     protected ?string $heading = 'المبيعات حسب الفئة هذا الشهر';
-    protected ?string $description = 'أفضل الفئات أداءً بحسب صافي الإيراد في الشهر الحالي.';
+    protected ?string $description = 'أفضل الفئات أداءً بحسب الطلبات المدفوعة وغير الملغاة في الشهر الحالي.';
     protected int | string | array $columnSpan = 4;
     protected ?string $maxHeight = '320px';
 
@@ -27,6 +27,7 @@ class CategorySalesChartWidget extends ChartWidget
             ->whereBetween('orders.created_at', [$monthStart, $monthEnd])
             ->whereNull('orders.deleted_at')
             ->whereNotIn('orders.status', ['cancelled'])
+            ->where('orders.payment_status', 'paid')
             ->groupBy('menu_categories.name')
             ->selectRaw('menu_categories.name, SUM(order_items.total) as total_revenue')
             ->pluck('total_revenue', 'name');

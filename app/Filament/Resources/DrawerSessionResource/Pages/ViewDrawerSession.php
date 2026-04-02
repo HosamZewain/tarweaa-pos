@@ -54,20 +54,22 @@ class ViewDrawerSession extends ViewRecord
     public function getPrimaryStats(): array
     {
         $record = $this->getRecord();
-        $orders = $record->reportableOrdersCollection();
+        $orders = $record->revenueOrdersCollection();
         $this->loadOrderPaymentContext($orders);
+        $paidRevenueOrderCount = $orders->count();
+        $allOrdersCount = $record->reportableOrdersCollection()->count();
 
         return [
             [
                 'title' => 'إجمالي المبيعات',
                 'value' => $this->formatMoney($orders->sum('total')),
-                'hint' => $this->formatNumber($orders->count()) . ' طلب',
+                'hint' => $this->formatNumber($paidRevenueOrderCount) . ' طلب مدفوع من أصل ' . $this->formatNumber($allOrdersCount),
                 'tone' => 'primary',
             ],
             [
                 'title' => 'طلبات مدفوعة',
-                'value' => $this->formatNumber($orders->where('payment_status', PaymentStatus::Paid)->count()),
-                'hint' => 'من أصل ' . $this->formatNumber($orders->count()) . ' طلب',
+                'value' => $this->formatNumber($paidRevenueOrderCount),
+                'hint' => 'من أصل ' . $this->formatNumber($allOrdersCount) . ' طلب',
                 'tone' => 'success',
             ],
             [
@@ -87,7 +89,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getSecondaryStats(): array
     {
-        $orders = $this->getRecord()->reportableOrdersCollection();
+        $orders = $this->getRecord()->revenueOrdersCollection();
         $this->loadOrderPaymentContext($orders);
         $items = $orders->flatMap->items;
         $orderCount = max(1, $orders->count());
@@ -157,7 +159,7 @@ class ViewDrawerSession extends ViewRecord
     public function getFinancialSnapshot(): array
     {
         $record = $this->getRecord();
-        $orders = $record->reportableOrdersCollection();
+        $orders = $record->revenueOrdersCollection();
         $this->loadOrderPaymentContext($orders);
         $cardPayments = $orders->flatMap->payments
             ->where('payment_method', PaymentMethod::Card);
@@ -194,7 +196,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getPaymentMethodStats(): array
     {
-        $orders = $this->getRecord()->reportableOrdersCollection();
+        $orders = $this->getRecord()->revenueOrdersCollection();
         $this->loadOrderPaymentContext($orders);
 
         return collect(PaymentMethod::cases())
@@ -211,7 +213,7 @@ class ViewDrawerSession extends ViewRecord
 
     public function getTopSellingItems(): array
     {
-        return $this->getRecord()->reportableOrdersCollection()
+        return $this->getRecord()->revenueOrdersCollection()
             ->flatMap->items
             ->groupBy(fn ($item) => $item->item_name . ($item->variant_name ? ' - ' . $item->variant_name : ''))
             ->map(fn (Collection $items, string $name): array => [

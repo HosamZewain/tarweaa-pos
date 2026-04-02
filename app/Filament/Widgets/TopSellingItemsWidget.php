@@ -20,7 +20,7 @@ class TopSellingItemsWidget extends Widget
         $items = OrderItem::query()
             ->whereHas('order', function ($q) {
                 BusinessTime::applyUtcDate(
-                    $q->whereNotIn('status', ['cancelled']),
+                    $q->revenueReportable(),
                     BusinessTime::today(),
                 );
             })

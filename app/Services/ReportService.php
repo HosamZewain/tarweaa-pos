@@ -22,6 +22,15 @@ use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
+    private function revenueOrdersQuery(?string $dateFrom = null, ?string $dateTo = null)
+    {
+        return BusinessTime::applyUtcDateRange(
+            Order::query()->revenueReportable(),
+            $dateFrom,
+            $dateTo,
+        );
+    }
+
     public function getDiscountAudit(
         ?string $dateFrom = null,
         ?string $dateTo = null,
@@ -97,13 +106,7 @@ class ReportService
 
     public function getDailySales(string $dateFrom, string $dateTo): array
     {
-        $orders = BusinessTime::applyUtcDateRange(
-            Order::query(),
-            $dateFrom,
-            $dateTo,
-        )
-            ->whereNotIn('status', ['cancelled'])
-            ->get();
+        $orders = $this->revenueOrdersQuery($dateFrom, $dateTo)->get();
 
         $daily = BusinessTime::groupByLocalDate($orders)
             ->map(function (Collection $group, string $date) {
@@ -142,7 +145,7 @@ class ReportService
     {
         return OrderItem::whereHas('order', function ($q) use ($dateFrom, $dateTo) {
             BusinessTime::applyUtcDateRange(
-                $q->whereNotIn('status', ['cancelled']),
+                $q->revenueReportable(),
                 $dateFrom,
                 $dateTo,
             );
@@ -160,7 +163,7 @@ class ReportService
             ->join('menu_categories', 'menu_items.category_id', '=', 'menu_categories.id')
             ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
                 BusinessTime::applyUtcDateRange(
-                    $q->whereNotIn('status', ['cancelled']),
+                    $q->revenueReportable(),
                     $dateFrom,
                     $dateTo,
                 );
@@ -173,16 +176,28 @@ class ReportService
 
     public function getSalesByPaymentMethod(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return OrderPayment::whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-            BusinessTime::applyUtcDateRange(
-                $q->whereNotIn('status', ['cancelled']),
-                $dateFrom,
-                $dateTo,
-            );
-        })
-            ->selectRaw('payment_method, COUNT(*) as transaction_count, SUM(amount) as total_amount')
-            ->groupBy('payment_method')
+        $orders = $this->revenueOrdersQuery($dateFrom, $dateTo)
+            ->with(['payments', 'settlement'])
             ->get();
+
+        return collect(PaymentMethod::cases())
+            ->map(function (PaymentMethod $method) use ($orders): object {
+                $transactionCount = $orders
+                    ->sum(fn (Order $order) => $order->payments
+                        ->filter(fn (OrderPayment $payment) => $payment->payment_method === $method)
+                        ->count());
+
+                return (object) [
+                    'payment_method' => $method->value,
+                    'transaction_count' => $transactionCount,
+                    'total_amount' => round(
+                        $orders->sum(fn (Order $order) => $order->reportablePaidAmountForMethod($method)),
+                        2,
+                    ),
+                ];
+            })
+            ->filter(fn (object $row) => $row->transaction_count > 0)
+            ->values();
     }
 
     public function getPlatformTransfersReport(
@@ -501,12 +516,7 @@ class ReportService
 
     public function getSalesByShift(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return BusinessTime::applyUtcDateRange(
-            Order::query(),
-            $dateFrom,
-            $dateTo,
-        )
-            ->whereNotIn('status', ['cancelled'])
+        return $this->revenueOrdersQuery($dateFrom, $dateTo)
             ->selectRaw('shift_id, COUNT(*) as total_orders, SUM(total) as gross_revenue, SUM(refund_amount) as total_refunds, SUM(total) - SUM(refund_amount) as net_revenue')
             ->groupBy('shift_id')
             ->orderByDesc('gross_revenue')
@@ -516,12 +526,7 @@ class ReportService
 
     public function getSalesByCashier(?string $dateFrom = null, ?string $dateTo = null): Collection
     {
-        return BusinessTime::applyUtcDateRange(
-            Order::query(),
-            $dateFrom,
-            $dateTo,
-        )
-            ->whereNotIn('status', ['cancelled'])
+        return $this->revenueOrdersQuery($dateFrom, $dateTo)
             ->selectRaw('cashier_id, COUNT(*) as total_orders, SUM(total) as gross_revenue, SUM(refund_amount) as total_refunds, SUM(total) - SUM(refund_amount) as net_revenue')
             ->groupBy('cashier_id')
             ->orderByDesc('gross_revenue')

@@ -154,7 +154,7 @@ class CashManagementService
 
         $orders = $shift->orders()
                         ->with(['payments', 'settlement'])
-                        ->whereNotIn('status', [OrderStatus::Cancelled->value])
+                        ->revenueReportable()
                         ->get();
 
         // Revenue by payment method
