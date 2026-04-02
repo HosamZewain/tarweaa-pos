@@ -75,6 +75,21 @@ class OrderException extends \RuntimeException
         return new self('رمز اعتماد المدير غير صحيح.', 403);
     }
 
+    public static function managerApprovalRequired(): self
+    {
+        return new self('يلزم اعتماد المدير قبل تنفيذ هذه العملية.', 403);
+    }
+
+    public static function managerApproverInvalid(): self
+    {
+        return new self('المستخدم المحدد لا يمكنه اعتماد هذه العملية.', 403);
+    }
+
+    public static function managerApproverPinInvalid(): self
+    {
+        return new self('رمز اعتماد المدير غير صحيح.', 403);
+    }
+
     public static function invalidPaymentTerminal(): self
     {
         return new self('جهاز الدفع الإلكتروني المحدد غير صالح أو غير نشط.', 422);

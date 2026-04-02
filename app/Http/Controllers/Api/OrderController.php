@@ -18,7 +18,9 @@ use App\Http\Requests\Order\RefundOrderRequest;
 use App\Http\Requests\Order\TransitionOrderRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\AdminActivityLogService;
 use App\Services\DiscountApprovalService;
+use App\Services\ManagerVerificationService;
 use App\Services\OrderCreationService;
 use App\Services\OrderSettlementService;
 use App\Services\OrderPaymentService;
@@ -34,6 +36,8 @@ class OrderController extends Controller
         private readonly OrderSettlementService $orderSettlementService,
         private readonly OrderLifecycleService $orderLifecycleService,
         private readonly DiscountApprovalService $discountApprovalService,
+        private readonly ManagerVerificationService $managerVerificationService,
+        private readonly AdminActivityLogService $adminActivityLogService,
     ) {}
 
     /**
@@ -179,6 +183,10 @@ class OrderController extends Controller
     {
         $validated = $request->validated();
         $scenario = $validated['scenario'];
+        $approver = $this->resolveManagerApprover(
+            approverId: (int) $validated['approver_id'],
+            approverPin: $validated['approver_pin'],
+        );
 
         $order = match ($scenario) {
             'owner_charge' => $this->orderSettlementService->applyOwnerCharge(
@@ -201,7 +209,64 @@ class OrderController extends Controller
             ),
         };
 
+        $this->logSettlementApproval(
+            order: $order,
+            scenario: $scenario,
+            actor: $request->user(),
+            approver: $approver,
+            notes: $validated['notes'] ?? null,
+        );
+
         return $this->success($order, 'تم تطبيق تسوية الطلب بنجاح');
+    }
+
+    private function resolveManagerApprover(int $approverId, string $approverPin): \App\Models\User
+    {
+        $approver = $this->managerVerificationService->findApprover($approverId);
+
+        if (!$approver) {
+            throw \App\Exceptions\OrderException::managerApproverInvalid();
+        }
+
+        if (!$this->managerVerificationService->verifyPin($approver, $approverPin)) {
+            throw \App\Exceptions\OrderException::managerApproverPinInvalid();
+        }
+
+        return $approver;
+    }
+
+    private function logSettlementApproval(Order $order, string $scenario, \App\Models\User $actor, \App\Models\User $approver, ?string $notes = null): void
+    {
+        $order->loadMissing(['settlement.beneficiaryUser', 'settlement.chargeAccountUser', 'drawerSession']);
+
+        $this->adminActivityLogService->logAction(
+            action: 'special_settlement_applied',
+            subject: $order,
+            description: 'تم تطبيق تسوية خاصة على الطلب بعد اعتماد المدير.',
+            newValues: [
+                'order_number' => $order->order_number,
+                'scenario' => $scenario,
+                'settlement_type' => $order->settlement?->settlement_type?->value,
+                'covered_amount' => (float) ($order->settlement?->covered_amount ?? 0),
+                'remaining_payable_amount' => (float) ($order->settlement?->remaining_payable_amount ?? 0),
+                'beneficiary_user' => $order->settlement?->beneficiaryUser?->name,
+                'charge_account_user' => $order->settlement?->chargeAccountUser?->name,
+                'notes' => $notes,
+                'drawer_session_number' => $order->drawerSession?->session_number,
+            ],
+            meta: [
+                'requested_by_user_id' => $actor->id,
+                'requested_by_name' => $actor->name,
+                'approved_by_user_id' => $approver->id,
+                'approved_by_name' => $approver->name,
+                'approved_by_username' => $approver->username,
+                'order_id' => $order->id,
+                'order_settlement_id' => $order->settlement?->id,
+            ],
+            module: 'orders',
+            subjectLabel: $order->order_number,
+            force: true,
+        );
     }
 
     /**

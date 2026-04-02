@@ -20,6 +20,8 @@ class ApplyOrderSettlementRequest extends FormRequest
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'charge_account_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'approver_id' => ['required', 'integer', 'exists:users,id'],
+            'approver_pin' => ['required', 'string', 'max:20'],
         ];
     }
 
@@ -37,6 +39,15 @@ class ApplyOrderSettlementRequest extends FormRequest
                     $validator->errors()->add('user_id', 'الموظف المستفيد مطلوب لهذا النوع من التسوية.');
                 }
             },
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'approver_id.required' => 'اختيار المدير أو الأدمن المعتمد مطلوب.',
+            'approver_id.exists' => 'المستخدم المعتمد المحدد غير موجود.',
+            'approver_pin.required' => 'رمز اعتماد المدير مطلوب.',
         ];
     }
 }

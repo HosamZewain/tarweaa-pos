@@ -489,9 +489,26 @@ class DrawerAuthorizationTest extends TestCase
             'actual_cash' => 100,
         ])->assertOk();
 
+        $manager = User::factory()->create([
+            'name' => 'Manager Approver',
+            'pin' => '4321',
+            'is_active' => true,
+        ]);
+
+        $managerRole = Role::firstOrCreate([
+            'name' => 'manager',
+        ], [
+            'display_name' => 'Manager',
+            'is_active' => true,
+        ]);
+
+        $manager->roles()->syncWithoutDetaching([$managerRole->id]);
+
         $response = $this->postJson("/api/drawers/{$session->id}/cash-in", [
             'amount' => 20,
             'notes' => 'Test top-up',
+            'approver_id' => $manager->id,
+            'approver_pin' => '4321',
         ]);
 
         $response

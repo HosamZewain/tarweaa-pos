@@ -10,7 +10,9 @@ use App\Http\Requests\Drawer\CashMovementRequest;
 use App\Http\Requests\Drawer\CloseDrawerRequest;
 use App\Http\Requests\Drawer\OpenDrawerRequest;
 use App\Models\CashierDrawerSession;
+use App\Services\AdminActivityLogService;
 use App\Services\DrawerSessionService;
+use App\Services\ManagerVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +20,8 @@ class DrawerController extends Controller
 {
     public function __construct(
         private readonly DrawerSessionService $drawerService,
+        private readonly ManagerVerificationService $managerVerificationService,
+        private readonly AdminActivityLogService $adminActivityLogService,
     ) {}
 
     /**
@@ -106,6 +110,11 @@ class DrawerController extends Controller
      */
     public function cashIn(CashMovementRequest $request, CashierDrawerSession $session): JsonResponse
     {
+        $approver = $this->resolveManagerApprover(
+            approverId: (int) $request->validated('approver_id'),
+            approverPin: $request->validated('approver_pin'),
+        );
+
         $movement = $this->drawerService->cashIn(
             session: $session,
             actor: $request->user(),
@@ -113,6 +122,12 @@ class DrawerController extends Controller
                 $request->validated(),
                 ['performed_by' => $request->user()->id],
             )),
+        );
+
+        $this->logCashMovementApproval(
+            action: 'cash_in_recorded',
+            movement: $movement,
+            approver: $approver,
         );
 
         return $this->created($movement, 'تم إضافة المبلغ بنجاح');
@@ -123,6 +138,11 @@ class DrawerController extends Controller
      */
     public function cashOut(CashMovementRequest $request, CashierDrawerSession $session): JsonResponse
     {
+        $approver = $this->resolveManagerApprover(
+            approverId: (int) $request->validated('approver_id'),
+            approverPin: $request->validated('approver_pin'),
+        );
+
         $movement = $this->drawerService->cashOut(
             session: $session,
             actor: $request->user(),
@@ -132,6 +152,61 @@ class DrawerController extends Controller
             )),
         );
 
+        $this->logCashMovementApproval(
+            action: 'cash_out_recorded',
+            movement: $movement,
+            approver: $approver,
+        );
+
         return $this->created($movement, 'تم سحب المبلغ بنجاح');
+    }
+
+    private function resolveManagerApprover(int $approverId, string $approverPin): \App\Models\User
+    {
+        $approver = $this->managerVerificationService->findApprover($approverId);
+
+        if (!$approver) {
+            throw \App\Exceptions\DrawerException::managerApproverInvalid();
+        }
+
+        if (!$this->managerVerificationService->verifyPin($approver, $approverPin)) {
+            throw \App\Exceptions\DrawerException::managerApproverPinInvalid();
+        }
+
+        return $approver;
+    }
+
+    private function logCashMovementApproval(string $action, \App\Models\CashMovement $movement, \App\Models\User $approver): void
+    {
+        $movement->loadMissing(['drawerSession.cashier', 'drawerSession.posDevice', 'performer']);
+
+        $this->adminActivityLogService->logAction(
+            action: $action,
+            subject: $movement,
+            description: $action === 'cash_in_recorded'
+                ? 'تم تسجيل إيداع نقدي يدوي بعد اعتماد المدير.'
+                : 'تم تسجيل سحب نقدي يدوي بعد اعتماد المدير.',
+            newValues: [
+                'movement_type' => $movement->type?->value,
+                'direction' => $movement->direction?->value,
+                'amount' => (float) $movement->amount,
+                'notes' => $movement->notes,
+                'session_number' => $movement->drawerSession?->session_number,
+                'cashier_name' => $movement->drawerSession?->cashier?->name,
+                'pos_device_name' => $movement->drawerSession?->posDevice?->name,
+            ],
+            meta: [
+                'approved_by_user_id' => $approver->id,
+                'approved_by_name' => $approver->name,
+                'approved_by_username' => $approver->username,
+                'performed_by_user_id' => $movement->performed_by,
+                'performed_by_name' => $movement->performer?->name,
+                'drawer_session_id' => $movement->drawer_session_id,
+                'cash_movement_id' => $movement->id,
+            ],
+            module: 'drawer_sessions',
+            subjectLabel: ($action === 'cash_in_recorded' ? 'إيداع نقدي' : 'سحب نقدي') . ' - ' . ($movement->drawerSession?->session_number ?? $movement->id),
+            force: true,
+        );
     }
 }

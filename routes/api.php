@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/payment-preview', [POSController::class, 'paymentPreview']);
         Route::get('/settlement-users', [POSController::class, 'settlementUsers']);
         Route::post('/settlement-preview', [POSController::class, 'settlementPreview']);
+        Route::get('/manager-approvers', [POSController::class, 'managerApprovers']);
         Route::get('/discount-approvers', [POSController::class, 'discountApprovers']);
         Route::post('/discount-approval', [POSController::class, 'authorizeDiscount']);
     });

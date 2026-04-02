@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\ChannelPricingService;
 use App\Services\DiscountApprovalService;
 use App\Services\DrawerSessionService;
+use App\Services\ManagerVerificationService;
 use App\Services\PaymentTerminalFeeService;
 use App\Services\PosOrderTypeService;
 use App\Services\PosSettlementPreviewService;
@@ -31,6 +32,7 @@ class POSController extends Controller
         private readonly ShiftService $shiftService,
         private readonly DrawerSessionService $drawerService,
         private readonly DiscountApprovalService $discountApprovalService,
+        private readonly ManagerVerificationService $managerVerificationService,
         private readonly PaymentTerminalFeeService $paymentTerminalFeeService,
         private readonly ChannelPricingService $channelPricingService,
         private readonly PosOrderTypeService $posOrderTypeService,
@@ -423,6 +425,18 @@ class POSController extends Controller
         }
 
         return $this->success($this->discountApprovalService->listApprovers());
+    }
+
+    /**
+     * GET /api/pos/manager-approvers — Active managers/admins who can approve sensitive POS actions.
+     */
+    public function managerApprovers(Request $request): JsonResponse
+    {
+        if ($response = $this->authorizePosAccess($request)) {
+            return $response;
+        }
+
+        return $this->success($this->managerVerificationService->listApprovers());
     }
 
     /**

@@ -71,4 +71,19 @@ class DrawerException extends \RuntimeException
     {
         return new self('تم بدء جرد إغلاق الدرج بالفعل. يجب إكمال الإغلاق أولاً قبل العودة إلى نقطة البيع.', 423);
     }
+
+    public static function managerApprovalRequired(): self
+    {
+        return new self('يلزم اعتماد المدير قبل تنفيذ هذه الحركة النقدية.', 403);
+    }
+
+    public static function managerApproverInvalid(): self
+    {
+        return new self('المستخدم المحدد لا يمكنه اعتماد هذه الحركة النقدية.', 403);
+    }
+
+    public static function managerApproverPinInvalid(): self
+    {
+        return new self('رمز اعتماد المدير غير صحيح.', 403);
+    }
 }

@@ -469,6 +469,16 @@
                     <option value="">اختر من القائمة</option>
                 </select>
             </div>
+            <div class="form-group mb-3">
+                <label class="form-label">اعتماد المدير / الأدمن</label>
+                <select id="settlement-approver" class="form-input">
+                    <option value="">اختر المدير / الأدمن</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label class="form-label">PIN المدير / الأدمن</label>
+                <input type="password" id="settlement-approver-pin" class="form-input form-input-lg" inputmode="numeric" autocomplete="off" placeholder="أدخل رمز الاعتماد">
+            </div>
             <div class="pay-preview-card" id="special-settlement-preview">
                 <div class="pay-preview-row">
                     <span>إجمالي الطلب</span>
@@ -793,6 +803,16 @@
             <label class="form-label">السبب / البيان</label>
             <input type="text" id="move-reason" class="form-input" placeholder="مثلاً: شراء خضار، إضافة فكة...">
         </div>
+        <div class="form-group mb-3">
+            <label class="form-label">اعتماد المدير / الأدمن</label>
+            <select id="move-approver" class="form-input">
+                <option value="">اختر المدير / الأدمن</option>
+            </select>
+        </div>
+        <div class="form-group mb-4">
+            <label class="form-label">PIN المدير / الأدمن</label>
+            <input type="password" id="move-approver-pin" class="form-input form-input-lg" inputmode="numeric" autocomplete="off" placeholder="أدخل رمز الاعتماد">
+        </div>
         <div class="flex gap-2">
             <button class="btn btn-secondary flex-1" onclick="closeMovementModal()">إلغاء</button>
             <button class="btn btn-primary flex-1" id="move-btn" onclick="processMovement()">تأكيد</button>
@@ -836,6 +856,7 @@
     let currentConfigItem = null;
     let currentItemConfig = null;
     let activeMoveTab = 'in';
+    let managerApprovers = [];
     let discountApprovers = [];
     let paymentTerminals = [];
     let currentCardPreview = null;
@@ -2126,6 +2147,8 @@
         selectedDifferencePayMethod = 'cash';
         document.getElementById('special-settlement-user').value = '';
         document.getElementById('special-settlement-user').innerHTML = '<option value="">اختر من القائمة</option>';
+        document.getElementById('settlement-approver').value = '';
+        document.getElementById('settlement-approver-pin').value = '';
         document.getElementById('settlement-total-preview').textContent = money(getTotal());
         document.getElementById('settlement-eligible-preview').textContent = '—';
         document.getElementById('settlement-covered-preview').textContent = money(0);
@@ -2135,6 +2158,45 @@
             .forEach((id) => document.getElementById(id).classList.add('hidden'));
         document.querySelectorAll('.pay-difference-method').forEach((element) => {
             element.classList.toggle('active', element.dataset.method === 'cash');
+        });
+    }
+
+    async function loadManagerApprovers(force = false) {
+        if (!force && managerApprovers.length) {
+            renderManagerApproverOptions();
+            return managerApprovers;
+        }
+
+        const response = await api('/pos/manager-approvers');
+        managerApprovers = response?.data || [];
+        renderManagerApproverOptions();
+
+        return managerApprovers;
+    }
+
+    function renderManagerApproverOptions() {
+        [
+            document.getElementById('move-approver'),
+            document.getElementById('settlement-approver'),
+        ].forEach((select) => {
+            if (!select) {
+                return;
+            }
+
+            const previousValue = select.value;
+
+            select.innerHTML = `
+                <option value="">اختر المدير / الأدمن</option>
+                ${managerApprovers.map((approver) => `
+                    <option value="${approver.id}">
+                        ${escapeHtml(approver.name)}${approver.username ? ` (${escapeHtml(approver.username)})` : ''}
+                    </option>
+                `).join('')}
+            `;
+
+            if (previousValue && managerApprovers.some((approver) => String(approver.id) === previousValue)) {
+                select.value = previousValue;
+            }
         });
     }
 
@@ -2377,6 +2439,10 @@
         renderPayShortcuts();
         selectPayMethod('cash');
         document.getElementById('pay-modal').classList.remove('hidden');
+
+        loadManagerApprovers().catch((err) => {
+            showToast(err.message || 'تعذر تحميل قائمة المدراء لاعتماد العمليات الحساسة', 'error');
+        });
     }
 
     function closePayModal() {
@@ -2411,8 +2477,12 @@
             document.getElementById('pay-card-section').classList.add('hidden');
             resetCardPaymentForm();
             resetSpecialSettlementState();
-            loadSpecialSettlementUsers().catch((err) => {
-                showToast(err.message || 'تعذر تحميل مستخدمي التسوية الخاصة', 'error');
+            Promise.all([loadSpecialSettlementUsers(), loadManagerApprovers()]).then(([, approvers]) => {
+                if (!approvers.length) {
+                    showToast('لا يوجد مدير أو أدمن متاح لاعتماد هذه التسوية', 'error');
+                }
+            }).catch((err) => {
+                showToast(err.message || 'تعذر تحميل بيانات التسوية الخاصة', 'error');
             });
             return;
         }
@@ -2630,8 +2700,23 @@
             }
 
             if (isSpecialSettlementMethod(selectedPayMethod)) {
+                const approverId = Number.parseInt(document.getElementById('settlement-approver').value || '0', 10);
+                const approverPin = document.getElementById('settlement-approver-pin').value.trim();
+
+                if (!approverId) {
+                    showToast('اختر المدير أو الأدمن لاعتماد التسوية الخاصة', 'error');
+                    return;
+                }
+
+                if (!approverPin) {
+                    showToast('أدخل PIN المدير أو الأدمن لاعتماد التسوية الخاصة', 'error');
+                    return;
+                }
+
                 const settlementPayload = {
                     scenario: selectedPayMethod,
+                    approver_id: approverId,
+                    approver_pin: approverPin,
                 };
 
                 if (selectedPayMethod === 'owner_charge') {
@@ -2966,13 +3051,26 @@
         }
     }
 
-    function openMovementModal() {
+    async function openMovementModal() {
+        try {
+            const approvers = await loadManagerApprovers();
+
+            if (!approvers.length) {
+                showToast('لا يوجد مدير أو أدمن متاح لاعتماد الحركة النقدية', 'error');
+                return;
+            }
+        } catch (err) {
+            showToast(err.message || 'تعذر تحميل قائمة المدراء لاعتماد الحركة النقدية', 'error');
+            return;
+        }
+
         document.getElementById('movement-modal').classList.remove('hidden');
         showMoveTab('in');
     }
 
     function closeMovementModal() {
         document.getElementById('movement-modal').classList.add('hidden');
+        document.getElementById('move-approver-pin').value = '';
     }
 
     function showMoveTab(tab) {
@@ -2981,14 +3079,27 @@
         document.getElementById('tab-cashout').classList.toggle('active', tab === 'out');
         document.getElementById('move-amount').value = '';
         document.getElementById('move-reason').value = '';
+        document.getElementById('move-approver-pin').value = '';
     }
 
     async function processMovement() {
         const amount = Number.parseFloat(document.getElementById('move-amount').value) || 0;
         const reason = document.getElementById('move-reason').value.trim();
+        const approverId = Number.parseInt(document.getElementById('move-approver').value || '0', 10);
+        const approverPin = document.getElementById('move-approver-pin').value.trim();
 
         if (amount <= 0) {
             showToast('المبلغ غير صالح', 'error');
+            return;
+        }
+
+        if (!approverId) {
+            showToast('اختر المدير أو الأدمن لاعتماد الحركة النقدية', 'error');
+            return;
+        }
+
+        if (!approverPin) {
+            showToast('أدخل PIN المدير أو الأدمن لاعتماد الحركة النقدية', 'error');
             return;
         }
 
@@ -2999,7 +3110,12 @@
         try {
             await api(`/drawers/${window.currentDrawerSessionId}/${activeMoveTab === 'in' ? 'cash-in' : 'cash-out'}`, {
                 method: 'POST',
-                body: { amount, notes: reason || null },
+                body: {
+                    amount,
+                    notes: reason || null,
+                    approver_id: approverId,
+                    approver_pin: approverPin,
+                },
             });
 
             showToast('تمت العملية بنجاح');

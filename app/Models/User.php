@@ -276,6 +276,11 @@ class User extends Authenticatable implements FilamentUser
 
     public function canApproveDiscounts(): bool
     {
+        return $this->canApproveSensitivePosActions();
+    }
+
+    public function canApproveSensitivePosActions(): bool
+    {
         return $this->is_active && $this->hasRole(['admin', 'manager']);
     }
 

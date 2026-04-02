@@ -27,7 +27,7 @@ class AdminActivityLogService
 
     private static bool $suppressModelLogging = false;
 
-    public function shouldLog(): bool
+    public function shouldLog(bool $force = false): bool
     {
         if (self::$suppressModelLogging) {
             return false;
@@ -37,6 +37,10 @@ class AdminActivityLogService
 
         if (!$actor) {
             return false;
+        }
+
+        if ($force) {
+            return true;
         }
 
         if (app()->runningUnitTests()) {
@@ -81,8 +85,9 @@ class AdminActivityLogService
         array $newValues = [],
         ?string $description = null,
         array $meta = [],
+        bool $force = false,
     ): ?AdminActivityLog {
-        if (!$this->shouldLog() || $subject instanceof AdminActivityLog) {
+        if (!$this->shouldLog($force) || $subject instanceof AdminActivityLog) {
             return null;
         }
 
@@ -111,8 +116,9 @@ class AdminActivityLogService
         array $meta = [],
         ?string $module = null,
         ?string $subjectLabel = null,
+        bool $force = false,
     ): ?AdminActivityLog {
-        if (!$this->shouldLog()) {
+        if (!$this->shouldLog($force)) {
             return null;
         }
 
@@ -222,6 +228,7 @@ class AdminActivityLogService
             \App\Models\Order::class => ['orders', 'طلب'],
             \App\Models\Shift::class => ['shifts', 'وردية'],
             \App\Models\CashierDrawerSession::class => ['drawer_sessions', 'جلسة درج'],
+            \App\Models\CashMovement::class => ['drawer_sessions', 'حركة نقدية'],
             \App\Models\MenuCategory::class => ['menu_categories', 'فئة قائمة'],
             \App\Models\MenuItem::class => ['menu_items', 'صنف'],
             \App\Models\MenuItemChannelPrice::class => ['menu_items', 'تسعير قناة للصنف'],
@@ -229,6 +236,7 @@ class AdminActivityLogService
             \App\Models\Supplier::class => ['suppliers', 'مورد'],
             \App\Models\Purchase::class => ['purchases', 'أمر شراء'],
             \App\Models\Expense::class => ['expenses', 'مصروف'],
+            \App\Models\OrderSettlement::class => ['orders', 'تسوية طلب'],
             \App\Models\ExpenseCategory::class => ['expense_categories', 'فئة مصروف'],
             \App\Models\UserMealBenefitProfile::class => ['user_meal_benefit_profiles', 'ملف مزايا وجبات'],
             \App\Models\PosOrderType::class => ['pos_order_types', 'نوع طلب'],
