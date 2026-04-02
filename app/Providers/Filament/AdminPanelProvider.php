@@ -41,8 +41,16 @@ class AdminPanelProvider extends PanelProvider
                 'info'    => Color::Blue,
             ])
             ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): View => view('partials.pwa-head'),
+            )
+            ->renderHook(
                 PanelsRenderHook::TOPBAR_END,
                 fn (): View => view('filament.components.topbar-date-time'),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): View => view('partials.pwa-register'),
             )
             ->navigationGroups([
                 NavigationGroup::make()->label('لوحة التحكم'),
