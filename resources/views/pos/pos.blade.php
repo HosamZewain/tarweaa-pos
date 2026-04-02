@@ -914,6 +914,19 @@
         return getTotal();
     }
 
+    function getPersistedOrderPayableAmount(order, fallbackAmount = 0) {
+        if (isSpecialSettlementMethod(selectedPayMethod)) {
+            return Number.parseFloat(
+                order?.settlement?.remaining_payable_amount
+                    ?? currentSettlementPreview?.remaining_payable_amount
+                    ?? fallbackAmount
+                    ?? 0
+            );
+        }
+
+        return Number.parseFloat(order?.total ?? fallbackAmount ?? 0);
+    }
+
     function getCurrentPaymentMethodForCollection() {
         if (isSpecialSettlementMethod(selectedPayMethod)) {
             return getCurrentPayableAmount() > 0 ? selectedDifferencePayMethod : null;
@@ -2553,10 +2566,15 @@
         }
 
         const btn = document.getElementById('btn-confirm-pay');
-        const payableAmount = getCurrentPayableAmount();
+        const localPayableAmount = getCurrentPayableAmount();
         let receiptWindow = null;
-        let paymentPayload = null;
         const actualPaymentMethod = getCurrentPaymentMethodForCollection();
+        const paymentDraft = {
+            method: actualPaymentMethod,
+            amount: null,
+            terminal_id: null,
+            reference_number: null,
+        };
 
         if (isSpecialSettlementMethod(selectedPayMethod)) {
             if (!selectedSettlementPersonId) {
@@ -2581,15 +2599,12 @@
 
         if (actualPaymentMethod === 'cash') {
             let paidAmount = Number.parseFloat(document.getElementById('pay-amount').value) || 0;
-            if (paidAmount < payableAmount) {
+            if (paidAmount < localPayableAmount) {
                 showToast('المبلغ المدفوع أقل من المبلغ المطلوب', 'error');
                 return;
             }
 
-            paymentPayload = {
-                method: actualPaymentMethod,
-                amount: paidAmount,
-            };
+            paymentDraft.amount = paidAmount;
         } else if (actualPaymentMethod === 'card') {
             const terminalId = Number.parseInt(document.getElementById('pay-terminal').value || '0', 10);
             const referenceNumber = document.getElementById('pay-reference-number').value.trim();
@@ -2611,12 +2626,8 @@
                 return;
             }
 
-            paymentPayload = {
-                method: actualPaymentMethod,
-                amount: payableAmount,
-                terminal_id: terminalId,
-                reference_number: referenceNumber,
-            };
+            paymentDraft.terminal_id = terminalId;
+            paymentDraft.reference_number = referenceNumber;
         } else if (actualPaymentMethod === 'talabat_pay') {
             const talabatOrderNumber = document.getElementById('pay-talabat-order-number').value.trim();
 
@@ -2625,11 +2636,7 @@
                 return;
             }
 
-            paymentPayload = {
-                method: actualPaymentMethod,
-                amount: payableAmount,
-                reference_number: talabatOrderNumber,
-            };
+            paymentDraft.reference_number = talabatOrderNumber;
         } else if (actualPaymentMethod === 'instapay') {
             const senderPhone = document.getElementById('pay-instapay-sender-phone').value.trim();
 
@@ -2638,16 +2645,9 @@
                 return;
             }
 
-            paymentPayload = {
-                method: actualPaymentMethod,
-                amount: payableAmount,
-                reference_number: senderPhone,
-            };
+            paymentDraft.reference_number = senderPhone;
         } else if (!isSpecialSettlementMethod(selectedPayMethod)) {
-            paymentPayload = {
-                method: selectedPayMethod,
-                amount: payableAmount,
-            };
+            paymentDraft.method = selectedPayMethod;
         }
 
         receiptWindow = openReceiptPrintWindow();
@@ -2675,7 +2675,7 @@
             for (const item of cart) {
                 const modifiers = Object.fromEntries((item.modifiers || []).map((modifier) => [modifier.id, modifier.quantity]));
 
-                await api(`/orders/${currentOrder.id}/items`, {
+                const itemRes = await api(`/orders/${currentOrder.id}/items`, {
                     method: 'POST',
                     body: {
                         menu_item_id: item.menuItem.id,
@@ -2685,10 +2685,12 @@
                         notes: item.notes || null,
                     },
                 });
+
+                currentOrder = itemRes?.data?.order || currentOrder;
             }
 
             if (currentOrderDiscount) {
-                await api(`/orders/${currentOrder.id}/discount`, {
+                const discountRes = await api(`/orders/${currentOrder.id}/discount`, {
                     method: 'POST',
                     body: {
                         type: currentOrderDiscount.type,
@@ -2697,6 +2699,8 @@
                         approval_token: currentOrderDiscount.approval_token,
                     },
                 });
+
+                currentOrder = discountRes?.data || currentOrder;
             }
 
             if (isSpecialSettlementMethod(selectedPayMethod)) {
@@ -2733,15 +2737,40 @@
                 currentOrder = settlementRes.data;
             }
 
-            const postSettlementRemaining = isSpecialSettlementMethod(selectedPayMethod)
-                ? Number.parseFloat(
-                    currentOrder?.settlement?.remaining_payable_amount
-                        ?? currentSettlementPreview?.remaining_payable_amount
-                        ?? 0
-                )
-                : payableAmount;
+            const persistedPayableAmount = getPersistedOrderPayableAmount(currentOrder, localPayableAmount);
 
-            if (paymentPayload && postSettlementRemaining > 0) {
+            let paymentPayload = null;
+
+            if (paymentDraft.method) {
+                paymentPayload = {
+                    method: paymentDraft.method,
+                    amount: persistedPayableAmount,
+                };
+
+                if (paymentDraft.terminal_id) {
+                    paymentPayload.terminal_id = paymentDraft.terminal_id;
+                }
+
+                if (paymentDraft.reference_number) {
+                    paymentPayload.reference_number = paymentDraft.reference_number;
+                }
+
+                if (paymentDraft.method === 'cash') {
+                    const enteredCashAmount = Number.parseFloat(paymentDraft.amount || 0);
+
+                    if (enteredCashAmount + 0.009 < persistedPayableAmount) {
+                        showToast(
+                            `إجمالي الطلب بعد الحفظ هو ${money(persistedPayableAmount)} والمبلغ المدخل ${money(enteredCashAmount)}.`,
+                            'error'
+                        );
+                        return;
+                    }
+
+                    paymentPayload.amount = enteredCashAmount;
+                }
+            }
+
+            if (paymentPayload && persistedPayableAmount > 0) {
                 const payRes = await api(`/orders/${currentOrder.id}/pay`, {
                     method: 'POST',
                     body: {
@@ -2753,7 +2782,7 @@
             }
 
             await printPaidOrderReceipt(currentOrder.id, {
-                shouldOpenDrawer: actualPaymentMethod === 'cash' && payableAmount > 0,
+                shouldOpenDrawer: actualPaymentMethod === 'cash' && persistedPayableAmount > 0,
                 receiptWindow,
             });
 
