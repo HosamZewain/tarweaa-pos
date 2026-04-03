@@ -105,6 +105,17 @@ class OrderException extends \RuntimeException
         return new self('جهاز الدفع الإلكتروني المحدد غير صالح أو غير نشط.', 422);
     }
 
+    public static function recipeInventoryShortage(string $menuItemName, string $inventoryItemName, ?string $details = null): self
+    {
+        $message = "لا يمكن إتمام الدفع لأن مكون الوصفة [{$inventoryItemName}] غير متوفر للصنف [{$menuItemName}].";
+
+        if ($details) {
+            $message .= " {$details}";
+        }
+
+        return new self($message, 422);
+    }
+
     public static function settlementNotAllowedAfterPayment(): self
     {
         return new self('لا يمكن تعديل تسوية الطلب بعد تسجيل دفعات فعلية عليه.', 422);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\InventoryTransactionType;
+use App\Exceptions\OrderException;
 use App\Models\InventoryItem;
 use App\Models\InventoryLocation;
 use App\Models\InventoryLocationStock;
@@ -67,17 +68,25 @@ class RecipeInventoryService
 
                 $consumptionLocation = $this->resolveConsumptionLocationForItem($inventoryItem, $actorId);
 
-                $this->inventoryService->deductStock(
-                    item: $inventoryItem,
-                    quantity: $baseQuantity,
-                    actorId: $actorId,
-                    type: InventoryTransactionType::SaleDeduction,
-                    refType: 'order_item',
-                    refId: $item->id,
-                    notes: "خصم مكونات وصفة {$item->item_name} للطلب {$item->order->order_number}",
-                    location: $consumptionLocation,
-                    updateGlobalStock: true,
-                );
+                try {
+                    $this->inventoryService->deductStock(
+                        item: $inventoryItem,
+                        quantity: $baseQuantity,
+                        actorId: $actorId,
+                        type: InventoryTransactionType::SaleDeduction,
+                        refType: 'order_item',
+                        refId: $item->id,
+                        notes: "خصم مكونات وصفة {$item->item_name} للطلب {$item->order->order_number}",
+                        location: $consumptionLocation,
+                        updateGlobalStock: true,
+                    );
+                } catch (\RuntimeException $exception) {
+                    throw OrderException::recipeInventoryShortage(
+                        menuItemName: (string) $item->item_name,
+                        inventoryItemName: (string) $inventoryItem->name,
+                        details: $exception->getMessage(),
+                    );
+                }
             }
 
             $item->update([

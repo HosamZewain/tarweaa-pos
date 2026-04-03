@@ -104,6 +104,7 @@ class SystemPermissions
             ['name' => 'drawers.cash_in', 'display_name' => 'إضافة نقدية للدرج', 'group' => 'العمليات'],
             ['name' => 'drawers.cash_out', 'display_name' => 'سحب نقدية من الدرج', 'group' => 'العمليات'],
             ['name' => 'orders.cancel', 'display_name' => 'إلغاء طلب', 'group' => 'العمليات'],
+            ['name' => 'orders.record_payment', 'display_name' => 'تسجيل دفعة يدوية على طلب', 'group' => 'العمليات'],
             ['name' => 'orders.apply_special_settlement', 'display_name' => 'تطبيق تسويات بدل الوجبات والتحميل', 'group' => 'العمليات'],
             ['name' => 'apply_discount', 'display_name' => 'تطبيق الخصم', 'group' => 'العمليات'],
             ['name' => 'expenses.approve', 'display_name' => 'الموافقة على مصروف', 'group' => 'المالية'],

@@ -53,6 +53,7 @@ class AdminActivityLog extends Model
             'closed' => 'إغلاق',
             'cash_in_recorded' => 'إيداع نقدي',
             'cash_out_recorded' => 'سحب نقدي',
+            'manual_payment_recorded' => 'تسجيل دفعة يدوية',
             'special_settlement_applied' => 'تسوية خاصة',
             'stock_adjusted' => 'تعديل مخزون',
             'stock_added' => 'إضافة مخزون',

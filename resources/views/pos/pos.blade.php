@@ -762,6 +762,7 @@
                             <th class="p-2 border-b">الحالة</th>
                             <th class="p-2 border-b">الدفع</th>
                             <th class="p-2 border-b">الإجمالي</th>
+                            <th class="p-2 border-b">إجراء</th>
                         </tr>
                     </thead>
                     <tbody id="session-orders-list">
@@ -3015,7 +3016,7 @@
             const orders = res?.data || [];
 
             if (!orders.length) {
-                list.innerHTML = '<tr><td class="p-4 text-center text-muted" colspan="6">لا توجد طلبات في هذه الجلسة حتى الآن</td></tr>';
+                list.innerHTML = '<tr><td class="p-4 text-center text-muted" colspan="7">لا توجد طلبات في هذه الجلسة حتى الآن</td></tr>';
                 return;
             }
 
@@ -3027,6 +3028,12 @@
                     <td class="p-2 border-b"><span class="badge-status ${getStatusColor(order.status)}">${escapeHtml(order.status_label || order.status)}</span></td>
                     <td class="p-2 border-b"><span class="text-xs ${order.payment_status === 'paid' ? 'text-success' : 'text-warning'}">${escapeHtml(order.payment_status_label || order.payment_status)}</span></td>
                     <td class="p-2 border-b font-bold">${money(order.total)}</td>
+                    <td class="p-2 border-b">
+                        ${canReprintSessionOrder(order)
+                            ? `<button class="btn btn-sm btn-secondary" onclick="reprintSessionOrder(event, ${order.id})">🖨️ إعادة طباعة</button>`
+                            : '<span class="text-xs text-muted">—</span>'
+                        }
+                    </td>
                 </tr>
             `).join('');
         } catch (err) {
@@ -3034,6 +3041,21 @@
         } finally {
             document.getElementById('session-orders-loading').classList.add('hidden');
         }
+    }
+
+    function canReprintSessionOrder(order) {
+        return order?.payment_status === 'paid';
+    }
+
+    async function reprintSessionOrder(event, orderId) {
+        event?.stopPropagation?.();
+
+        if (!orderId) {
+            showToast('تعذر تحديد الطلب المطلوب طباعته', 'error');
+            return;
+        }
+
+        await printPaidOrderReceipt(orderId);
     }
 
     async function fetchSessionStats() {

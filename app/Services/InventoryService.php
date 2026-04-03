@@ -150,6 +150,9 @@ class InventoryService
                 ? InventoryItem::lockForUpdate()->findOrFail($item->id)
                 : InventoryItem::query()->findOrFail($item->id);
 
+            $allowNegativeSaleDeduction = $this->shouldAllowNegativeSaleDeduction($type, $location);
+            $negativeNotes = [];
+
             $transactionBefore = 0.0;
             $transactionAfter = 0.0;
             $transactionUnitCost = (float) $fresh->unit_cost;
@@ -157,7 +160,7 @@ class InventoryService
             if ($location) {
                 $locationStock = $this->lockLocationStock($fresh, $location, $actorId);
 
-                if ((float) $locationStock->current_stock < $quantity) {
+                if ((float) $locationStock->current_stock < $quantity && !$allowNegativeSaleDeduction) {
                     throw new \RuntimeException(
                         "مخزون الموقع غير كافٍ. المتاح: {$locationStock->current_stock} {$fresh->unit}"
                     );
@@ -167,6 +170,10 @@ class InventoryService
                 $transactionAfter = $transactionBefore - $quantity;
                 $transactionUnitCost = (float) ($locationStock->unit_cost ?? $fresh->unit_cost);
 
+                if ($transactionAfter < 0 && $allowNegativeSaleDeduction) {
+                    $negativeNotes[] = "خصم بيع بالسالب مسموح: {$location->name} = {$transactionAfter}";
+                }
+
                 $locationStock->update([
                     'current_stock' => $transactionAfter,
                     'updated_by' => $actorId,
@@ -174,7 +181,7 @@ class InventoryService
             }
 
             if ($updateGlobalStock) {
-                if ((float) $fresh->current_stock < $quantity) {
+                if ((float) $fresh->current_stock < $quantity && !$allowNegativeSaleDeduction) {
                     throw new \RuntimeException(
                         "المخزون غير كافٍ. المتاح: {$fresh->current_stock} {$fresh->unit}"
                     );
@@ -182,6 +189,10 @@ class InventoryService
 
                 $globalBefore = (float) $fresh->current_stock;
                 $globalAfter  = $globalBefore - $quantity;
+
+                if ($globalAfter < 0 && $allowNegativeSaleDeduction) {
+                    $negativeNotes[] = "الرصيد العام = {$globalAfter}";
+                }
 
                 $fresh->update([
                     'current_stock' => $globalAfter,
@@ -206,7 +217,7 @@ class InventoryService
                 'total_cost'      => $transactionUnitCost * $quantity,
                 'reference_type'  => $refType,
                 'reference_id'    => $refId,
-                'notes'           => $notes,
+                'notes'           => $this->appendNegativeStockNotes($notes, $negativeNotes),
                 'performed_by'    => $actorId,
                 'created_by'      => $actorId,
                 'updated_by'      => $actorId,
@@ -333,5 +344,37 @@ class InventoryService
         }
 
         return $location->id === $this->inventoryLocationService->defaultRecipeDeductionLocation()?->id;
+    }
+
+    private function shouldAllowNegativeSaleDeduction(
+        InventoryTransactionType $type,
+        ?InventoryLocation $location,
+    ): bool {
+        if ($type !== InventoryTransactionType::SaleDeduction || !$location) {
+            return false;
+        }
+
+        $defaultRecipeLocationId = $this->inventoryLocationService->defaultRecipeDeductionLocation()?->id
+            ?? $this->inventoryLocationService->restaurant()?->id;
+
+        return $defaultRecipeLocationId !== null && $location->id === $defaultRecipeLocationId;
+    }
+
+    private function appendNegativeStockNotes(?string $notes, array $negativeNotes): ?string
+    {
+        $negativeNotes = array_values(array_filter($negativeNotes, fn (?string $value): bool => filled($value)));
+
+        if ($negativeNotes === []) {
+            return $notes;
+        }
+
+        $baseNotes = trim((string) $notes);
+        $suffix = implode(' | ', $negativeNotes);
+
+        if ($baseNotes === '') {
+            return $suffix;
+        }
+
+        return "{$baseNotes} | {$suffix}";
     }
 }

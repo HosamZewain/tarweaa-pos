@@ -2,23 +2,27 @@
 
 namespace App\Filament\Resources;
 
+use App\DTOs\ProcessPaymentData;
 use App\Enums\OrderSource;
 use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
-use App\Enums\PaymentMethod;
 use App\Filament\Resources\OrderResource\Pages;
 use App\Models\DiscountLog;
 use App\Models\Order;
+use App\Models\PaymentTerminal;
 use App\Support\BusinessTime;
 use App\Services\AdminActivityLogService;
 use App\Services\OrderDeletionService;
 use App\Services\OrderLifecycleService;
+use App\Services\OrderPaymentService;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Infolists;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables;
 use Filament\Tables\Table;
 
@@ -101,6 +105,7 @@ class OrderResource extends Resource
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),
+                static::recordPaymentAction(),
                 \Filament\Actions\Action::make('cancel')
                     ->label('إلغاء')
                     ->icon('heroicon-o-x-circle')
@@ -341,6 +346,107 @@ class OrderResource extends Resource
     public static function form(Schema $form): Schema
     {
         return $form->schema([]); // Read-only
+    }
+
+    public static function recordPaymentAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('recordPayment')
+            ->label('تسجيل دفع')
+            ->icon('heroicon-o-banknotes')
+            ->color('success')
+            ->modalHeading('تسجيل دفعة على الطلب')
+            ->modalDescription('سيتم تسجيل كامل المبلغ المتبقي على الطلب كدفعة فعلية، مع تحديث الدرج والتقارير والحالة بشكل طبيعي.')
+            ->form([
+                Forms\Components\Placeholder::make('remaining_payable')
+                    ->label('المبلغ المتبقي')
+                    ->content(fn (Order $record): string => number_format((float) $record->fresh(['settlement'])->remainingPayableAmount(), 2) . ' ج.م'),
+                Forms\Components\Select::make('payment_method')
+                    ->label('طريقة الدفع')
+                    ->options(collect(PaymentMethod::cases())->mapWithKeys(fn (PaymentMethod $method) => [$method->value => $method->label()])->all())
+                    ->default(PaymentMethod::Cash->value)
+                    ->live()
+                    ->required(),
+                Forms\Components\Select::make('terminal_id')
+                    ->label('جهاز الدفع')
+                    ->options(fn (): array => PaymentTerminal::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())
+                    ->searchable()
+                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Card->value)
+                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Card->value),
+                Forms\Components\TextInput::make('reference_number')
+                    ->label('المرجع / رقم العملية')
+                    ->maxLength(255)
+                    ->visible(fn (Get $get): bool => in_array($get('payment_method'), [
+                        PaymentMethod::Card->value,
+                        PaymentMethod::TalabatPay->value,
+                        PaymentMethod::InstaPay->value,
+                    ], true))
+                    ->required(fn (Get $get): bool => in_array($get('payment_method'), [
+                        PaymentMethod::Card->value,
+                        PaymentMethod::TalabatPay->value,
+                        PaymentMethod::InstaPay->value,
+                    ], true)),
+                Forms\Components\Textarea::make('notes')
+                    ->label('سبب تسجيل الدفع يدويًا')
+                    ->required()
+                    ->rows(3),
+            ])
+            ->visible(fn (Order $record): bool => static::canRecordManualPayment($record))
+            ->action(function (Order $record, array $data): void {
+                abort_unless(auth()->user()?->hasPermission('orders.record_payment'), 403);
+
+                $order = $record->fresh(['settlement', 'drawerSession', 'payments']);
+                $remainingAmount = round($order->remainingPayableAmount(), 2);
+                $method = PaymentMethod::from((string) $data['payment_method']);
+
+                $processedOrder = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($order, $remainingAmount, $method, $data) {
+                    return app(OrderPaymentService::class)->processPayment(
+                        order: $order,
+                        payments: [
+                            new ProcessPaymentData(
+                                method: $method,
+                                amount: $remainingAmount,
+                                terminalId: isset($data['terminal_id']) ? (int) $data['terminal_id'] : null,
+                                referenceNumber: filled($data['reference_number'] ?? null) ? (string) $data['reference_number'] : null,
+                            ),
+                        ],
+                        actorId: auth()->id(),
+                    );
+                });
+
+                $terminal = isset($data['terminal_id']) && $data['terminal_id']
+                    ? PaymentTerminal::query()->find((int) $data['terminal_id'])
+                    : null;
+
+                app(AdminActivityLogService::class)->logAction(
+                    action: 'manual_payment_recorded',
+                    subject: $processedOrder,
+                    description: 'تم تسجيل دفعة يدوية على الطلب من لوحة الإدارة.',
+                    newValues: [
+                        'payment_method' => $method->value,
+                        'payment_method_label' => $method->label(),
+                        'recorded_amount' => $remainingAmount,
+                        'reference_number' => $data['reference_number'] ?? null,
+                        'terminal_id' => $terminal?->id,
+                        'terminal_name' => $terminal?->name,
+                        'payment_status' => $processedOrder->payment_status,
+                        'paid_amount' => (float) $processedOrder->paid_amount,
+                        'remaining_payable_amount' => $processedOrder->remainingPayableAmount(),
+                        'drawer_session_number' => $processedOrder->drawerSession?->session_number,
+                        'notes' => $data['notes'],
+                    ],
+                );
+            });
+    }
+
+    public static function canRecordManualPayment(Order $record): bool
+    {
+        return !$record->trashed()
+            && $record->status !== OrderStatus::Cancelled
+            && $record->status !== OrderStatus::Refunded
+            && $record->payment_status !== PaymentStatus::Paid
+            && (float) $record->remainingPayableAmount() > 0
+            && $record->drawerSession?->isOpen()
+            && auth()->user()?->hasPermission('orders.record_payment');
     }
 
     public static function getPages(): array

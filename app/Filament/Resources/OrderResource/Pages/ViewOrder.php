@@ -38,6 +38,7 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            OrderResource::recordPaymentAction(),
             Actions\Action::make('safe_delete')
                 ->label('حذف آمن')
                 ->icon('heroicon-o-trash')

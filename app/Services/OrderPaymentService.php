@@ -32,6 +32,10 @@ class OrderPaymentService
     {
         $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($order->drawerSession, $actorId);
 
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         if ($order->activeItems()->doesntExist()) {
             throw OrderException::emptyOrder();
         }
