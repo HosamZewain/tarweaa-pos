@@ -7,7 +7,6 @@ use App\DTOs\CreateOrderData;
 use App\DTOs\ProcessPaymentData;
 use App\Enums\DrawerSessionStatus;
 use App\Enums\InventoryTransactionType;
-use App\Enums\MealBenefitLedgerEntryType;
 use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
@@ -15,32 +14,26 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Exceptions\OrderException;
-use App\Models\CashierDrawerSession;
-use App\Models\CashMovement;
 use App\Models\CashierActiveSession;
+use App\Models\CashierDrawerSession;
 use App\Models\InventoryItem;
 use App\Models\InventoryLocation;
 use App\Models\InventoryLocationStock;
-use App\Models\MealBenefitLedgerEntry;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\MenuItemRecipeLine;
 use App\Models\Order;
-use App\Models\OrderSettlement;
-use App\Models\OrderSettlementLine;
 use App\Models\PosDevice;
 use App\Models\Role;
 use App\Models\Shift;
 use App\Models\User;
-use App\Models\UserMealBenefitProfile;
 use App\Services\OrderCreationService;
-use App\Services\OrderDeletionService;
+use App\Services\OrderLifecycleService;
 use App\Services\OrderPaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
-class OrderDeletionSafetyTest extends TestCase
+class OrderCancellationSafetyTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -51,19 +44,19 @@ class OrderDeletionSafetyTest extends TestCase
         $this->artisan('db:seed');
     }
 
-    public function test_safe_delete_reverses_recipe_stock_and_customer_totals_without_leaving_refund_cash_movement(): void
+    public function test_cancelling_paid_delivered_cash_order_reverses_stock_without_leaving_refund_cash_movement(): void
     {
         [$cashier, $order, $orderItem, $inventoryItem, $customer] = $this->createPaidRecipeOrder();
 
         $actor = User::where('email', 'admin@pos.com')->firstOrFail();
         $drawer = $order->drawerSession()->firstOrFail();
 
-        app(OrderDeletionService::class)->deleteWithReversal($order->fresh(), $actor, 'تنظيف طلب منشأ بالخطأ');
+        $order->update([
+            'status' => OrderStatus::Delivered,
+            'delivered_at' => now(),
+        ]);
 
-        $order = Order::withTrashed()->findOrFail($order->id);
-        $orderItem->refresh();
-        $inventoryItem->refresh();
-        $customer->refresh();
+        $cancelled = app(OrderLifecycleService::class)->cancel($order->fresh(), $actor, 'طلب تجريبي بالخطأ');
 
         $restaurant = InventoryLocation::query()->where('code', 'restaurant')->firstOrFail();
         $restaurantStock = InventoryLocationStock::query()
@@ -71,9 +64,15 @@ class OrderDeletionSafetyTest extends TestCase
             ->where('inventory_location_id', $restaurant->id)
             ->firstOrFail();
 
-        $this->assertSoftDeleted('orders', ['id' => $order->id]);
-        $this->assertSame(OrderStatus::Cancelled, $order->status);
-        $this->assertNotNull($order->cancelled_at);
+        $orderItem->refresh();
+        $inventoryItem->refresh();
+        $customer->refresh();
+
+        $this->assertFalse($cancelled->trashed());
+        $this->assertSame(OrderStatus::Cancelled, $cancelled->status);
+        $this->assertSame(PaymentStatus::Refunded, $cancelled->payment_status);
+        $this->assertNotNull($cancelled->cancelled_at);
+        $this->assertSame('360.00', number_format((float) $cancelled->refund_amount, 2, '.', ''));
         $this->assertNull($orderItem->stock_deducted_at);
         $this->assertSame('5.000', $inventoryItem->current_stock);
         $this->assertSame('5.000', $restaurantStock->current_stock);
@@ -81,9 +80,9 @@ class OrderDeletionSafetyTest extends TestCase
         $this->assertSame('0.00', number_format((float) $customer->total_spent, 2, '.', ''));
 
         $this->assertDatabaseMissing('cash_movements', [
-            'drawer_session_id' => $order->drawer_session_id,
+            'drawer_session_id' => $cancelled->drawer_session_id,
             'reference_type' => 'order',
-            'reference_id' => $order->id,
+            'reference_id' => $cancelled->id,
             'type' => 'refund',
             'amount' => '360.00',
         ]);
@@ -98,123 +97,26 @@ class OrderDeletionSafetyTest extends TestCase
         ]);
     }
 
-    public function test_safe_delete_removes_settlement_and_meal_benefit_ledger_entries(): void
+    public function test_cancelling_paid_non_cash_order_requires_manual_external_reversal(): void
     {
+        [$cashier, $order] = $this->createBasicPaidOrder(PaymentMethod::TalabatPay, 100, 'TAL-CANCEL-001');
         $actor = User::where('email', 'admin@pos.com')->firstOrFail();
-        $shift = Shift::create([
-            'shift_number' => 'SHIFT-SETTLEMENT-DELETE',
-            'status' => ShiftStatus::Open,
-            'opened_by' => $actor->id,
-            'started_at' => now()->subHour(),
+
+        $order->update([
+            'status' => OrderStatus::Delivered,
+            'delivered_at' => now(),
         ]);
-
-        $device = PosDevice::create([
-            'name' => 'POS Settlement Delete',
-            'identifier' => 'POS-SETTLEMENT-DELETE',
-            'is_active' => true,
-        ]);
-
-        $drawer = CashierDrawerSession::create([
-            'session_number' => 'DRW-SETTLEMENT-DELETE',
-            'cashier_id' => $actor->id,
-            'shift_id' => $shift->id,
-            'pos_device_id' => $device->id,
-            'opened_by' => $actor->id,
-            'opening_balance' => 100,
-            'status' => DrawerSessionStatus::Open,
-            'started_at' => now()->subHour(),
-        ]);
-
-        $order = Order::create([
-            'order_number' => 'ORD-SETTLEMENT-DELETE',
-            'type' => OrderType::Takeaway,
-            'status' => OrderStatus::Pending,
-            'source' => OrderSource::Pos,
-            'cashier_id' => $actor->id,
-            'shift_id' => $shift->id,
-            'drawer_session_id' => $drawer->id,
-            'pos_device_id' => $device->id,
-            'payment_status' => PaymentStatus::Paid,
-            'subtotal' => 100,
-            'discount_amount' => 0,
-            'tax_amount' => 0,
-            'delivery_fee' => 0,
-            'total' => 100,
-            'paid_amount' => 100,
-            'refund_amount' => 0,
-        ]);
-
-        $beneficiary = User::factory()->create([
-            'is_active' => true,
-            'password' => Hash::make('secret123'),
-        ]);
-
-        $profile = UserMealBenefitProfile::create([
-            'user_id' => $beneficiary->id,
-            'is_active' => true,
-            'can_receive_owner_charge_orders' => true,
-            'created_by' => $actor->id,
-            'updated_by' => $actor->id,
-        ]);
-
-        $settlement = OrderSettlement::create([
-            'order_id' => $order->id,
-            'settlement_type' => 'owner_charge',
-            'beneficiary_user_id' => $beneficiary->id,
-            'charge_account_user_id' => $beneficiary->id,
-            'commercial_total_amount' => 100,
-            'covered_amount' => 100,
-            'remaining_payable_amount' => 0,
-            'created_by' => $actor->id,
-            'updated_by' => $actor->id,
-        ]);
-
-        $line = OrderSettlementLine::create([
-            'order_settlement_id' => $settlement->id,
-            'order_id' => $order->id,
-            'line_type' => 'owner_charge',
-            'user_id' => $beneficiary->id,
-            'profile_id' => $profile->id,
-            'eligible_amount' => 100,
-            'covered_amount' => 100,
-            'created_by' => $actor->id,
-            'updated_by' => $actor->id,
-        ]);
-
-        MealBenefitLedgerEntry::create([
-            'user_id' => $beneficiary->id,
-            'profile_id' => $profile->id,
-            'order_id' => $order->id,
-            'order_settlement_line_id' => $line->id,
-            'entry_type' => MealBenefitLedgerEntryType::OwnerChargeUsage,
-            'amount' => 100,
-            'notes' => 'test',
-            'created_by' => $actor->id,
-            'updated_by' => $actor->id,
-        ]);
-
-        app(OrderDeletionService::class)->deleteWithReversal($order->fresh(), $actor, 'حذف طلب تسوية');
-
-        $this->assertDatabaseMissing('order_settlements', ['id' => $settlement->id]);
-        $this->assertDatabaseMissing('order_settlement_lines', ['id' => $line->id]);
-        $this->assertDatabaseMissing('meal_benefit_ledger_entries', ['order_id' => $order->id]);
-    }
-
-    public function test_safe_delete_is_blocked_for_non_cash_payments(): void
-    {
-        [$cashier, $order] = $this->createBasicPaidOrder(PaymentMethod::TalabatPay, 100, 'TAL-DELETE-001');
-        $actor = User::where('email', 'admin@pos.com')->firstOrFail();
 
         $this->expectException(OrderException::class);
         $this->expectExceptionMessage('دفعات غير نقدية');
 
-        app(OrderDeletionService::class)->deleteWithReversal($order->fresh(), $actor, 'محاولة حذف طلب طلبات');
+        app(OrderLifecycleService::class)->cancel($order->fresh(), $actor, 'لا يمكن إلغاؤه تلقائياً');
     }
 
     private function createPaidRecipeOrder(): array
     {
         $cashier = User::factory()->create([
-            'name' => 'Cashier Delete Order',
+            'name' => 'Cashier Cancel Order',
             'is_active' => true,
         ]);
 
@@ -225,26 +127,26 @@ class OrderDeletionSafetyTest extends TestCase
         $cashier->roles()->syncWithoutDetaching([$cashierRole->id]);
 
         $customer = \App\Models\Customer::create([
-            'name' => 'عميل حذف',
-            'phone' => '01000000001',
+            'name' => 'عميل إلغاء',
+            'phone' => '01000000002',
             'is_active' => true,
         ]);
 
         $shift = Shift::create([
-            'shift_number' => 'SHIFT-DELETE-001',
+            'shift_number' => 'SHIFT-CANCEL-001',
             'status' => ShiftStatus::Open,
             'opened_by' => $cashier->id,
             'started_at' => now()->subHour(),
         ]);
 
         $device = PosDevice::create([
-            'name' => 'POS Delete',
-            'identifier' => 'POS-DELETE-01',
+            'name' => 'POS Cancel',
+            'identifier' => 'POS-CANCEL-01',
             'is_active' => true,
         ]);
 
         $drawer = CashierDrawerSession::create([
-            'session_number' => 'DRW-DELETE-001',
+            'session_number' => 'DRW-CANCEL-001',
             'cashier_id' => $cashier->id,
             'shift_id' => $shift->id,
             'pos_device_id' => $device->id,
@@ -262,11 +164,11 @@ class OrderDeletionSafetyTest extends TestCase
         ]);
 
         $inventoryItem = InventoryItem::create([
-            'name' => 'جبنة موزاريلا',
-            'sku' => 'MOZZ-DELETE',
-            'category' => 'أجبان',
+            'name' => 'بطاطس إلغاء',
+            'sku' => 'POT-CANCEL',
+            'category' => 'خضار',
             'unit' => 'كجم',
-            'unit_cost' => 200,
+            'unit_cost' => 50,
             'current_stock' => 5,
             'minimum_stock' => 1,
             'maximum_stock' => 10,
@@ -274,13 +176,13 @@ class OrderDeletionSafetyTest extends TestCase
         ]);
 
         $category = MenuCategory::create([
-            'name' => 'بيتزا حذف',
+            'name' => 'ساندوتشات إلغاء',
             'is_active' => true,
         ]);
 
         $menuItem = MenuItem::create([
             'category_id' => $category->id,
-            'name' => 'بيتزا جبنة',
+            'name' => 'ساندوتش بطاطس',
             'type' => 'simple',
             'base_price' => 180,
             'is_available' => true,
@@ -328,7 +230,7 @@ class OrderDeletionSafetyTest extends TestCase
     private function createBasicPaidOrder(PaymentMethod $paymentMethod, float $amount, ?string $reference = null): array
     {
         $cashier = User::factory()->create([
-            'name' => 'Cashier Basic Delete',
+            'name' => 'Cashier Basic Cancel',
             'is_active' => true,
         ]);
 
@@ -339,20 +241,20 @@ class OrderDeletionSafetyTest extends TestCase
         $cashier->roles()->syncWithoutDetaching([$cashierRole->id]);
 
         $shift = Shift::create([
-            'shift_number' => 'SHIFT-BASIC-DELETE-001',
+            'shift_number' => 'SHIFT-BASIC-CANCEL-001',
             'status' => ShiftStatus::Open,
             'opened_by' => $cashier->id,
             'started_at' => now()->subHour(),
         ]);
 
         $device = PosDevice::create([
-            'name' => 'POS Basic Delete',
-            'identifier' => 'POS-BASIC-DELETE-01',
+            'name' => 'POS Basic Cancel',
+            'identifier' => 'POS-BASIC-CANCEL-01',
             'is_active' => true,
         ]);
 
         $drawer = CashierDrawerSession::create([
-            'session_number' => 'DRW-BASIC-DELETE-001',
+            'session_number' => 'DRW-BASIC-CANCEL-001',
             'cashier_id' => $cashier->id,
             'shift_id' => $shift->id,
             'pos_device_id' => $device->id,
@@ -363,13 +265,13 @@ class OrderDeletionSafetyTest extends TestCase
         ]);
 
         $category = MenuCategory::create([
-            'name' => 'وجبات حذف أساسي',
+            'name' => 'وجبات إلغاء أساسي',
             'is_active' => true,
         ]);
 
         $menuItem = MenuItem::create([
             'category_id' => $category->id,
-            'name' => 'وجبة أساسية',
+            'name' => 'وجبة إلغاء أساسية',
             'type' => 'simple',
             'base_price' => $amount,
             'cost_price' => 20,
@@ -378,7 +280,7 @@ class OrderDeletionSafetyTest extends TestCase
         ]);
 
         $order = Order::create([
-            'order_number' => 'ORD-BASIC-DELETE-001',
+            'order_number' => 'ORD-BASIC-CANCEL-001',
             'type' => OrderType::Takeaway,
             'status' => OrderStatus::Pending,
             'source' => OrderSource::Pos,
@@ -402,7 +304,7 @@ class OrderDeletionSafetyTest extends TestCase
         \App\Models\OrderItem::create([
             'order_id' => $order->id,
             'menu_item_id' => $menuItem->id,
-            'item_name' => 'وجبة أساسية',
+            'item_name' => 'وجبة إلغاء أساسية',
             'unit_price' => $amount,
             'cost_price' => 20,
             'quantity' => 1,

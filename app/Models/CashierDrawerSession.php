@@ -178,6 +178,10 @@ class CashierDrawerSession extends Model
      */
     public function calculateExpectedBalance(): float
     {
+        if ($this->isClosed() && $this->expected_balance !== null) {
+            return round((float) $this->expected_balance, 2);
+        }
+
         return round(
             (float) $this->opening_balance
             + $this->reportableCashSalesTotal()

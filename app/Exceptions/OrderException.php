@@ -23,6 +23,16 @@ class OrderException extends \RuntimeException
         return new self('لا توجد جلسة درج مفتوحة لهذا الكاشير. يرجى فتح الدرج أولاً.');
     }
 
+    public static function drawerSessionClosed(): self
+    {
+        return new self('جلسة الدرج الخاصة بهذا الطلب مغلقة بالفعل. لا يمكن تعديل الطلب بعد إغلاق الجلسة.', 422);
+    }
+
+    public static function posDeviceInactive(): self
+    {
+        return new self('جهاز نقطة البيع المرتبط بجلسة الدرج غير نشط أو غير صالح.', 422);
+    }
+
     // ─── Order Content ───────────────────────────────────────────────────────
 
     public static function emptyOrder(): self
@@ -202,6 +212,11 @@ class OrderException extends \RuntimeException
     public static function deletionRequiresManualExternalReversal(): self
     {
         return new self('لا يمكن حذف الطلب آلياً لأنه يحتوي على دفعات غير نقدية. يجب تنفيذ الاسترجاع أو التسوية الخارجية أولاً.', 422);
+    }
+
+    public static function cancellationRequiresManualExternalReversal(): self
+    {
+        return new self('لا يمكن إلغاء الطلب آلياً لأنه يحتوي على دفعات غير نقدية. يجب تنفيذ الاسترجاع أو التسوية الخارجية أولاً.', 422);
     }
 
     public static function handoverRequiresPaidOrder(): self

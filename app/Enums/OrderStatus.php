@@ -69,7 +69,14 @@ enum OrderStatus: string
 
     public function isCancellable(): bool
     {
-        return !$this->isFinal() && $this !== self::Delivered;
+        return in_array($this, [
+            self::Pending,
+            self::Confirmed,
+            self::Preparing,
+            self::Ready,
+            self::Dispatched,
+            self::Delivered,
+        ], true);
     }
 
     public function isActive(): bool

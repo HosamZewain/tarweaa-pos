@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Enums\CashMovementType;
 use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
-use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Exceptions\OrderException;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -18,6 +18,7 @@ class OrderLifecycleService
     public function __construct(
         private readonly DiscountAuditService $discountAuditService,
         private readonly DrawerSessionService $drawerSessionService,
+        private readonly OrderReversalService $orderReversalService,
     ) {}
 
     /**
@@ -26,6 +27,10 @@ class OrderLifecycleService
     public function removeItem(OrderItem $item, ?User $by = null): void
     {
         $order = $item->order;
+
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
 
         if ($by) {
             $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
@@ -53,6 +58,10 @@ class OrderLifecycleService
         ?string $reason = null,
     ): Order
     {
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
 
         if ($order->status->isFinal()) {
@@ -93,6 +102,10 @@ class OrderLifecycleService
      */
     public function transition(Order $order, OrderStatus $newStatus, User $by): Order
     {
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
 
         if (!$order->status->canTransitionTo($newStatus)) {
@@ -129,6 +142,12 @@ class OrderLifecycleService
      */
     public function cancel(Order $order, User $by, string $reason): Order
     {
+        $order->loadMissing(['drawerSession', 'items', 'payments', 'settlement', 'customer']);
+
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
 
         if ($order->isCancelled()) {
@@ -140,29 +159,21 @@ class OrderLifecycleService
         }
 
         return DB::transaction(function () use ($order, $by, $reason): Order {
-            // Reverse any cash payments back into the drawer movement log
-            if ((float) $order->paid_amount > 0) {
-                $cashPaid = $order->payments()
-                                  ->where('payment_method', PaymentMethod::Cash->value)
-                                  ->sum('amount');
+            $reversal = $this->orderReversalService->reverse($order, $by, $reason);
+            $hadFinancialSettlement = $order->settledAmount() > 0;
 
-                if ($cashPaid > 0) {
-                    $order->drawerSession->addMovement(
-                        type:          CashMovementType::Refund,
-                        amount:        $cashPaid,
-                        performedBy:   $by->id,
-                        referenceType: 'order',
-                        referenceId:   $order->id,
-                        notes:         "إلغاء طلب رقم {$order->order_number}",
-                    );
-                }
-            }
-
-            // Cancel all items
-            $order->items()->update(['status' => OrderItemStatus::Cancelled]);
+            $order->items()->update([
+                'status' => OrderItemStatus::Cancelled,
+                'updated_by' => $by->id,
+            ]);
 
             $order->update([
                 'status'              => OrderStatus::Cancelled,
+                'payment_status'      => $hadFinancialSettlement ? PaymentStatus::Refunded : PaymentStatus::Unpaid,
+                'refund_amount'       => $hadFinancialSettlement ? $reversal['total_reversed'] : 0,
+                'refund_reason'       => $hadFinancialSettlement ? $reason : null,
+                'refunded_by'         => $hadFinancialSettlement ? $by->id : null,
+                'refunded_at'         => $hadFinancialSettlement ? now() : null,
                 'cancelled_at'        => now(),
                 'cancelled_by'        => $by->id,
                 'cancellation_reason' => $reason,
