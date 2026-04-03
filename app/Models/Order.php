@@ -458,11 +458,14 @@ class Order extends Model
         $date = BusinessTime::localDateKey();
         [$start, $end] = BusinessTime::utcRangeForLocalDate(BusinessTime::today());
 
-        $lastSeq = static::whereBetween('created_at', [$start, $end])
+        $lastSeq = static::withTrashed()
+            ->whereBetween('created_at', [$start, $end])
+            ->where('order_number', 'like', "ORD-{$date}-%")
             ->lockForUpdate()
-            ->count();
+            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(order_number, '-', -1) AS UNSIGNED)) as max_seq")
+            ->value('max_seq');
 
-        return sprintf('ORD-%s-%04d', $date, $lastSeq + 1);
+        return sprintf('ORD-%s-%04d', $date, ((int) $lastSeq) + 1);
     }
 
     // ─────────────────────────────────────────

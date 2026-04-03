@@ -72,8 +72,8 @@ class BusinessTimezoneOperationsTest extends TestCase
     {
         Carbon::setTestNow(Carbon::create(2026, 3, 29, 22, 30, 0, 'UTC'));
 
-        $previousLocalDayOrder = $this->createOrderAt('ORD-TZ-OLD', '2026-03-29 21:30:00');
-        $currentLocalDayOrder = $this->createOrderAt('ORD-TZ-CUR', '2026-03-29 22:10:00');
+        $previousLocalDayOrder = $this->createOrderAt('ORD-20260329-0001', '2026-03-29 21:30:00');
+        $currentLocalDayOrder = $this->createOrderAt('ORD-20260330-0001', '2026-03-29 22:10:00');
 
         $generated = Order::generateOrderNumber();
 
@@ -81,6 +81,24 @@ class BusinessTimezoneOperationsTest extends TestCase
         $this->assertStringEndsWith('-0002', $generated);
         $this->assertTrue(Order::today()->whereKey($currentLocalDayOrder->id)->exists());
         $this->assertFalse(Order::today()->whereKey($previousLocalDayOrder->id)->exists());
+    }
+
+    public function test_order_number_generation_does_not_reuse_soft_deleted_sequence(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 3, 30, 10, 0, 0, 'UTC'));
+
+        $first = $this->createOrderAt('ORD-20260330-0001', '2026-03-30 08:00:00');
+        $second = $this->createOrderAt('ORD-20260330-0002', '2026-03-30 08:10:00');
+        $third = $this->createOrderAt('ORD-20260330-0003', '2026-03-30 08:20:00');
+
+        $second->delete();
+
+        $generated = Order::generateOrderNumber();
+
+        $this->assertSame('ORD-20260330-0004', $generated);
+        $this->assertSoftDeleted('orders', ['id' => $second->id]);
+        $this->assertDatabaseHas('orders', ['id' => $first->id]);
+        $this->assertDatabaseHas('orders', ['id' => $third->id]);
     }
 
     public function test_daily_sales_report_groups_orders_by_cairo_local_day(): void
