@@ -93,7 +93,13 @@ class InventoryTransferResource extends Resource
                             ->minValue(0)
                             ->default(0)
                             ->helperText('اتركها 0 ليتم استلام كامل الكمية المرسلة.')
-                            ->hidden(fn (?InventoryTransfer $record) => !$record || $record->isDraft()),
+                            ->hidden(function ($livewire): bool {
+                                $parentRecord = method_exists($livewire, 'getRecord')
+                                    ? $livewire->getRecord()
+                                    : null;
+
+                                return !$parentRecord || $parentRecord->isDraft();
+                            }),
                         Forms\Components\TextInput::make('unit_cost')
                             ->label('تكلفة الوحدة')
                             ->numeric()
