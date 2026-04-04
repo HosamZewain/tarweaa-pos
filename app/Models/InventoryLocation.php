@@ -19,6 +19,7 @@ class InventoryLocation extends Model
         'is_active',
         'is_default_purchase_destination',
         'is_default_recipe_deduction_location',
+        'is_default_production_location',
         'notes',
     ];
 
@@ -26,6 +27,7 @@ class InventoryLocation extends Model
         'is_active' => 'boolean',
         'is_default_purchase_destination' => 'boolean',
         'is_default_recipe_deduction_location' => 'boolean',
+        'is_default_production_location' => 'boolean',
     ];
 
     public function stocks(): HasMany

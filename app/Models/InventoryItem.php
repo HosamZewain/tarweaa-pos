@@ -3,11 +3,13 @@
 namespace App\Models;
 
 
+use App\Enums\InventoryItemType;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class InventoryItem extends Model
@@ -18,6 +20,7 @@ class InventoryItem extends Model
         'name',
         'sku',
         'category',
+        'item_type',
         'unit',
         'unit_cost',
         'current_stock',
@@ -29,6 +32,7 @@ class InventoryItem extends Model
     ];
 
     protected $casts = [
+        'item_type'             => InventoryItemType::class,
         'unit_cost'            => 'decimal:2',
         'current_stock'        => 'decimal:3',
         'minimum_stock'        => 'decimal:3',
@@ -65,6 +69,21 @@ class InventoryItem extends Model
         return $this->hasMany(InventoryTransferItem::class);
     }
 
+    public function productionRecipe(): HasOne
+    {
+        return $this->hasOne(ProductionRecipe::class, 'prepared_item_id');
+    }
+
+    public function productionBatchOutputs(): HasMany
+    {
+        return $this->hasMany(ProductionBatch::class, 'prepared_item_id');
+    }
+
+    public function productionBatchLines(): HasMany
+    {
+        return $this->hasMany(ProductionBatchLine::class);
+    }
+
     public function recipeLines(): HasMany
     {
         return $this->hasMany(MenuItemRecipeLine::class);
@@ -77,6 +96,16 @@ class InventoryItem extends Model
     public function isLowStock(): bool
     {
         return (float) $this->current_stock <= (float) $this->minimum_stock;
+    }
+
+    public function isPreparedItem(): bool
+    {
+        return $this->item_type === InventoryItemType::PreparedItem;
+    }
+
+    public function isRawMaterial(): bool
+    {
+        return $this->item_type === InventoryItemType::RawMaterial || $this->item_type === null;
     }
 
     public function isOutOfStock(): bool
@@ -121,5 +150,15 @@ class InventoryItem extends Model
     public function scopeInCategory($query, string $category)
     {
         return $query->where('category', $category);
+    }
+
+    public function scopePreparedItems($query)
+    {
+        return $query->where('item_type', InventoryItemType::PreparedItem->value);
+    }
+
+    public function scopeRawMaterials($query)
+    {
+        return $query->where('item_type', InventoryItemType::RawMaterial->value);
     }
 }

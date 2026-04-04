@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\MealBenefitLedgerEntryType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Filament\Resources\UserMealBenefitProfileResource\Pages\CreateUserMealBenefitProfile;
 use App\Filament\Resources\UserMealBenefitProfileResource\Pages\EditUserMealBenefitProfile;
 use App\Filament\Resources\UserMealBenefitProfileResource\Pages\ListUserMealBenefitProfiles;
@@ -111,6 +112,39 @@ class MealBenefitAdminManagementTest extends TestCase
         $this->assertSame('850.50', $profile->monthly_allowance_amount);
         $this->assertFalse($profile->can_receive_owner_charge_orders);
         $this->assertFalse($profile->free_meal_enabled);
+    }
+
+    public function test_admin_can_configure_weekly_or_daily_benefit_period_types(): void
+    {
+        $employee = User::factory()->create([
+            'name' => 'Weekly Benefit Employee',
+            'username' => 'weekly-benefit-employee',
+            'is_active' => true,
+        ]);
+
+        $profile = UserMealBenefitProfile::query()->create([
+            'user_id' => $employee->id,
+            'is_active' => true,
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $this->actingAs($this->adminUser);
+
+        Livewire::test(EditUserMealBenefitProfile::class, ['record' => $profile->getRouteKey()])
+            ->fillForm([
+                'user_id' => $employee->id,
+                'benefit_mode' => UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE,
+                'benefit_period_type' => UserMealBenefitPeriodType::Weekly->value,
+                'monthly_allowance_amount' => 300,
+                'is_active' => true,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $profile->refresh();
+
+        $this->assertSame(UserMealBenefitPeriodType::Weekly, $profile->benefit_period_type);
     }
 
     public function test_admin_can_configure_free_meal_rule_and_assign_allowed_items(): void

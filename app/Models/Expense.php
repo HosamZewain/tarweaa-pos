@@ -26,12 +26,14 @@ class Expense extends Model
         'approved_by',
         'approved_at',
         'notes',
+        'bill_images',
     ];
 
     protected $casts = [
         'amount'       => 'decimal:2',
         'expense_date' => 'date',
         'approved_at'  => 'datetime',
+        'bill_images'  => 'array',
     ];
 
     // ─────────────────────────────────────────

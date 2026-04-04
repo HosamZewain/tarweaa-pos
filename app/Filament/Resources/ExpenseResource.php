@@ -34,6 +34,18 @@ class ExpenseResource extends Resource
                     'cash' => 'نقد', 'bank_transfer' => 'تحويل بنكي', 'credit_card' => 'بطاقة ائتمان',
                 ])->default('cash'),
                 Forms\Components\TextInput::make('receipt_number')->label('رقم الإيصال')->maxLength(100),
+                Forms\Components\FileUpload::make('bill_images')
+                    ->label('صور الفاتورة / الإيصال')
+                    ->image()
+                    ->multiple()
+                    ->reorderable()
+                    ->openable()
+                    ->downloadable()
+                    ->disk('public')
+                    ->directory('expenses/bills')
+                    ->visibility('public')
+                    ->maxFiles(8)
+                    ->columnSpanFull(),
                 Forms\Components\DatePicker::make('expense_date')->label('التاريخ')->default(now())->required(),
                 Forms\Components\Select::make('shift_id')->label('الوردية')->relationship('shift', 'shift_number')->searchable()->preload()->nullable(),
                 Forms\Components\Textarea::make('notes')->label('ملاحظات')->columnSpanFull(),
@@ -50,6 +62,11 @@ class ExpenseResource extends Resource
                 Tables\Columns\TextColumn::make('description')->label('الوصف')->limit(40),
                 Tables\Columns\TextColumn::make('amount')->label('المبلغ')->money('EGP')->sortable(),
                 Tables\Columns\TextColumn::make('payment_method')->label('طريقة الدفع'),
+                Tables\Columns\TextColumn::make('bill_images_count')
+                    ->label('الصور')
+                    ->state(fn (Expense $record) => count($record->bill_images ?? []))
+                    ->badge()
+                    ->color(fn (string|int $state) => (int) $state > 0 ? 'success' : 'gray'),
                 Tables\Columns\TextColumn::make('expense_date')->label('التاريخ')->date()->sortable(),
                 Tables\Columns\TextColumn::make('approver.name')->label('الموافقة بواسطة')->placeholder('في الانتظار')
                     ->color(fn ($state) => $state ? 'success' : 'warning'),

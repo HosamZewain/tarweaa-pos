@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\MealBenefitLedgerEntryType;
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Filament\Pages\Concerns\HasPageExcelExport;
 use App\Models\User;
 use App\Services\MealBenefitReportService;
 use App\Support\BusinessTime;
@@ -17,6 +18,7 @@ use Illuminate\Support\Carbon;
 class MealBenefitsReport extends Page implements HasForms
 {
     use HasPagePermission;
+    use HasPageExcelExport;
     use InteractsWithForms;
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-document-chart-bar';

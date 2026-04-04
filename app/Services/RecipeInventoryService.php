@@ -80,11 +80,11 @@ class RecipeInventoryService
                         location: $consumptionLocation,
                         updateGlobalStock: true,
                     );
-                } catch (\RuntimeException $exception) {
+                } catch (\RuntimeException $e) {
                     throw OrderException::recipeInventoryShortage(
-                        menuItemName: (string) $item->item_name,
-                        inventoryItemName: (string) $inventoryItem->name,
-                        details: $exception->getMessage(),
+                        menuItemName: $item->item_name,
+                        inventoryItemName: $inventoryItem->name,
+                        details: $e->getMessage(),
                     );
                 }
             }

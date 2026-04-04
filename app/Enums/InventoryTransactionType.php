@@ -11,6 +11,10 @@ enum InventoryTransactionType: string
     case Return        = 'return';
     case TransferIn    = 'transfer_in';
     case TransferOut   = 'transfer_out';
+    case ProductionConsumption = 'production_consumption';
+    case ProductionOutput = 'production_output';
+    case ProductionVoidOutput = 'production_void_output';
+    case ProductionVoidInputReturn = 'production_void_input_return';
 
     public function label(): string
     {
@@ -22,12 +26,16 @@ enum InventoryTransactionType: string
             self::Return        => 'مرتجع',
             self::TransferIn    => 'تحويل وارد',
             self::TransferOut   => 'تحويل صادر',
+            self::ProductionConsumption => 'استهلاك إنتاج',
+            self::ProductionOutput => 'ناتج إنتاج',
+            self::ProductionVoidOutput => 'عكس ناتج إنتاج',
+            self::ProductionVoidInputReturn => 'رد مدخلات إنتاج',
         };
     }
 
     public function isStockIncrease(): bool
     {
-        return in_array($this, [self::Purchase, self::Return, self::TransferIn]);
+        return in_array($this, [self::Purchase, self::Return, self::TransferIn, self::ProductionOutput, self::ProductionVoidInputReturn], true);
     }
 
     public function isStockDecrease(): bool

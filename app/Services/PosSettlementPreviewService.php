@@ -77,8 +77,8 @@ class PosSettlementPreviewService
             throw OrderException::monthlyAllowanceNotEnabled();
         }
 
-        $summary = $this->mealBenefitService->getMonthlySummary($employee);
-        $coveredAmount = min($cart['commercial_total_amount'], (float) $summary['monthly_allowance_remaining']);
+        $summary = $this->mealBenefitService->getBenefitSummary($employee);
+        $coveredAmount = min($cart['commercial_total_amount'], (float) $summary['allowance_remaining']);
 
         return array_merge($this->basePreviewPayload($cart), [
             'settlement_type' => OrderSettlementType::EmployeeAllowance->value,
@@ -91,12 +91,17 @@ class PosSettlementPreviewService
             'profile_id' => $profile->id,
             'covered_amount' => round($coveredAmount, 2),
             'remaining_payable_amount' => max(0, round($cart['commercial_total_amount'] - $coveredAmount, 2)),
+            'allowance_used' => (float) $summary['allowance_used'],
+            'allowance_remaining' => (float) $summary['allowance_remaining'],
+            'allowance_period_type' => (string) $summary['period_type'],
+            'allowance_period_type_label' => (string) $summary['period_type_label'],
+            'allowance_period_label' => (string) $summary['period_label'],
             'monthly_allowance_used' => (float) $summary['monthly_allowance_used'],
             'monthly_allowance_remaining' => (float) $summary['monthly_allowance_remaining'],
             'can_apply' => true,
             'message' => $coveredAmount > 0
-                ? 'سيتم استخدام الرصيد الشهري المتبقي أولاً، ويمكن تحصيل الفرق إذا وجد.'
-                : 'لا يوجد رصيد بدل شهري متبقٍ لهذا الشهر. سيتم تحصيل كامل الطلب بالطريقة العادية.',
+                ? "سيتم استخدام المتبقي من بدل الموظف للفترة {$summary['period_label']} أولاً، ويمكن تحصيل الفرق إذا وجد."
+                : "لا يوجد رصيد متبقٍ من بدل الموظف للفترة {$summary['period_label']}. سيتم تحصيل كامل الطلب بالطريقة العادية.",
         ]);
     }
 
@@ -112,7 +117,7 @@ class PosSettlementPreviewService
             throw OrderException::freeMealBenefitNotEnabled();
         }
 
-        $summary = $this->mealBenefitService->getMonthlySummary($employee);
+        $summary = $this->mealBenefitService->getBenefitSummary($employee);
         $allowedIds = $profile->allowedMenuItems->pluck('id')->all();
         $eligibleLines = collect($cart['lines'])
             ->filter(fn (array $line) => in_array($line['menu_item_id'], $allowedIds, true))
@@ -136,6 +141,10 @@ class PosSettlementPreviewService
                 'remaining_payable_amount' => $cart['commercial_total_amount'],
                 'free_meal_type' => $profile->free_meal_type?->value,
                 'free_meal_type_label' => $profile->free_meal_type?->label(),
+                'free_meal_period_type' => (string) $summary['period_type'],
+                'free_meal_period_type_label' => (string) $summary['period_type_label'],
+                'free_meal_period_label' => (string) $summary['period_label'],
+                'free_meal_limit_label' => (string) $summary['free_meal_limit_label'],
                 'free_meal_amount_used' => (float) $summary['free_meal_amount_used'],
                 'free_meal_amount_remaining' => (float) $summary['free_meal_amount_remaining'],
                 'free_meal_count_used' => (int) $summary['free_meal_count_used'],
@@ -162,6 +171,10 @@ class PosSettlementPreviewService
             'remaining_payable_amount' => max(0, round($cart['commercial_total_amount'] - $coveredAmount, 2)),
             'free_meal_type' => $profile->free_meal_type?->value,
             'free_meal_type_label' => $profile->free_meal_type?->label(),
+            'free_meal_period_type' => (string) $summary['period_type'],
+            'free_meal_period_type_label' => (string) $summary['period_type_label'],
+            'free_meal_period_label' => (string) $summary['period_label'],
+            'free_meal_limit_label' => (string) $summary['free_meal_limit_label'],
             'free_meal_amount_used' => (float) $summary['free_meal_amount_used'],
             'free_meal_amount_remaining' => (float) $summary['free_meal_amount_remaining'],
             'free_meal_count_used' => (int) $summary['free_meal_count_used'],

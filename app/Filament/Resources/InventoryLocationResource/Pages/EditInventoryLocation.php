@@ -27,6 +27,12 @@ class EditInventoryLocation extends EditRecord
                 ->update(['is_default_recipe_deduction_location' => false]);
         }
 
+        if (!empty($data['is_default_production_location'])) {
+            InventoryLocation::query()
+                ->whereKeyNot($this->record->getKey())
+                ->update(['is_default_production_location' => false]);
+        }
+
         return $data;
     }
 
@@ -35,9 +41,10 @@ class EditInventoryLocation extends EditRecord
         $isActive = (bool) ($data['is_active'] ?? false);
         $isPurchaseDefault = (bool) ($data['is_default_purchase_destination'] ?? false);
         $isRecipeDefault = (bool) ($data['is_default_recipe_deduction_location'] ?? false);
+        $isProductionDefault = (bool) ($data['is_default_production_location'] ?? false);
         $messages = [];
 
-        if (!$isActive && ($isPurchaseDefault || $isRecipeDefault)) {
+        if (!$isActive && ($isPurchaseDefault || $isRecipeDefault || $isProductionDefault)) {
             $messages['data.is_active'] = 'لا يمكن تعطيل موقع مخزني ما زال محددًا كموقع افتراضي.';
         }
 
@@ -62,6 +69,18 @@ class EditInventoryLocation extends EditRecord
 
             if (!$hasAlternative) {
                 $messages['data.is_default_recipe_deduction_location'] = 'يجب أن يبقى هناك موقع نشط افتراضي لخصم الوصفات.';
+            }
+        }
+
+        if ($this->record->is_default_production_location && !($isActive && $isProductionDefault)) {
+            $hasAlternative = InventoryLocation::query()
+                ->whereKeyNot($this->record->getKey())
+                ->where('is_active', true)
+                ->where('is_default_production_location', true)
+                ->exists();
+
+            if (!$hasAlternative) {
+                $messages['data.is_default_production_location'] = 'يجب أن يبقى هناك موقع نشط افتراضي للإنتاج والتحضير.';
             }
         }
 

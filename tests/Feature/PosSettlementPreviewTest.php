@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\Permission;
@@ -124,6 +125,39 @@ class PosSettlementPreviewTest extends TestCase
             ->assertJsonPath('data.covered_amount', 50)
             ->assertJsonPath('data.remaining_payable_amount', 70)
             ->assertJsonPath('data.monthly_allowance_remaining', 50);
+    }
+
+    public function test_pos_allowance_preview_includes_configured_period_labels(): void
+    {
+        $cashier = $this->createCashierWithSettlementPermission();
+        $employee = $this->createUserWithRole('Employee Weekly', 'employee');
+
+        UserMealBenefitProfile::create([
+            'user_id' => $employee->id,
+            'is_active' => true,
+            'monthly_allowance_enabled' => true,
+            'monthly_allowance_amount' => 90,
+            'benefit_period_type' => UserMealBenefitPeriodType::Weekly,
+        ]);
+
+        $menuItem = $this->createMenuItem('صنف بدل أسبوعي', 120);
+
+        Sanctum::actingAs($cashier);
+
+        $this->postJson('/api/pos/settlement-preview', [
+            'scenario' => 'employee_allowance',
+            'user_id' => $employee->id,
+            'items' => [
+                [
+                    'menu_item_id' => $menuItem->id,
+                    'quantity' => 1,
+                    'modifiers' => [],
+                ],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.allowance_period_type', UserMealBenefitPeriodType::Weekly->value)
+            ->assertJsonPath('data.allowance_period_type_label', 'أسبوعي')
+            ->assertJsonPath('data.allowance_remaining', 90);
     }
 
     public function test_pos_free_meal_preview_only_covers_eligible_items(): void

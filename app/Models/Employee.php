@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Employee extends User
@@ -24,5 +25,15 @@ class Employee extends User
     public function employeeProfile(): HasOne
     {
         return $this->hasOne(EmployeeProfile::class, 'user_id');
+    }
+
+    public function employeeSalaries(): HasMany
+    {
+        return $this->hasMany(EmployeeSalary::class, 'user_id')->latest('effective_from');
+    }
+
+    public function employeePenalties(): HasMany
+    {
+        return $this->hasMany(EmployeePenalty::class, 'user_id')->latest('penalty_date');
     }
 }

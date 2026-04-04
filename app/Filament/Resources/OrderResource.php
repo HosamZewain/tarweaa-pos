@@ -115,7 +115,7 @@ class OrderResource extends Resource
                     ->form([
                         Forms\Components\Textarea::make('reason')->label('سبب الإلغاء')->required(),
                     ])
-                    ->visible(fn (Order $record) => $record->isCancellable() && auth()->user()?->hasPermission('orders.cancel'))
+                    ->visible(fn (Order $record) => $record->isCancellable() && !$record->hasNonCashPayments() && auth()->user()?->hasPermission('orders.cancel'))
                     ->action(function (Order $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('orders.cancel'), 403);
                         app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
@@ -142,7 +142,7 @@ class OrderResource extends Resource
                     ->form([
                         Forms\Components\Textarea::make('reason')->label('سبب الحذف')->required(),
                     ])
-                    ->visible(fn (Order $record) => !$record->trashed() && !$record->hasNonCashPayments() && auth()->user()?->hasPermission('orders.delete'))
+                    ->visible(fn (Order $record) => !$record->trashed() && !$record->hasNonCashPayments() && !$record->isCancellable() && auth()->user()?->hasPermission('orders.delete'))
                     ->action(function (Order $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('orders.delete'), 403);
 

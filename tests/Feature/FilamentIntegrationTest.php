@@ -178,6 +178,41 @@ class FilamentIntegrationTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_admin_can_view_hr_overview_page(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/hr-overview')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_production_recipes_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/production-recipes')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_production_batches_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/production-batches')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_employee_salaries_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/employee-salaries')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_employee_penalties_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/employee-penalties')
+            ->assertSuccessful();
+    }
+
     public function test_admin_can_view_orders_resource()
     {
         $this->actingAs($this->adminUser)
@@ -443,6 +478,13 @@ class FilamentIntegrationTest extends TestCase
              ->assertSuccessful();
     }
 
+    public function test_admin_can_view_items_report_page()
+    {
+        $this->actingAs($this->adminUser)
+             ->get('/admin/items-report')
+             ->assertSuccessful();
+    }
+
     public function test_admin_can_view_card_terminal_report_page()
     {
         PaymentTerminal::create([
@@ -478,6 +520,13 @@ class FilamentIntegrationTest extends TestCase
     {
         $this->actingAs($this->adminUser)
             ->get('/admin/inventory-locations-report')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_production_report_page(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/production-report')
             ->assertSuccessful();
     }
 

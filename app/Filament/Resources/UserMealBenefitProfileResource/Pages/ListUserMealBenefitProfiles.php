@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\UserMealBenefitProfileResource\Pages;
 
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Filament\Resources\UserMealBenefitProfileResource;
 use App\Models\MenuItem;
 use App\Models\User;
@@ -57,16 +58,32 @@ class ListUserMealBenefitProfiles extends ListRecords
                         ->options([
                             UserMealBenefitProfile::BENEFIT_MODE_NONE => 'بدون مزايا',
                             UserMealBenefitProfile::BENEFIT_MODE_OWNER_CHARGE => 'تحميل مالك / إدارة',
-                            UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل شهري للموظف',
+                            UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل الموظف',
                             UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL => 'وجبة مجانية للموظف',
                         ])
                         ->native(false)
                         ->live(),
+                    Forms\Components\Select::make('benefit_period_type')
+                        ->label('فترة الحد')
+                        ->options(collect(UserMealBenefitPeriodType::cases())->mapWithKeys(fn (UserMealBenefitPeriodType $type) => [
+                            $type->value => $type->label(),
+                        ])->all())
+                        ->formatStateUsing(fn ($state) => $state ?: UserMealBenefitPeriodType::Monthly->value)
+                        ->default(UserMealBenefitPeriodType::Monthly->value)
+                        ->required(fn (Get $get): bool => in_array($get('benefit_mode'), [
+                            UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE,
+                            UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL,
+                        ], true))
+                        ->visible(fn (Get $get): bool => in_array($get('benefit_mode'), [
+                            UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE,
+                            UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL,
+                        ], true))
+                        ->native(false),
                     Forms\Components\Toggle::make('is_active')
                         ->label('نشط')
                         ->default(true),
                     Forms\Components\TextInput::make('monthly_allowance_amount')
-                        ->label('قيمة البدل الشهري')
+                        ->label('قيمة البدل')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.01')
@@ -83,14 +100,14 @@ class ListUserMealBenefitProfiles extends ListRecords
                         ->live()
                         ->visible(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL),
                     Forms\Components\TextInput::make('free_meal_monthly_count')
-                        ->label('عدد الوجبات الشهرية')
+                        ->label('عدد الوجبات لكل فترة')
                         ->numeric()
                         ->minValue(0)
                         ->step(1)
                         ->required(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL && $get('free_meal_type') === UserMealBenefitFreeMealType::Count->value)
                         ->visible(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL && $get('free_meal_type') === UserMealBenefitFreeMealType::Count->value),
                     Forms\Components\TextInput::make('free_meal_monthly_amount')
-                        ->label('الحد الشهري بالمبلغ')
+                        ->label('حد المبلغ لكل فترة')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.01')

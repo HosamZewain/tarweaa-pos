@@ -57,6 +57,8 @@ class AdminActivityLog extends Model
             'special_settlement_applied' => 'تسوية خاصة',
             'stock_adjusted' => 'تعديل مخزون',
             'stock_added' => 'إضافة مخزون',
+            'production_batch_completed' => 'تنفيذ دفعة إنتاج',
+            'production_batch_voided' => 'إلغاء دفعة إنتاج',
             'backup_created' => 'إنشاء نسخة احتياطية',
             'backup_restored' => 'استعادة نسخة احتياطية',
             'operational_data_reset' => 'إعادة تهيئة بيانات',

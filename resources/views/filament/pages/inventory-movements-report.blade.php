@@ -1,8 +1,8 @@
 <x-filament-panels::page>
     @php
         $movementRows = collect($reportData['movements'] ?? []);
-        $inboundTypes = ['purchase', 'return', 'transfer_in'];
-        $outboundTypes = ['sale_deduction', 'waste', 'transfer_out'];
+        $inboundTypes = ['purchase', 'return', 'transfer_in', 'production_output', 'production_void_input_return'];
+        $outboundTypes = ['sale_deduction', 'waste', 'transfer_out', 'production_consumption', 'production_void_output'];
 
         $totalInbound = $movementRows->sum(function (array $row) use ($inboundTypes) {
             return collect($row['movements'])
@@ -26,10 +26,10 @@
     <div class="admin-page-shell">
         <x-admin.report-header
             title="تقرير حركة المخزون"
-            description="مراجعة حركة الوارد والصادر وتكلفة الإمداد لكل مادة مخزنية خلال الفترة المحددة."
+            description="مراجعة حركة الوارد والصادر وتكلفة الإمداد لكل مادة مخزنية خلال الفترة المحددة، بما يشمل حركات الإنتاج والتحضير."
             :from="$date_from"
             :to="$date_to"
-            :meta="['تجميع حسب المادة', 'يدعم المراجعة التشغيلية السريعة']"
+            :meta="['تجميع حسب المادة', 'يشمل حركات الإنتاج والتحضير', 'يدعم المراجعة التشغيلية السريعة']"
         />
 
         <div class="admin-filter-card">

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\MealBenefitLedgerEntryType;
 use App\Enums\OrderSettlementLineType;
 use App\Enums\OrderSettlementType;
-use App\Enums\UserMealBenefitFreeMealType;
 use App\Models\MealBenefitLedgerEntry;
 use App\Models\OrderSettlement;
 use App\Models\User;
@@ -26,7 +25,7 @@ class MealBenefitReportService
         $period = $this->createdAtPeriodBounds($reference);
         $selectedUser = $userId ? User::query()->find($userId) : null;
         $selectedUserSummary = $selectedUser
-            ? $this->mealBenefitService->getMonthlySummary($selectedUser, $reference)
+            ? $this->mealBenefitService->getBenefitSummary($selectedUser, $reference)
             : null;
 
         $entries = $this->baseLedgerEntriesQuery($period, $userId, $entryType)->get();
@@ -39,12 +38,19 @@ class MealBenefitReportService
                 'username' => $selectedUser->username,
             ] : null,
             'selected_user_summary' => $selectedUserSummary ? [
+                'period_type' => (string) $selectedUserSummary['period_type'],
+                'period_type_label' => (string) $selectedUserSummary['period_type_label'],
+                'period_label' => (string) $selectedUserSummary['period_label'],
+                'allowance_used' => (float) $selectedUserSummary['allowance_used'],
+                'allowance_remaining' => (float) $selectedUserSummary['allowance_remaining'],
+                'allowance_limit_label' => (string) $selectedUserSummary['allowance_limit_label'],
                 'monthly_allowance_used' => (float) $selectedUserSummary['monthly_allowance_used'],
                 'monthly_allowance_remaining' => (float) $selectedUserSummary['monthly_allowance_remaining'],
                 'free_meal_amount_used' => (float) $selectedUserSummary['free_meal_amount_used'],
                 'free_meal_amount_remaining' => (float) $selectedUserSummary['free_meal_amount_remaining'],
                 'free_meal_count_used' => (int) $selectedUserSummary['free_meal_count_used'],
                 'free_meal_count_remaining' => (int) $selectedUserSummary['free_meal_count_remaining'],
+                'free_meal_limit_label' => (string) $selectedUserSummary['free_meal_limit_label'],
                 'profile_mode' => $selectedUserSummary['profile']?->benefitModeLabel() ?? 'بدون ملف نشط',
                 'is_active' => (bool) ($selectedUserSummary['profile']?->is_active ?? false),
             ] : null,
@@ -101,7 +107,6 @@ class MealBenefitReportService
     public function getAllowanceUsageReport(?Carbon $reference = null, ?int $userId = null): array
     {
         $reference ??= today();
-        $period = $this->benefitPeriodBounds($reference);
         $profiles = UserMealBenefitProfile::query()
             ->with('user')
             ->where('is_active', true)
@@ -110,25 +115,29 @@ class MealBenefitReportService
             ->orderBy('user_id')
             ->get();
 
-        $rows = $profiles->map(function (UserMealBenefitProfile $profile) use ($reference, $period) {
-            $summary = $this->mealBenefitService->getMonthlySummary($profile->user, $reference);
+        $rows = $profiles->map(function (UserMealBenefitProfile $profile) use ($reference) {
+            $summary = $this->mealBenefitService->getBenefitSummary($profile->user, $reference);
             $usageEntries = $profile->ledgerEntries()
                 ->where('entry_type', MealBenefitLedgerEntryType::MonthlyAllowanceUsage)
-                ->whereDate('benefit_period_start', '>=', $period['start'])
-                ->whereDate('benefit_period_end', '<=', $period['end'])
+                ->whereDate('benefit_period_start', $summary['period_start'])
+                ->whereDate('benefit_period_end', $summary['period_end'])
                 ->get();
 
             $differenceEntries = $profile->user->mealBenefitLedgerEntries()
                 ->where('entry_type', MealBenefitLedgerEntryType::SupplementalPayment)
-                ->whereBetween('created_at', [$period['start']->startOfDay(), $period['end']->endOfDay()])
+                ->whereDate('benefit_period_start', $summary['period_start'])
+                ->whereDate('benefit_period_end', $summary['period_end'])
                 ->whereHas('order.settlement.lines', fn (Builder $query) => $query->where('line_type', OrderSettlementLineType::EmployeeMonthlyAllowance))
                 ->get();
 
             return [
                 'user_name' => $profile->user?->name ?? '—',
+                'period_type_label' => $summary['period_type_label'],
+                'period_label' => $summary['period_label'],
                 'configured_monthly_allowance' => round((float) $profile->monthly_allowance_amount, 2),
-                'consumed_amount' => round((float) $summary['monthly_allowance_used'], 2),
-                'remaining_amount' => round((float) $summary['monthly_allowance_remaining'], 2),
+                'configured_allowance_label' => $profile->allowanceLimitLabel(),
+                'consumed_amount' => round((float) $summary['allowance_used'], 2),
+                'remaining_amount' => round((float) $summary['allowance_remaining'], 2),
                 'covered_orders_count' => $usageEntries->pluck('order_id')->filter()->unique()->count(),
                 'paid_differences_amount' => round((float) $differenceEntries->sum('amount'), 2),
             ];
@@ -148,7 +157,6 @@ class MealBenefitReportService
     public function getFreeMealUsageReport(?Carbon $reference = null, ?int $userId = null): array
     {
         $reference ??= today();
-        $period = $this->benefitPeriodBounds($reference);
         $profiles = UserMealBenefitProfile::query()
             ->with('user')
             ->where('is_active', true)
@@ -157,20 +165,20 @@ class MealBenefitReportService
             ->orderBy('user_id')
             ->get();
 
-        $rows = $profiles->map(function (UserMealBenefitProfile $profile) use ($reference, $period) {
-            $summary = $this->mealBenefitService->getMonthlySummary($profile->user, $reference);
+        $rows = $profiles->map(function (UserMealBenefitProfile $profile) use ($reference) {
+            $summary = $this->mealBenefitService->getBenefitSummary($profile->user, $reference);
             $usageEntries = $profile->ledgerEntries()
                 ->where('entry_type', MealBenefitLedgerEntryType::FreeMealUsage)
-                ->whereDate('benefit_period_start', '>=', $period['start'])
-                ->whereDate('benefit_period_end', '<=', $period['end'])
+                ->whereDate('benefit_period_start', $summary['period_start'])
+                ->whereDate('benefit_period_end', $summary['period_end'])
                 ->get();
 
             return [
                 'user_name' => $profile->user?->name ?? '—',
+                'period_type_label' => $summary['period_type_label'],
+                'period_label' => $summary['period_label'],
                 'benefit_type' => $profile->free_meal_type?->label() ?? '—',
-                'configured_limit' => $profile->free_meal_type === UserMealBenefitFreeMealType::Count
-                    ? number_format((int) ($profile->free_meal_monthly_count ?? 0)) . ' وجبة'
-                    : number_format((float) ($profile->free_meal_monthly_amount ?? 0), 2) . ' ج.م',
+                'configured_limit' => $profile->freeMealLimitLabel(),
                 'consumed_amount' => round((float) $summary['free_meal_amount_used'], 2),
                 'remaining_amount' => round((float) $summary['free_meal_amount_remaining'], 2),
                 'consumed_count' => (int) $summary['free_meal_count_used'],
@@ -243,7 +251,7 @@ class MealBenefitReportService
         return MealBenefitLedgerEntry::query()
             ->with([
                 'user:id,name,username',
-                'profile:id,user_id,is_active,can_receive_owner_charge_orders,monthly_allowance_enabled,monthly_allowance_amount,free_meal_enabled,free_meal_type,free_meal_monthly_count,free_meal_monthly_amount',
+                'profile:id,user_id,is_active,can_receive_owner_charge_orders,monthly_allowance_enabled,monthly_allowance_amount,free_meal_enabled,benefit_period_type,free_meal_type,free_meal_monthly_count,free_meal_monthly_amount',
                 'order:id,order_number,total',
                 'settlementLine:id,order_settlement_id,order_item_id,menu_item_id,covered_quantity',
                 'settlementLine.menuItem:id,name',
@@ -262,11 +270,4 @@ class MealBenefitReportService
         ];
     }
 
-    private function benefitPeriodBounds(Carbon $reference): array
-    {
-        return [
-            'start' => $reference->copy()->startOfMonth(),
-            'end' => $reference->copy()->endOfMonth(),
-        ];
-    }
 }

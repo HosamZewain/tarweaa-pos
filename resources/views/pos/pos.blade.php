@@ -499,15 +499,15 @@
             </div>
             <div class="settlement-meta-grid">
                 <div class="settlement-meta-pill hidden" id="settlement-allowance-pill">
-                    الرصيد الشهري المتبقي
+                    <span id="settlement-allowance-label">المتبقي من بدل الموظف</span>
                     <strong id="settlement-allowance-remaining">—</strong>
                 </div>
                 <div class="settlement-meta-pill hidden" id="settlement-free-meal-amount-pill">
-                    رصيد مبلغ الوجبة المتبقي
+                    <span id="settlement-free-meal-amount-label">المتبقي من حد مبلغ الوجبة</span>
                     <strong id="settlement-free-meal-amount-remaining">—</strong>
                 </div>
                 <div class="settlement-meta-pill hidden" id="settlement-free-meal-count-pill">
-                    عدد الوجبات المتبقي
+                    <span id="settlement-free-meal-count-label">عدد الوجبات المتبقي</span>
                     <strong id="settlement-free-meal-count-remaining">—</strong>
                 </div>
                 <div class="settlement-meta-pill hidden" id="settlement-covered-meals-pill">
@@ -1073,68 +1073,14 @@
         const deviceName = order?.pos_device?.name || order?.posDevice?.name || drawerSession?.pos_device?.name || '—';
         const reference = primaryPayment?.reference_number || '';
         const terminalName = primaryPayment?.terminal?.name || '';
+        const receiptCopies = ['نسخة العميل', 'نسخة المحل'];
 
-        return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>إيصال ${escapeReceiptHtml(order?.order_number || '')}</title>
-    <style>
-        @page { size: 80mm auto; margin: 6mm; }
-        body {
-            margin: 0;
-            color: #000;
-            background: #fff;
-            font-family: "Tajawal", Arial, sans-serif;
-            direction: rtl;
-        }
-        .receipt {
-            width: 100%;
-            max-width: 72mm;
-            margin: 0 auto;
-            font-size: 12px;
-            line-height: 1.45;
-        }
-        .center { text-align: center; }
-        .muted { color: #555; }
-        .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-        .line { border-top: 1px dashed #000; margin: 8px 0; }
-        .row {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            margin: 4px 0;
-        }
-        .row strong:last-child, .item-row strong:last-child { direction: ltr; text-align: left; }
-        .item {
-            margin: 8px 0;
-            padding-bottom: 6px;
-            border-bottom: 1px dotted #999;
-        }
-        .item-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            align-items: flex-start;
-        }
-        .item-name { font-weight: 700; }
-        .item-meta { font-size: 11px; color: #555; margin-top: 2px; }
-        .totals .row { font-size: 13px; }
-        .grand {
-            font-size: 15px;
-            font-weight: 800;
-        }
-        .footer-note {
-            margin-top: 10px;
-            font-size: 11px;
-        }
-    </style>
-</head>
-<body>
-    <div class="receipt">
+        const renderReceiptCopy = (copyLabel) => `
+    <div class="receipt receipt-copy">
         <div class="center">
             <div class="title">Tarweaa</div>
             <div class="muted">إيصال دفع</div>
+            <div class="copy-label">${escapeReceiptHtml(copyLabel)}</div>
         </div>
 
         <div class="line"></div>
@@ -1208,8 +1154,78 @@
             <div>شكرًا لزيارتكم</div>
             ${shouldOpenDrawer ? '<div class="muted">سيتم إرسال أمر الطباعة الآن. إذا كانت طابعة الكاش تدعم فتح الدرج مع أمر الطباعة فسيتم فتحه تلقائيًا.</div>' : ''}
             ${terminalName ? `<div class="muted">تمت العملية عبر ${escapeReceiptHtml(terminalName)}</div>` : ''}
+            ${reference ? `<div class="muted">مرجع العملية: ${escapeReceiptHtml(reference)}</div>` : ''}
         </div>
-    </div>
+    </div>`;
+
+        return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إيصال ${escapeReceiptHtml(order?.order_number || '')}</title>
+    <style>
+        @page { size: 80mm auto; margin: 6mm; }
+        body {
+            margin: 0;
+            color: #000;
+            background: #fff;
+            font-family: "Tajawal", Arial, sans-serif;
+            direction: rtl;
+        }
+        .receipt {
+            width: 100%;
+            max-width: 72mm;
+            margin: 0 auto;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .receipt-copy + .receipt-copy {
+            margin-top: 12mm;
+            padding-top: 8mm;
+            border-top: 2px dashed #000;
+        }
+        .center { text-align: center; }
+        .muted { color: #555; }
+        .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .copy-label {
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .line { border-top: 1px dashed #000; margin: 8px 0; }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 4px 0;
+        }
+        .row strong:last-child, .item-row strong:last-child { direction: ltr; text-align: left; }
+        .item {
+            margin: 8px 0;
+            padding-bottom: 6px;
+            border-bottom: 1px dotted #999;
+        }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .item-name { font-weight: 700; }
+        .item-meta { font-size: 11px; color: #555; margin-top: 2px; }
+        .totals .row { font-size: 13px; }
+        .grand {
+            font-size: 15px;
+            font-weight: 800;
+        }
+        .footer-note {
+            margin-top: 10px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    ${receiptCopies.map((copyLabel) => renderReceiptCopy(copyLabel)).join('')}
     <script>
         window.onload = () => {
             setTimeout(() => {
@@ -2268,6 +2284,16 @@
         freeMealAmountPill.classList.toggle('hidden', !(preview && preview.free_meal_amount_remaining !== undefined));
         freeMealCountPill.classList.toggle('hidden', !(preview && preview.free_meal_count_remaining !== undefined));
         coveredMealsPill.classList.toggle('hidden', !(preview && preview.covered_meals_count !== undefined));
+
+        document.getElementById('settlement-allowance-label').textContent = preview?.allowance_period_type_label
+            ? `المتبقي من بدل الموظف (${preview.allowance_period_type_label})`
+            : 'المتبقي من بدل الموظف';
+        document.getElementById('settlement-free-meal-amount-label').textContent = preview?.free_meal_period_type_label
+            ? `المتبقي من حد مبلغ الوجبة (${preview.free_meal_period_type_label})`
+            : 'المتبقي من حد مبلغ الوجبة';
+        document.getElementById('settlement-free-meal-count-label').textContent = preview?.free_meal_period_type_label
+            ? `عدد الوجبات المتبقي (${preview.free_meal_period_type_label})`
+            : 'عدد الوجبات المتبقي';
 
         document.getElementById('settlement-allowance-remaining').textContent = money(preview?.monthly_allowance_remaining || 0);
         document.getElementById('settlement-free-meal-amount-remaining').textContent = money(preview?.free_meal_amount_remaining || 0);

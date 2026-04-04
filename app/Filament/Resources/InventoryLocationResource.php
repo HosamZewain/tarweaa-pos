@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\InventoryLocationResource\Pages;
 use App\Models\InventoryLocation;
+use App\Support\ProductionFeature;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -49,6 +50,9 @@ class InventoryLocationResource extends Resource
                     ->label('افتراضي لاستلام المشتريات'),
                 Forms\Components\Toggle::make('is_default_recipe_deduction_location')
                     ->label('افتراضي لخصم الوصفات'),
+                Forms\Components\Toggle::make('is_default_production_location')
+                    ->label('افتراضي للإنتاج والتحضير')
+                    ->visible(ProductionFeature::hasProductionLocationFlag()),
                 Forms\Components\Textarea::make('notes')
                     ->label('ملاحظات')
                     ->columnSpanFull(),
@@ -76,6 +80,10 @@ class InventoryLocationResource extends Resource
                 Tables\Columns\IconColumn::make('is_default_recipe_deduction_location')
                     ->label('افتراضي للوصفات')
                     ->boolean(),
+                Tables\Columns\IconColumn::make('is_default_production_location')
+                    ->label('افتراضي للإنتاج')
+                    ->boolean()
+                    ->visible(ProductionFeature::hasProductionLocationFlag()),
                 Tables\Columns\TextColumn::make('stocks_count')
                     ->label('أرصدة المواد')
                     ->counts('stocks'),

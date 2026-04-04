@@ -13,6 +13,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Navigation\NavigationGroup;
+use Filament\Support\Enums\Width;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -44,6 +45,10 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::TOPBAR_END,
                 fn (): View => view('filament.components.topbar-date-time'),
             )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): View => view('filament.components.admin-print-script'),
+            )
             ->navigationGroups([
                 NavigationGroup::make()->label('لوحة التحكم'),
                 NavigationGroup::make()->label('العمليات'),
@@ -54,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make()->label('الإدارة'),
                 NavigationGroup::make()->label('الإعدادات'),
             ])
+            ->maxContentWidth(Width::Full)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')

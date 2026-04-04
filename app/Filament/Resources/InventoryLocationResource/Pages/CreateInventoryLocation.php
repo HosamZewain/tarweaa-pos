@@ -23,6 +23,10 @@ class CreateInventoryLocation extends CreateRecord
             InventoryLocation::query()->update(['is_default_recipe_deduction_location' => false]);
         }
 
+        if (!empty($data['is_default_production_location'])) {
+            InventoryLocation::query()->update(['is_default_production_location' => false]);
+        }
+
         return $data;
     }
 
@@ -38,6 +42,12 @@ class CreateInventoryLocation extends CreateRecord
             if (!empty($data['is_default_recipe_deduction_location'])) {
                 throw ValidationException::withMessages([
                     'data.is_active' => 'لا يمكن جعل موقع غير نشط هو الافتراضي لخصم الوصفات.',
+                ]);
+            }
+
+            if (!empty($data['is_default_production_location'])) {
+                throw ValidationException::withMessages([
+                    'data.is_active' => 'لا يمكن جعل موقع غير نشط هو الافتراضي للإنتاج والتحضير.',
                 ]);
             }
         }

@@ -11,6 +11,7 @@ use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Models\CashierDrawerSession;
 use App\Models\MealBenefitLedgerEntry;
 use App\Models\Order;
@@ -249,7 +250,7 @@ class MealBenefitReportingTest extends TestCase
         $freeMealRow = collect($report['free_meal_report']['rows'])->firstWhere('user_name', $employee->name);
         $this->assertNotNull($freeMealRow);
         $this->assertSame('عدد وجبات', $freeMealRow['benefit_type']);
-        $this->assertSame('5 وجبة', $freeMealRow['configured_limit']);
+        $this->assertSame('5 وجبة لكل شهر', $freeMealRow['configured_limit']);
         $this->assertSame(60.0, $freeMealRow['consumed_amount']);
         $this->assertSame(2, $freeMealRow['consumed_count']);
         $this->assertSame(3, $freeMealRow['remaining_count']);
@@ -258,6 +259,66 @@ class MealBenefitReportingTest extends TestCase
         $this->assertSame(80.0, $report['mixed_coverage_report']['totals']['covered_amount']);
         $this->assertSame(40.0, $report['mixed_coverage_report']['totals']['paid_differences_amount']);
         $this->assertSame('ORD-ALLOW-001', $report['mixed_coverage_report']['rows'][0]['order_number']);
+    }
+
+    public function test_reports_show_configured_weekly_period_in_selected_user_and_rows(): void
+    {
+        $reference = Carbon::create(2026, 4, 9, 12, 0, 0);
+        $employee = $this->createRoleUser('Weekly Benefit Employee', 'weekly-benefit-employee', 'cashier');
+
+        $employeeProfile = UserMealBenefitProfile::create([
+            'user_id' => $employee->id,
+            'is_active' => true,
+            'monthly_allowance_enabled' => true,
+            'monthly_allowance_amount' => 200,
+            'benefit_period_type' => UserMealBenefitPeriodType::Weekly,
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $allowanceOrder = $this->createOrder('ORD-WEEKLY-ALLOW-001', 80, $reference->copy()->subDay(), $employee);
+        $allowanceSettlement = $this->createSettlement(
+            order: $allowanceOrder,
+            settlementType: OrderSettlementType::EmployeeAllowance,
+            coveredAmount: 80,
+            remainingAmount: 0,
+            beneficiaryUserId: $employee->id,
+            chargeAccountUserId: null,
+            createdAt: $reference->copy()->subDay(),
+        );
+        $allowanceLine = $this->createSettlementLine(
+            settlement: $allowanceSettlement,
+            lineType: OrderSettlementLineType::EmployeeMonthlyAllowance,
+            userId: $employee->id,
+            profileId: $employeeProfile->id,
+            eligibleAmount: 80,
+            coveredAmount: 80,
+            createdAt: $reference->copy()->subDay(),
+            periodReference: $reference,
+            periodType: UserMealBenefitPeriodType::Weekly,
+        );
+        $this->createLedgerEntry(
+            user: $employee,
+            entryType: MealBenefitLedgerEntryType::MonthlyAllowanceUsage,
+            amount: 80,
+            profile: $employeeProfile,
+            order: $allowanceOrder,
+            settlementLine: $allowanceLine,
+            createdAt: $reference->copy()->subDay(),
+            notes: 'Weekly allowance usage',
+            periodReference: $reference,
+            periodType: UserMealBenefitPeriodType::Weekly,
+        );
+
+        $report = app(MealBenefitReportService::class)->buildMonthlyReport($reference, $employee->id);
+
+        $this->assertSame('أسبوعي', $report['selected_user_summary']['period_type_label']);
+        $this->assertSame('200.00 ج.م لكل أسبوع', $report['selected_user_summary']['allowance_limit_label']);
+
+        $allowanceRow = collect($report['allowance_report']['rows'])->firstWhere('user_name', $employee->name);
+        $this->assertNotNull($allowanceRow);
+        $this->assertSame('أسبوعي', $allowanceRow['period_type_label']);
+        $this->assertSame('200.00 ج.م لكل أسبوع', $allowanceRow['configured_allowance_label']);
     }
 
     public function test_monthly_reset_logic_uses_calendar_month_and_preserves_history(): void
@@ -364,7 +425,7 @@ class MealBenefitReportingTest extends TestCase
             ->get('/admin/meal-benefits-report')
             ->assertSuccessful()
             ->assertSee('كشف التحميل على المالك / الإدارة')
-            ->assertSee('تقرير البدل الشهري للموظفين')
+            ->assertSee('تقرير بدل الموظفين')
             ->assertSee('تقرير الوجبات المجانية')
             ->assertSee('تقرير التغطية الجزئية وفروق السداد');
     }
@@ -461,8 +522,21 @@ class MealBenefitReportingTest extends TestCase
         float $coveredAmount,
         Carbon $createdAt,
         ?Carbon $periodReference = null,
+        ?UserMealBenefitPeriodType $periodType = null,
         ?int $coveredQuantity = null,
     ): OrderSettlementLine {
+        $periodType ??= UserMealBenefitPeriodType::Monthly;
+        $periodStart = match ($periodType) {
+            UserMealBenefitPeriodType::Daily => $periodReference?->copy()->startOfDay()->toDateString(),
+            UserMealBenefitPeriodType::Weekly => $periodReference?->copy()->startOfWeek()->toDateString(),
+            UserMealBenefitPeriodType::Monthly => $periodReference?->copy()->startOfMonth()->toDateString(),
+        };
+        $periodEnd = match ($periodType) {
+            UserMealBenefitPeriodType::Daily => $periodReference?->copy()->endOfDay()->toDateString(),
+            UserMealBenefitPeriodType::Weekly => $periodReference?->copy()->endOfWeek()->toDateString(),
+            UserMealBenefitPeriodType::Monthly => $periodReference?->copy()->endOfMonth()->toDateString(),
+        };
+
         $line = OrderSettlementLine::create([
             'order_settlement_id' => $settlement->id,
             'order_id' => $settlement->order_id,
@@ -472,8 +546,8 @@ class MealBenefitReportingTest extends TestCase
             'eligible_amount' => $eligibleAmount,
             'covered_amount' => $coveredAmount,
             'covered_quantity' => $coveredQuantity,
-            'benefit_period_start' => $periodReference?->copy()->startOfMonth()->toDateString(),
-            'benefit_period_end' => $periodReference?->copy()->endOfMonth()->toDateString(),
+            'benefit_period_start' => $periodStart,
+            'benefit_period_end' => $periodEnd,
             'created_by' => $this->adminUser->id,
             'updated_by' => $this->adminUser->id,
         ]);
@@ -496,8 +570,23 @@ class MealBenefitReportingTest extends TestCase
         Carbon $createdAt,
         string $notes,
         ?Carbon $periodReference = null,
+        ?UserMealBenefitPeriodType $periodType = null,
         int $mealsCount = 0,
     ): MealBenefitLedgerEntry {
+        $periodType ??= UserMealBenefitPeriodType::Monthly;
+        $period = $periodReference ? [
+            'start' => match ($periodType) {
+                UserMealBenefitPeriodType::Daily => $periodReference->copy()->startOfDay()->toDateString(),
+                UserMealBenefitPeriodType::Weekly => $periodReference->copy()->startOfWeek()->toDateString(),
+                UserMealBenefitPeriodType::Monthly => $periodReference->copy()->startOfMonth()->toDateString(),
+            },
+            'end' => match ($periodType) {
+                UserMealBenefitPeriodType::Daily => $periodReference->copy()->endOfDay()->toDateString(),
+                UserMealBenefitPeriodType::Weekly => $periodReference->copy()->endOfWeek()->toDateString(),
+                UserMealBenefitPeriodType::Monthly => $periodReference->copy()->endOfMonth()->toDateString(),
+            },
+        ] : null;
+
         $entry = app(MealBenefitLedgerService::class)->record(
             user: $user,
             entryType: $entryType,
@@ -506,10 +595,7 @@ class MealBenefitReportingTest extends TestCase
             profile: $profile,
             order: $order,
             settlementLine: $settlementLine,
-            period: $periodReference ? [
-                'start' => $periodReference->copy()->startOfMonth()->toDateString(),
-                'end' => $periodReference->copy()->endOfMonth()->toDateString(),
-            ] : null,
+            period: $period,
             notes: $notes,
             actorId: $this->adminUser->id,
         );

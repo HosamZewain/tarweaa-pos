@@ -65,6 +65,17 @@ class OrderException extends \RuntimeException
         return new self('الكمية يجب أن تكون 1 على الأقل.');
     }
 
+    public static function recipeInventoryShortage(string $menuItemName, string $inventoryItemName, ?string $details = null): self
+    {
+        $message = "لا يمكن إتمام الدفع لأن مكون الوصفة [{$inventoryItemName}] غير متوفر للصنف [{$menuItemName}].";
+
+        if ($details) {
+            $message .= " {$details}";
+        }
+
+        return new self($message, 422);
+    }
+
     public static function discountPermissionRequired(): self
     {
         return new self('ليس لديك صلاحية لتطبيق الخصم على الطلب.', 403);

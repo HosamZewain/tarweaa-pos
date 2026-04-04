@@ -136,6 +136,7 @@ class InventoryService
         ?string                $notes    = null,
         ?InventoryLocation     $location = null,
         bool                   $updateGlobalStock = true,
+        ?float                 $unitCostOverride = null,
     ): InventoryTransaction {
         if ($quantity <= 0) {
             throw new \InvalidArgumentException('الكمية يجب أن تكون موجبة');
@@ -145,17 +146,20 @@ class InventoryService
             throw new \InvalidArgumentException('يجب تحديد موقع عند تعطيل تحديث الرصيد العام.');
         }
 
-        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $refType, $refId, $notes, $location, $updateGlobalStock) {
+        return DB::transaction(function () use ($item, $quantity, $actorId, $type, $refType, $refId, $notes, $location, $updateGlobalStock, $unitCostOverride) {
             $fresh = $updateGlobalStock
                 ? InventoryItem::lockForUpdate()->findOrFail($item->id)
                 : InventoryItem::query()->findOrFail($item->id);
 
-            $allowNegativeSaleDeduction = $this->shouldAllowNegativeSaleDeduction($type, $location);
-            $negativeNotes = [];
-
             $transactionBefore = 0.0;
             $transactionAfter = 0.0;
-            $transactionUnitCost = (float) $fresh->unit_cost;
+            $transactionUnitCost = $unitCostOverride ?? (float) $fresh->unit_cost;
+            $transactionNotes = $notes;
+            $negativeContexts = [];
+            $allowNegativeSaleDeduction = $this->shouldAllowNegativeSaleDeduction(
+                type: $type,
+                location: $location,
+            );
 
             if ($location) {
                 $locationStock = $this->lockLocationStock($fresh, $location, $actorId);
@@ -168,10 +172,10 @@ class InventoryService
 
                 $transactionBefore = (float) $locationStock->current_stock;
                 $transactionAfter = $transactionBefore - $quantity;
-                $transactionUnitCost = (float) ($locationStock->unit_cost ?? $fresh->unit_cost);
+                $transactionUnitCost = $unitCostOverride ?? (float) ($locationStock->unit_cost ?? $fresh->unit_cost);
 
                 if ($transactionAfter < 0 && $allowNegativeSaleDeduction) {
-                    $negativeNotes[] = "خصم بيع بالسالب مسموح: {$location->name} = {$transactionAfter}";
+                    $negativeContexts[] = "الموقع {$location->name}: {$transactionBefore} -> {$transactionAfter}";
                 }
 
                 $locationStock->update([
@@ -191,7 +195,7 @@ class InventoryService
                 $globalAfter  = $globalBefore - $quantity;
 
                 if ($globalAfter < 0 && $allowNegativeSaleDeduction) {
-                    $negativeNotes[] = "الرصيد العام = {$globalAfter}";
+                    $negativeContexts[] = "الإجمالي: {$globalBefore} -> {$globalAfter}";
                 }
 
                 $fresh->update([
@@ -207,6 +211,13 @@ class InventoryService
                 $item->refresh();
             }
 
+            if ($negativeContexts !== []) {
+                $negativeNote = 'خصم بيع بالسالب مسموح: ' . implode(' | ', $negativeContexts);
+                $transactionNotes = filled($transactionNotes)
+                    ? "{$transactionNotes} | {$negativeNote}"
+                    : $negativeNote;
+            }
+
             return $fresh->transactions()->create([
                 'inventory_location_id' => $location?->id,
                 'type'            => $type,
@@ -217,7 +228,7 @@ class InventoryService
                 'total_cost'      => $transactionUnitCost * $quantity,
                 'reference_type'  => $refType,
                 'reference_id'    => $refId,
-                'notes'           => $this->appendNegativeStockNotes($notes, $negativeNotes),
+                'notes'           => $transactionNotes,
                 'performed_by'    => $actorId,
                 'created_by'      => $actorId,
                 'updated_by'      => $actorId,
@@ -358,23 +369,5 @@ class InventoryService
             ?? $this->inventoryLocationService->restaurant()?->id;
 
         return $defaultRecipeLocationId !== null && $location->id === $defaultRecipeLocationId;
-    }
-
-    private function appendNegativeStockNotes(?string $notes, array $negativeNotes): ?string
-    {
-        $negativeNotes = array_values(array_filter($negativeNotes, fn (?string $value): bool => filled($value)));
-
-        if ($negativeNotes === []) {
-            return $notes;
-        }
-
-        $baseNotes = trim((string) $notes);
-        $suffix = implode(' | ', $negativeNotes);
-
-        if ($baseNotes === '') {
-            return $suffix;
-        }
-
-        return "{$baseNotes} | {$suffix}";
     }
 }

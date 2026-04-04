@@ -4,24 +4,166 @@ namespace App\Services;
 
 use App\Models\CashierDrawerSession;
 use App\Models\DiscountLog;
+use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\InventoryLocation;
 use App\Models\InventoryLocationStock;
 use App\Models\InventoryTransaction;
 use App\Models\InventoryTransfer;
+use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderPayment;
+use App\Models\ProductionBatch;
+use App\Models\ProductionBatchLine;
 use App\Models\Purchase;
+use App\Enums\InventoryItemType;
 use App\Enums\PaymentMethod;
 use App\Support\BusinessTime;
+use App\Support\HrFeature;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
+    public function getHrOverview(): array
+    {
+        $employees = Employee::query()
+            ->manageable()
+            ->with([
+                'roles',
+                'employeeProfile',
+                'mealBenefitProfile',
+                'employeeSalaries',
+                'employeePenalties',
+            ])
+            ->orderBy('name')
+            ->get();
+
+        $today = BusinessTime::today();
+        $monthStart = $today->copy()->startOfMonth();
+        $monthEnd = $today->copy()->endOfMonth();
+
+        $employeesWithCurrentSalary = $employees
+            ->map(fn (Employee $employee): array => [
+                'employee' => $employee,
+                'salary' => $employee->currentEmployeeSalaryRecord(),
+            ]);
+
+        $currentSalaries = $employeesWithCurrentSalary
+            ->pluck('salary')
+            ->filter();
+
+        $activeBenefitProfiles = $employees
+            ->pluck('mealBenefitProfile')
+            ->filter(fn ($profile) => $profile && $profile->is_active);
+
+        $recentPenalties = $employees
+            ->flatMap(fn (Employee $employee) => $employee->employeePenalties)
+            ->sortByDesc('penalty_date')
+            ->take(10)
+            ->values()
+            ->map(function ($penalty): array {
+                return [
+                    'employee_name' => $penalty->employee?->name ?? '—',
+                    'job_title' => $penalty->employee?->employeeProfile?->job_title,
+                    'penalty_date' => optional($penalty->penalty_date)->format('Y-m-d'),
+                    'reason' => $penalty->reason,
+                    'amount' => round((float) $penalty->amount, 2),
+                    'is_active' => (bool) $penalty->is_active,
+                ];
+            });
+
+        $roleBreakdown = $employees
+            ->map(function (Employee $employee): array {
+                $roleLabel = $employee->roles->pluck('display_name')->filter()->first()
+                    ?? $employee->roles->pluck('name')->filter()->first()
+                    ?? 'بدون دور';
+
+                return [
+                    'role_label' => $roleLabel,
+                    'is_active' => (bool) $employee->is_active,
+                ];
+            })
+            ->groupBy('role_label')
+            ->map(function (Collection $group, string $roleLabel): array {
+                return [
+                    'role_label' => $roleLabel,
+                    'employees_count' => $group->count(),
+                    'active_count' => $group->where('is_active', true)->count(),
+                ];
+            })
+            ->sortByDesc('employees_count')
+            ->values();
+
+        $salaryRows = $employeesWithCurrentSalary
+            ->filter(fn (array $row) => $row['salary'] !== null)
+            ->map(function (array $row): array {
+                /** @var Employee $employee */
+                $employee = $row['employee'];
+                $salary = $row['salary'];
+
+                return [
+                    'employee_name' => $employee->employeeProfile?->full_name ?: $employee->name,
+                    'job_title' => $employee->employeeProfile?->job_title,
+                    'amount' => round((float) $salary->amount, 2),
+                    'effective_from' => optional($salary->effective_from)->format('Y-m-d'),
+                    'effective_to' => optional($salary->effective_to)->format('Y-m-d') ?: 'مستمر',
+                ];
+            })
+            ->sortByDesc('amount')
+            ->values();
+
+        $recentHires = $employees
+            ->filter(fn (Employee $employee) => $employee->employeeProfile?->hired_at !== null)
+            ->sortByDesc(fn (Employee $employee) => $employee->employeeProfile?->hired_at?->timestamp ?? 0)
+            ->take(10)
+            ->values()
+            ->map(function (Employee $employee): array {
+                return [
+                    'employee_name' => $employee->employeeProfile?->full_name ?: $employee->name,
+                    'job_title' => $employee->employeeProfile?->job_title,
+                    'hired_at' => optional($employee->employeeProfile?->hired_at)->format('Y-m-d'),
+                    'is_active' => (bool) $employee->is_active,
+                ];
+            });
+
+        $salaryTablesAvailable = HrFeature::hasSalaryTables();
+        $penaltyTablesAvailable = HrFeature::hasPenaltyTables();
+
+        return [
+            'summary' => [
+                'total_employees' => $employees->count(),
+                'active_employees' => $employees->where('is_active', true)->count(),
+                'inactive_employees' => $employees->where('is_active', false)->count(),
+                'employees_with_profiles' => $employees->filter(fn (Employee $employee) => $employee->employeeProfile !== null)->count(),
+                'hired_this_month' => $employees->filter(function (Employee $employee) use ($monthStart, $monthEnd): bool {
+                    $hiredAt = $employee->employeeProfile?->hired_at;
+
+                    return $hiredAt !== null && $hiredAt->betweenIncluded($monthStart, $monthEnd);
+                })->count(),
+                'employees_with_current_salary' => $salaryTablesAvailable ? $currentSalaries->count() : 0,
+                'employees_without_current_salary' => $salaryTablesAvailable ? max(0, $employees->count() - $currentSalaries->count()) : $employees->count(),
+                'total_current_salaries' => $salaryTablesAvailable ? round($currentSalaries->sum(fn ($salary) => (float) $salary->amount), 2) : 0.0,
+                'average_current_salary' => $salaryTablesAvailable && $currentSalaries->isNotEmpty()
+                    ? round($currentSalaries->avg(fn ($salary) => (float) $salary->amount), 2)
+                    : 0.0,
+                'active_penalties_count' => $penaltyTablesAvailable ? $employees->sum(fn (Employee $employee) => $employee->activeEmployeePenaltiesCount()) : 0,
+                'active_penalties_total' => $penaltyTablesAvailable ? round($employees->sum(fn (Employee $employee) => $employee->activeEmployeePenaltiesTotal()), 2) : 0.0,
+                'active_benefit_profiles' => $activeBenefitProfiles->count(),
+                'owner_charge_profiles' => $activeBenefitProfiles->where('can_receive_owner_charge_orders', true)->count(),
+                'allowance_profiles' => $activeBenefitProfiles->where('monthly_allowance_enabled', true)->count(),
+                'free_meal_profiles' => $activeBenefitProfiles->where('free_meal_enabled', true)->count(),
+            ],
+            'role_breakdown' => $roleBreakdown,
+            'current_salaries' => $salaryRows,
+            'recent_penalties' => $recentPenalties,
+            'recent_hires' => $recentHires,
+        ];
+    }
+
     private function revenueOrdersQuery(?string $dateFrom = null, ?string $dateTo = null)
     {
         return BusinessTime::applyUtcDateRange(
@@ -155,6 +297,64 @@ class ReportService
             ->orderByDesc('total_quantity')
             ->limit($limit)
             ->get();
+    }
+
+    public function getItemsReport(?string $dateFrom = null, ?string $dateTo = null, ?int $menuItemId = null): array
+    {
+        $items = OrderItem::query()
+            ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
+            ->leftJoin('menu_categories', 'menu_items.category_id', '=', 'menu_categories.id')
+            ->whereHas('order', function ($query) use ($dateFrom, $dateTo) {
+                return BusinessTime::applyUtcDateRange(
+                    $query->revenueReportable(),
+                    $dateFrom,
+                    $dateTo,
+                );
+            })
+            ->selectRaw('
+                order_items.menu_item_id,
+                order_items.item_name,
+                menu_categories.name as category_name,
+                SUM(order_items.quantity) as total_quantity,
+                SUM(order_items.total) as total_revenue,
+                SUM(COALESCE(order_items.cost_price, 0) * order_items.quantity) as total_cost,
+                COUNT(DISTINCT order_items.order_id) as orders_count
+            ')
+            ->groupBy('order_items.menu_item_id', 'order_items.item_name', 'menu_categories.name')
+            ->orderByDesc('total_revenue')
+            ->get()
+            ->map(function ($row): array {
+                $quantity = (float) $row->total_quantity;
+                $revenue = round((float) $row->total_revenue, 2);
+                $cost = round((float) $row->total_cost, 2);
+
+                return [
+                    'menu_item_id' => $row->menu_item_id,
+                    'item_name' => $row->item_name,
+                    'category_name' => $row->category_name,
+                    'total_quantity' => $quantity,
+                    'total_revenue' => $revenue,
+                    'total_cost' => $cost,
+                    'gross_profit' => round($revenue - $cost, 2),
+                    'orders_count' => (int) $row->orders_count,
+                    'average_unit_price' => $quantity > 0 ? round($revenue / $quantity, 2) : 0.0,
+                ];
+            })
+            ->values();
+
+        $selectedItem = $menuItemId ? $this->getSelectedItemReport($menuItemId, $dateFrom, $dateTo) : null;
+
+        return [
+            'summary' => [
+                'distinct_items_count' => $items->count(),
+                'total_quantity' => round($items->sum('total_quantity'), 2),
+                'gross_revenue' => round($items->sum('total_revenue'), 2),
+                'total_cost' => round($items->sum('total_cost'), 2),
+                'gross_profit' => round($items->sum('gross_profit'), 2),
+            ],
+            'items' => $items,
+            'selectedItem' => $selectedItem,
+        ];
     }
 
     public function getSalesByCategory(?string $dateFrom = null, ?string $dateTo = null): Collection
@@ -575,6 +775,77 @@ class ReportService
             ->get();
     }
 
+    private function getSelectedItemReport(int $menuItemId, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        $menuItem = MenuItem::query()->with('category:id,name')->find($menuItemId);
+
+        $rows = OrderItem::query()
+            ->with(['order:id,created_at', 'menuItem.category:id,name'])
+            ->where('menu_item_id', $menuItemId)
+            ->whereHas('order', function ($query) use ($dateFrom, $dateTo) {
+                return BusinessTime::applyUtcDateRange(
+                    $query->revenueReportable(),
+                    $dateFrom,
+                    $dateTo,
+                );
+            })
+            ->get();
+
+        $quantity = (float) $rows->sum('quantity');
+        $revenue = round((float) $rows->sum('total'), 2);
+        $cost = round($rows->sum(fn (OrderItem $item) => (float) $item->cost_price * (float) $item->quantity), 2);
+        $orderCount = $rows->pluck('order_id')->unique()->count();
+
+        $daily = $rows
+            ->groupBy(fn (OrderItem $item) => BusinessTime::asLocal($item->order?->created_at)->toDateString())
+            ->map(function (Collection $group, string $date): array {
+                return [
+                    'date' => $date,
+                    'total_quantity' => round((float) $group->sum('quantity'), 2),
+                    'total_revenue' => round((float) $group->sum('total'), 2),
+                    'orders_count' => $group->pluck('order_id')->unique()->count(),
+                ];
+            })
+            ->sortBy('date')
+            ->values();
+
+        $variants = $rows
+            ->groupBy(fn (OrderItem $item) => $item->variant_name ?: 'الافتراضي')
+            ->map(function (Collection $group, string $variantName): array {
+                return [
+                    'variant_name' => $variantName,
+                    'total_quantity' => round((float) $group->sum('quantity'), 2),
+                    'total_revenue' => round((float) $group->sum('total'), 2),
+                    'orders_count' => $group->pluck('order_id')->unique()->count(),
+                ];
+            })
+            ->sortByDesc('total_revenue')
+            ->values();
+
+        $firstSoldAt = $rows->map(fn (OrderItem $item) => $item->order?->created_at)->filter()->sort()->first();
+        $lastSoldAt = $rows->map(fn (OrderItem $item) => $item->order?->created_at)->filter()->sortDesc()->first();
+
+        return [
+            'summary' => [
+                'menu_item_id' => $menuItemId,
+                'item_name' => $menuItem?->name ?? ($rows->first()?->item_name ?? '—'),
+                'category_name' => $menuItem?->category?->name ?? ($rows->first()?->menuItem?->category?->name),
+                'total_quantity' => round($quantity, 2),
+                'total_revenue' => $revenue,
+                'total_cost' => $cost,
+                'gross_profit' => round($revenue - $cost, 2),
+                'orders_count' => $orderCount,
+                'days_sold_count' => $daily->count(),
+                'average_unit_price' => $quantity > 0 ? round($revenue / $quantity, 2) : 0.0,
+                'average_order_revenue' => $orderCount > 0 ? round($revenue / $orderCount, 2) : 0.0,
+                'first_sold_at' => $firstSoldAt ? BusinessTime::asLocal($firstSoldAt)->format('Y-m-d h:i A') : null,
+                'last_sold_at' => $lastSoldAt ? BusinessTime::asLocal($lastSoldAt)->format('Y-m-d h:i A') : null,
+            ],
+            'daily' => $daily,
+            'variants' => $variants,
+        ];
+    }
+
     public function getInventoryMovements(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): Collection
     {
         return BusinessTime::applyUtcDateRange(
@@ -604,6 +875,156 @@ class ReportService
                 ];
             })
             ->values();
+    }
+
+    public function getPreparedItemStockByLocation(?int $locationId = null, ?int $preparedItemId = null): Collection
+    {
+        return InventoryLocationStock::query()
+            ->with(['inventoryLocation:id,name,type', 'inventoryItem:id,name,sku,category,unit,item_type,is_active'])
+            ->whereHas('inventoryItem', fn ($query) => $query
+                ->where('is_active', true)
+                ->where('item_type', InventoryItemType::PreparedItem->value))
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->when($preparedItemId, fn ($query, $id) => $query->where('inventory_item_id', $id))
+            ->orderBy('inventory_location_id')
+            ->get()
+            ->map(function (InventoryLocationStock $stock): array {
+                return [
+                    'location_id' => $stock->inventory_location_id,
+                    'location_name' => $stock->inventoryLocation?->name ?? '—',
+                    'item_id' => $stock->inventory_item_id,
+                    'item_name' => $stock->inventoryItem?->name ?? '—',
+                    'item_sku' => $stock->inventoryItem?->sku,
+                    'category' => $stock->inventoryItem?->category,
+                    'unit' => $stock->inventoryItem?->unit,
+                    'current_stock' => round((float) $stock->current_stock, 3),
+                    'unit_cost' => round((float) $stock->unit_cost, 2),
+                    'stock_value' => round((float) $stock->current_stock * (float) $stock->unit_cost, 2),
+                ];
+            })
+            ->values();
+    }
+
+    public function getProductionBatchesReport(
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        ?int $locationId = null,
+        ?int $preparedItemId = null,
+    ): array {
+        $entries = BusinessTime::applyUtcDateRange(
+            ProductionBatch::query()
+                ->with([
+                    'preparedItem:id,name,unit',
+                    'productionRecipe:id,name',
+                    'location:id,name,type',
+                    'producer:id,name',
+                    'lines:id,production_batch_id,inventory_item_id,actual_quantity,total_cost,unit',
+                    'lines.inventoryItem:id,name,unit',
+                ])
+                ->where('status', 'completed')
+                ->orderByDesc('produced_at'),
+            $dateFrom,
+            $dateTo,
+            'produced_at',
+        )
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->when($preparedItemId, fn ($query, $id) => $query->where('prepared_item_id', $id))
+            ->get();
+
+        $byPreparedItem = $entries
+            ->groupBy(fn (ProductionBatch $batch) => $batch->preparedItem?->name ?? '—')
+            ->map(function (Collection $group, string $itemName): array {
+                return [
+                    'prepared_item_name' => $itemName,
+                    'batches_count' => $group->count(),
+                    'total_output_quantity' => round($group->sum('actual_output_quantity'), 3),
+                    'total_waste_quantity' => round($group->sum('waste_quantity'), 3),
+                    'total_input_cost' => round($group->sum('total_input_cost'), 2),
+                    'average_unit_cost' => round($group->avg('unit_cost') ?: 0, 2),
+                    'average_yield_variance_percentage' => round($group->avg('yield_variance_percentage') ?: 0, 2),
+                ];
+            })
+            ->sortByDesc('total_input_cost')
+            ->values();
+
+        $byLocation = $entries
+            ->groupBy(fn (ProductionBatch $batch) => $batch->location?->name ?? '—')
+            ->map(function (Collection $group, string $location): array {
+                return [
+                    'location_name' => $location,
+                    'batches_count' => $group->count(),
+                    'total_output_quantity' => round($group->sum('actual_output_quantity'), 3),
+                    'total_waste_quantity' => round($group->sum('waste_quantity'), 3),
+                    'total_input_cost' => round($group->sum('total_input_cost'), 2),
+                ];
+            })
+            ->sortByDesc('total_input_cost')
+            ->values();
+
+        return [
+            'entries' => $entries,
+            'by_prepared_item' => $byPreparedItem,
+            'by_location' => $byLocation,
+            'summary' => [
+                'batches_count' => $entries->count(),
+                'total_output_quantity' => round($entries->sum('actual_output_quantity'), 3),
+                'total_waste_quantity' => round($entries->sum('waste_quantity'), 3),
+                'total_input_cost' => round($entries->sum('total_input_cost'), 2),
+                'average_unit_cost' => round($entries->avg('unit_cost') ?: 0, 2),
+                'positive_yield_batches' => $entries->filter(fn (ProductionBatch $batch) => (float) $batch->yield_variance_quantity > 0)->count(),
+                'negative_yield_batches' => $entries->filter(fn (ProductionBatch $batch) => (float) $batch->yield_variance_quantity < 0)->count(),
+            ],
+        ];
+    }
+
+    public function getProductionRawConsumption(
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        ?int $locationId = null,
+        ?int $preparedItemId = null,
+    ): array {
+        $entries = BusinessTime::applyUtcDateRange(
+            ProductionBatchLine::query()
+                ->with([
+                    'inventoryItem:id,name,sku,category,unit,item_type',
+                    'productionBatch:id,batch_number,prepared_item_id,inventory_location_id,produced_at',
+                    'productionBatch.preparedItem:id,name',
+                    'productionBatch.location:id,name,type',
+                ])
+                ->whereHas('productionBatch', fn ($query) => $query->where('status', 'completed'))
+                ->orderByDesc('created_at'),
+            $dateFrom,
+            $dateTo,
+            'created_at',
+        )
+            ->when($locationId, fn ($query, $id) => $query->whereHas('productionBatch', fn ($batchQuery) => $batchQuery->where('inventory_location_id', $id)))
+            ->when($preparedItemId, fn ($query, $id) => $query->whereHas('productionBatch', fn ($batchQuery) => $batchQuery->where('prepared_item_id', $id)))
+            ->get();
+
+        $byRawItem = $entries
+            ->groupBy(fn (ProductionBatchLine $line) => $line->inventoryItem?->name ?? '—')
+            ->map(function (Collection $group, string $itemName): array {
+                return [
+                    'item_name' => $itemName,
+                    'unit' => $group->first()?->inventoryItem?->unit ?? '—',
+                    'lines_count' => $group->count(),
+                    'consumed_quantity' => round($group->sum('base_quantity'), 6),
+                    'consumed_cost' => round($group->sum('total_cost'), 2),
+                ];
+            })
+            ->sortByDesc('consumed_cost')
+            ->values();
+
+        return [
+            'entries' => $entries,
+            'by_raw_item' => $byRawItem,
+            'summary' => [
+                'lines_count' => $entries->count(),
+                'consumed_quantity' => round($entries->sum('base_quantity'), 6),
+                'consumed_cost' => round($entries->sum('total_cost'), 2),
+                'raw_items_count' => $byRawItem->count(),
+            ],
+        ];
     }
 
     public function getPurchasesByLocation(?string $dateFrom = null, ?string $dateTo = null, ?int $locationId = null): array

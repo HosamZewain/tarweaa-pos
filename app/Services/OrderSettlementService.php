@@ -81,7 +81,7 @@ class OrderSettlementService
                 'notes' => $notes,
             ]);
 
-            $summary = $this->mealBenefitService->getMonthlySummary($employee);
+            $summary = $this->mealBenefitService->getBenefitSummary($employee);
             $period = [
                 'start' => $summary['period_start'],
                 'end' => $summary['period_end'],
@@ -112,7 +112,7 @@ class OrderSettlementService
                     order: $order,
                     settlementLine: $line,
                     period: $period,
-                    notes: $notes ?: "استخدام بدل شهري في الطلب {$order->order_number}",
+                    notes: $notes ?: "استخدام بدل الموظف ({$summary['period_type_label']}) في الطلب {$order->order_number}",
                     actorId: $actorId,
                 );
             }
@@ -138,7 +138,7 @@ class OrderSettlementService
                 'notes' => $notes,
             ]);
 
-            $summary = $this->mealBenefitService->getMonthlySummary($employee);
+            $summary = $this->mealBenefitService->getBenefitSummary($employee);
             $period = [
                 'start' => $summary['period_start'],
                 'end' => $summary['period_end'],
@@ -212,7 +212,7 @@ class OrderSettlementService
             return;
         }
 
-        $period = $this->mealBenefitService->currentPeriodBounds();
+        $period = $this->mealBenefitService->currentPeriodBounds(now(), $profile);
 
         $this->mealBenefitLedgerService->record(
             user: $user,

@@ -32,6 +32,7 @@ class Purchase extends Model
         'payment_method',
         'received_at',
         'notes',
+        'bill_images',
     ];
 
     protected $casts = [
@@ -42,6 +43,7 @@ class Purchase extends Model
         'paid_amount'     => 'decimal:2',
         'invoice_date'    => 'date',
         'received_at'     => 'datetime',
+        'bill_images'     => 'array',
     ];
 
     // ─────────────────────────────────────────

@@ -16,6 +16,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
 use App\Models\InventoryItem;
@@ -180,6 +181,57 @@ class OrderSettlementBusinessLogicTest extends TestCase
         $inventoryItem->refresh();
         $this->assertSame('4.800', $inventoryItem->current_stock);
         $this->assertNotNull($eligibleItem->fresh()->stock_deducted_at);
+    }
+
+    public function test_employee_allowance_uses_weekly_period_for_settlement_and_supplemental_payment(): void
+    {
+        $fixture = $this->createOrderFixture([
+            'eligible_total' => 120,
+            'non_eligible_total' => 0,
+            'eligible_quantity' => 1,
+        ], employeeRole: 'cashier');
+        $cashier = $fixture['cashier'];
+        $employee = $fixture['employee'];
+        $order = $fixture['order'];
+
+        $profile = UserMealBenefitProfile::create([
+            'user_id' => $employee->id,
+            'is_active' => true,
+            'monthly_allowance_enabled' => true,
+            'monthly_allowance_amount' => 50,
+            'benefit_period_type' => UserMealBenefitPeriodType::Weekly,
+        ]);
+
+        $partiallySettledOrder = app(OrderSettlementService::class)->applyEmployeeMonthlyAllowance(
+            order: $order->fresh(),
+            employee: $employee,
+            actorId: $cashier->id,
+        );
+
+        $this->assertDatabaseHas('order_settlement_lines', [
+            'order_id' => $partiallySettledOrder->id,
+            'profile_id' => $profile->id,
+            'benefit_period_start' => now()->startOfWeek()->toDateString(),
+            'benefit_period_end' => now()->endOfWeek()->toDateString(),
+        ]);
+
+        app(OrderPaymentService::class)->processPayment(
+            order: $partiallySettledOrder->fresh(),
+            payments: [
+                new ProcessPaymentData(method: PaymentMethod::Cash, amount: 70),
+            ],
+            actorId: $cashier->id,
+        );
+
+        $this->assertDatabaseHas('meal_benefit_ledger_entries', [
+            'user_id' => $employee->id,
+            'profile_id' => $profile->id,
+            'order_id' => $order->id,
+            'entry_type' => MealBenefitLedgerEntryType::SupplementalPayment->value,
+            'amount' => '70.00',
+            'benefit_period_start' => now()->startOfWeek()->toDateString(),
+            'benefit_period_end' => now()->endOfWeek()->toDateString(),
+        ]);
     }
 
     public function test_employee_free_meal_meals_count_covers_allowed_quantities_monthly(): void

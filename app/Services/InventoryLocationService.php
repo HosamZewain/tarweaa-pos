@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\InventoryLocation;
+use App\Support\ProductionFeature;
 
 class InventoryLocationService
 {
@@ -38,5 +39,21 @@ class InventoryLocationService
             ->where('is_active', true)
             ->orderBy('id')
             ->first();
+    }
+
+    public function defaultProductionLocation(): ?InventoryLocation
+    {
+        if (!ProductionFeature::hasProductionLocationFlag()) {
+            return $this->defaultRecipeDeductionLocation()
+                ?? $this->restaurant();
+        }
+
+        return InventoryLocation::query()
+            ->where('is_active', true)
+            ->where('is_default_production_location', true)
+            ->orderBy('id')
+            ->first()
+            ?? $this->defaultRecipeDeductionLocation()
+            ?? $this->restaurant();
     }
 }

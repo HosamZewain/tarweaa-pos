@@ -62,6 +62,18 @@ class PurchaseResource extends Resource
                     ->maxLength(100),
                 Forms\Components\DatePicker::make('invoice_date')
                     ->label('تاريخ الفاتورة'),
+                Forms\Components\FileUpload::make('bill_images')
+                    ->label('صور الفاتورة')
+                    ->image()
+                    ->multiple()
+                    ->reorderable()
+                    ->openable()
+                    ->downloadable()
+                    ->disk('public')
+                    ->directory('purchases/bills')
+                    ->visibility('public')
+                    ->maxFiles(8)
+                    ->columnSpanFull(),
                 Forms\Components\TextInput::make('subtotal')
                     ->label('المجموع الفرعي')
                     ->numeric()
@@ -206,6 +218,12 @@ class PurchaseResource extends Resource
                     ->label('رقم الفاتورة')
                     ->placeholder('—')
                     ->toggleable(),
+                Tables\Columns\TextColumn::make('bill_images_count')
+                    ->label('الصور')
+                    ->state(fn (Purchase $record) => count($record->bill_images ?? []))
+                    ->badge()
+                    ->color(fn (string|int $state) => (int) $state > 0 ? 'success' : 'gray')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('total')
                     ->label('الإجمالي')
                     ->money('EGP')
@@ -306,6 +324,13 @@ class PurchaseResource extends Resource
                         'cash' => 'نقد', 'bank_transfer' => 'تحويل بنكي', 'credit' => 'آجل', default => $state ?? '—',
                     }),
             ])->columns(4),
+            \Filament\Schemas\Components\Section::make('صور الفاتورة')->schema([
+                Infolists\Components\ImageEntry::make('bill_images')
+                    ->label('')
+                    ->disk('public')
+                    ->visibility('public')
+                    ->columnSpanFull(),
+            ])->visible(fn (Purchase $record) => filled($record->bill_images))->collapsible(),
             \Filament\Schemas\Components\Section::make('ملاحظات')->schema([
                 Infolists\Components\TextEntry::make('notes')->label('')->placeholder('لا توجد ملاحظات')->columnSpanFull(),
             ])->collapsible()->collapsed(),

@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeePenaltiesRelationManager;
+use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeeSalariesRelationManager;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Models\Employee;
 use App\Models\User;
 use App\Support\BusinessTime;
+use App\Support\HrFeature;
 use App\Services\AdminActivityLogService;
 use App\Services\EmployeeManagementService;
 use Filament\Forms;
@@ -23,11 +26,11 @@ class EmployeeResource extends Resource
 {
     protected static ?string $model = Employee::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
-    protected static string | \UnitEnum | null $navigationGroup = 'الإدارة';
+    protected static string | \UnitEnum | null $navigationGroup = 'HR';
     protected static ?string $navigationLabel = 'الموظفون';
     protected static ?string $modelLabel = 'موظف';
     protected static ?string $pluralModelLabel = 'الموظفون';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 1;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -39,6 +42,39 @@ class EmployeeResource extends Resource
         $employeeService = app(EmployeeManagementService::class);
 
         return $form->schema([
+            \Filament\Schemas\Components\Section::make('ملخص HR')
+                ->schema([
+                    Forms\Components\Placeholder::make('current_salary_summary')
+                        ->label('الراتب الحالي')
+                        ->content(function (?Employee $record): string {
+                            $salary = $record?->currentEmployeeSalaryRecord();
+
+                            return $salary ? number_format((float) $salary->amount, 2) . ' ج.م' : 'غير محدد';
+                        }),
+                    Forms\Components\Placeholder::make('salary_effective_summary')
+                        ->label('سريان الراتب الحالي')
+                        ->content(function (?Employee $record): string {
+                            $salary = $record?->currentEmployeeSalaryRecord();
+
+                            if (!$salary) {
+                                return 'لا يوجد راتب ساري';
+                            }
+
+                            $from = $salary->effective_from?->format('Y-m-d') ?? '—';
+                            $to = $salary->effective_to?->format('Y-m-d') ?? 'مستمر';
+
+                            return "{$from} → {$to}";
+                        }),
+                    Forms\Components\Placeholder::make('active_penalties_count_summary')
+                        ->label('عدد الجزاءات النشطة')
+                        ->content(fn (?Employee $record): string => (string) ($record?->activeEmployeePenaltiesCount() ?? 0)),
+                    Forms\Components\Placeholder::make('active_penalties_total_summary')
+                        ->label('إجمالي الجزاءات النشطة')
+                        ->content(fn (?Employee $record): string => number_format((float) ($record?->activeEmployeePenaltiesTotal() ?? 0), 2) . ' ج.م'),
+                ])
+                ->columns(4)
+                ->visible(fn (string $operation): bool => $operation === 'edit'),
+
             \Filament\Schemas\Components\Section::make('بيانات الموظف')->schema([
                 Forms\Components\TextInput::make('name')
                     ->label('الاسم')
@@ -183,6 +219,16 @@ class EmployeeResource extends Resource
                 Tables\Columns\TextColumn::make('employeeProfile.full_name')->label('الاسم الكامل')->searchable()->placeholder('—'),
                 Tables\Columns\TextColumn::make('employeeProfile.job_title')->label('المسمى الوظيفي')->placeholder('—'),
                 Tables\Columns\TextColumn::make('username')->label('اسم المستخدم')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('current_salary')
+                    ->label('الراتب الحالي')
+                    ->state(function (Employee $record): ?float {
+                        $salary = $record->currentEmployeeSalaryRecord();
+
+                        return $salary ? (float) $salary->amount : null;
+                    })
+                    ->money('EGP')
+                    ->placeholder('—')
+                    ->sortable(false),
                 Tables\Columns\TextColumn::make('email')->label('البريد')->placeholder('—')->searchable(),
                 Tables\Columns\TextColumn::make('roles.display_name')->label('الدور')->badge(),
                 Tables\Columns\TextColumn::make('employeeProfile.hired_at')
@@ -250,7 +296,27 @@ class EmployeeResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->manageable()->with(['roles', 'employeeProfile']);
+        return parent::getEloquentQuery()->manageable()->with([
+            'roles',
+            'employeeProfile',
+            'employeeSalaries',
+            'employeePenalties',
+        ]);
+    }
+
+    public static function getRelations(): array
+    {
+        $relations = [];
+
+        if (HrFeature::hasSalaryTables()) {
+            $relations[] = EmployeeSalariesRelationManager::class;
+        }
+
+        if (HrFeature::hasPenaltyTables()) {
+            $relations[] = EmployeePenaltiesRelationManager::class;
+        }
+
+        return $relations;
     }
 
     public static function getPages(): array

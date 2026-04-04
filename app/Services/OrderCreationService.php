@@ -5,11 +5,11 @@ namespace App\Services;
 use App\DTOs\AddOrderItemData;
 use App\DTOs\CreateOrderData;
 use App\Enums\OrderItemStatus;
+use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\OrderException;
-use App\Models\CashierActiveSession;
 use App\Models\CashierDrawerSession;
 use App\Models\MenuItem;
 use App\Models\MenuItemModifier;
@@ -46,24 +46,23 @@ class OrderCreationService
             throw OrderException::discountPermissionRequired();
         }
 
-        $guardRow = CashierActiveSession::with([
-            'drawerSession.shift',
-            'drawerSession.posDevice',
-        ])->find($cashier->id);
+        $drawerSession = $this->drawerSessionService->getActiveSessionForCashier($cashier->id);
 
-        if (!$guardRow) {
+        if (!$drawerSession) {
             throw OrderException::noOpenDrawer();
         }
 
-        $drawerSession = $guardRow->drawerSession;
-        $shift         = $drawerSession->shift;
-        $posDevice     = $drawerSession->posDevice;
-
-        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($drawerSession, $cashier->id);
-
-        if (!$shift->isOpen()) {
+        $shift = $drawerSession->shift;
+        if (!$shift || !$shift->isOpen()) {
             throw OrderException::noActiveShift();
         }
+
+        $posDevice = $drawerSession->posDevice;
+        if (!$posDevice || !$posDevice->is_active) {
+            throw OrderException::posDeviceInactive();
+        }
+
+        $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($drawerSession, $cashier->id);
 
         $selectedOrderType = $this->resolveSelectedOrderType($data->posOrderTypeId, $data->type, $data->source);
 
@@ -297,15 +296,29 @@ class OrderCreationService
         });
     }
 
-    private function resolveSelectedOrderType(?int $posOrderTypeId, OrderType $fallbackType, \App\Enums\OrderSource $fallbackSource): array
+    private function resolveSelectedOrderType(?int $posOrderTypeId, OrderType $fallbackType, OrderSource $fallbackSource): array
     {
         $selected = $this->posOrderTypeService->resolveForOrderCreation($posOrderTypeId);
 
         if ($selected) {
+            try {
+                $type = OrderType::from($selected->type);
+                $source = OrderSource::from($selected->source);
+            } catch (\ValueError) {
+                Log::warning('Invalid POS order type configuration detected during order creation', [
+                    'pos_order_type_id' => $selected->id,
+                    'stored_type' => $selected->type,
+                    'stored_source' => $selected->source,
+                    'cashier_id' => auth()->id(),
+                ]);
+
+                throw OrderException::invalidPosOrderType();
+            }
+
             return [
                 'record' => $selected,
-                'type' => OrderType::from($selected->type),
-                'source' => \App\Enums\OrderSource::from($selected->source),
+                'type' => $type,
+                'source' => $source,
                 'label' => $selected->name,
             ];
         }

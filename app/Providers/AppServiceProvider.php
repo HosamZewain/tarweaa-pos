@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Models\CashierDrawerSession;
 use App\Models\Employee;
+use App\Models\EmployeePenalty;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeProfileAttachment;
+use App\Models\EmployeeSalary;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\InventoryItem;
@@ -18,6 +20,8 @@ use App\Models\PaymentTerminal;
 use App\Models\Permission;
 use App\Models\PosDevice;
 use App\Models\PosOrderType;
+use App\Models\ProductionBatch;
+use App\Models\ProductionRecipe;
 use App\Models\Purchase;
 use App\Models\Role;
 use App\Models\Shift;
@@ -48,6 +52,8 @@ class AppServiceProvider extends ServiceProvider
         foreach ([
             User::class,
             Employee::class,
+            EmployeeSalary::class,
+            EmployeePenalty::class,
             EmployeeProfile::class,
             EmployeeProfileAttachment::class,
             Role::class,
@@ -58,6 +64,8 @@ class AppServiceProvider extends ServiceProvider
             MenuItem::class,
             MenuItemChannelPrice::class,
             InventoryItem::class,
+            ProductionRecipe::class,
+            ProductionBatch::class,
             InventoryLocation::class,
             InventoryTransfer::class,
             Supplier::class,

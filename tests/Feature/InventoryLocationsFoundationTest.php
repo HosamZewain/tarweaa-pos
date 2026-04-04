@@ -19,6 +19,16 @@ class InventoryLocationsFoundationTest extends TestCase
     public function test_default_inventory_locations_are_created_and_current_stock_is_backfilled_to_restaurant(): void
     {
         Artisan::call('migrate:rollback', [
+            '--path' => 'database/migrations/2026_04_02_230000_add_production_workflow_controls.php',
+            '--force' => true,
+        ]);
+
+        Artisan::call('migrate:rollback', [
+            '--path' => 'database/migrations/2026_04_02_210000_add_production_batches_support.php',
+            '--force' => true,
+        ]);
+
+        Artisan::call('migrate:rollback', [
             '--path' => 'database/migrations/2026_03_31_000000_add_inventory_locations_and_transfers.php',
             '--force' => true,
         ]);

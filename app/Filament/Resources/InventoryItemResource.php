@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\InventoryItemType;
 use App\Enums\InventoryTransactionType;
 use App\Filament\Resources\InventoryItemResource\Pages;
 use App\Filament\Resources\InventoryItemResource\RelationManagers\LocationStocksRelationManager;
@@ -45,6 +46,11 @@ class InventoryItemResource extends Resource
                 Forms\Components\TextInput::make('name')->label('الاسم')->required()->maxLength(255),
                 Forms\Components\TextInput::make('sku')->label('SKU')->maxLength(50)->unique(ignoreRecord: true),
                 Forms\Components\TextInput::make('category')->label('التصنيف')->maxLength(100),
+                Forms\Components\Select::make('item_type')
+                    ->label('نوع المادة')
+                    ->options(collect(InventoryItemType::cases())->mapWithKeys(fn (InventoryItemType $type) => [$type->value => $type->label()]))
+                    ->default(InventoryItemType::RawMaterial->value)
+                    ->required(),
                 Forms\Components\TextInput::make('unit')->label('وحدة الأساس')->required()->maxLength(20)->placeholder('كجم, لتر, قطعة'),
                 Forms\Components\TextInput::make('unit_cost')->label('متوسط تكلفة الوحدة')->numeric()->prefix('ج.م')
                     ->helperText('تُستخدم هذه التكلفة في حساب تكلفة الوصفات وخصم المخزون.'),
@@ -65,6 +71,10 @@ class InventoryItemResource extends Resource
                 Tables\Columns\TextColumn::make('name')->label('الاسم')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('sku')->label('SKU')->searchable(),
                 Tables\Columns\TextColumn::make('category')->label('التصنيف')->sortable(),
+                Tables\Columns\TextColumn::make('item_type')
+                    ->label('نوع المادة')
+                    ->badge()
+                    ->formatStateUsing(fn (InventoryItemType|string|null $state) => $state instanceof InventoryItemType ? $state->label() : InventoryItemType::from((string) $state)->label()),
                 Tables\Columns\TextColumn::make('current_stock')->label('المخزون')->sortable()
                     ->color(fn (InventoryItem $record) => $record->isLowStock() ? 'danger' : ($record->isOutOfStock() ? 'danger' : 'success')),
                 Tables\Columns\TextColumn::make('unit')->label('وحدة الأساس'),

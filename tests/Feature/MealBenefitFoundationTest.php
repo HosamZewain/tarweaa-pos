@@ -11,6 +11,7 @@ use App\Enums\OrderType;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Models\CashierDrawerSession;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
@@ -25,6 +26,7 @@ use App\Models\UserMealBenefitProfile;
 use App\Services\MealBenefitService;
 use App\Services\OrderSettlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class MealBenefitFoundationTest extends TestCase
@@ -82,6 +84,86 @@ class MealBenefitFoundationTest extends TestCase
         $this->assertSame(205.0, $summary['free_meal_amount_remaining']);
         $this->assertSame(2, $summary['free_meal_count_used']);
         $this->assertSame(8, $summary['free_meal_count_remaining']);
+    }
+
+    public function test_meal_benefit_service_summarizes_weekly_allowance_within_profile_period(): void
+    {
+        $reference = Carbon::create(2026, 4, 9, 12, 0, 0);
+        $user = User::factory()->create(['is_active' => true]);
+
+        $profile = UserMealBenefitProfile::create([
+            'user_id' => $user->id,
+            'is_active' => true,
+            'monthly_allowance_enabled' => true,
+            'monthly_allowance_amount' => 400,
+            'benefit_period_type' => UserMealBenefitPeriodType::Weekly,
+        ]);
+
+        MealBenefitLedgerEntry::create([
+            'user_id' => $user->id,
+            'profile_id' => $profile->id,
+            'entry_type' => MealBenefitLedgerEntryType::MonthlyAllowanceUsage,
+            'amount' => 140,
+            'benefit_period_start' => $reference->copy()->startOfWeek()->toDateString(),
+            'benefit_period_end' => $reference->copy()->endOfWeek()->toDateString(),
+        ]);
+
+        MealBenefitLedgerEntry::create([
+            'user_id' => $user->id,
+            'profile_id' => $profile->id,
+            'entry_type' => MealBenefitLedgerEntryType::MonthlyAllowanceUsage,
+            'amount' => 75,
+            'benefit_period_start' => $reference->copy()->subWeek()->startOfWeek()->toDateString(),
+            'benefit_period_end' => $reference->copy()->subWeek()->endOfWeek()->toDateString(),
+        ]);
+
+        $summary = app(MealBenefitService::class)->getBenefitSummary($user, $reference);
+
+        $this->assertSame(UserMealBenefitPeriodType::Weekly->value, $summary['period_type']);
+        $this->assertSame('أسبوعي', $summary['period_type_label']);
+        $this->assertSame(140.0, $summary['allowance_used']);
+        $this->assertSame(260.0, $summary['allowance_remaining']);
+    }
+
+    public function test_meal_benefit_service_summarizes_daily_free_meal_usage_within_profile_period(): void
+    {
+        $reference = Carbon::create(2026, 4, 9, 12, 0, 0);
+        $user = User::factory()->create(['is_active' => true]);
+
+        $profile = UserMealBenefitProfile::create([
+            'user_id' => $user->id,
+            'is_active' => true,
+            'free_meal_enabled' => true,
+            'benefit_period_type' => UserMealBenefitPeriodType::Daily,
+            'free_meal_type' => UserMealBenefitFreeMealType::Count,
+            'free_meal_monthly_count' => 3,
+        ]);
+
+        MealBenefitLedgerEntry::create([
+            'user_id' => $user->id,
+            'profile_id' => $profile->id,
+            'entry_type' => MealBenefitLedgerEntryType::FreeMealUsage,
+            'amount' => 60,
+            'meals_count' => 2,
+            'benefit_period_start' => $reference->toDateString(),
+            'benefit_period_end' => $reference->toDateString(),
+        ]);
+
+        MealBenefitLedgerEntry::create([
+            'user_id' => $user->id,
+            'profile_id' => $profile->id,
+            'entry_type' => MealBenefitLedgerEntryType::FreeMealUsage,
+            'amount' => 35,
+            'meals_count' => 1,
+            'benefit_period_start' => $reference->copy()->subDay()->toDateString(),
+            'benefit_period_end' => $reference->copy()->subDay()->toDateString(),
+        ]);
+
+        $summary = app(MealBenefitService::class)->getBenefitSummary($user, $reference);
+
+        $this->assertSame(UserMealBenefitPeriodType::Daily->value, $summary['period_type']);
+        $this->assertSame(2, $summary['free_meal_count_used']);
+        $this->assertSame(1, $summary['free_meal_count_remaining']);
     }
 
     public function test_order_settlement_service_syncs_summary_from_lines(): void

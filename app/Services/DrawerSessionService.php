@@ -207,8 +207,24 @@ class DrawerSessionService
             'drawerSession.shift',
             'drawerSession.posDevice',
         ])->find($cashierId);
+        $session = $guard?->drawerSession;
 
-        return $guard?->drawerSession;
+        if (!$session || !$session->isOpen()) {
+            if ($guard) {
+                Log::warning('Stale cashier active session guard detected', [
+                    'cashier_id' => $cashierId,
+                    'drawer_session_id' => $guard->drawer_session_id,
+                    'session_exists' => $session !== null,
+                    'session_status' => $session?->status?->value,
+                ]);
+
+                CashierActiveSession::where('cashier_id', $cashierId)->delete();
+            }
+
+            return null;
+        }
+
+        return $session;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Filament\Pages\MealBenefitsReport;
 use App\Filament\Resources\UserMealBenefitProfileResource\Pages;
 use App\Models\MenuItem;
@@ -22,11 +23,11 @@ class UserMealBenefitProfileResource extends Resource
 {
     protected static ?string $model = UserMealBenefitProfile::class;
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-identification';
-    protected static string | \UnitEnum | null $navigationGroup = 'الإعدادات';
+    protected static string | \UnitEnum | null $navigationGroup = 'HR';
     protected static ?string $navigationLabel = 'مزايا الوجبات';
     protected static ?string $modelLabel = 'ملف مزايا';
     protected static ?string $pluralModelLabel = 'ملفات مزايا الوجبات';
-    protected static ?int $navigationSort = 21;
+    protected static ?int $navigationSort = 4;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -73,12 +74,28 @@ class UserMealBenefitProfileResource extends Resource
                     ->options([
                         UserMealBenefitProfile::BENEFIT_MODE_NONE => 'بدون مزايا',
                         UserMealBenefitProfile::BENEFIT_MODE_OWNER_CHARGE => 'تحميل مالك / إدارة',
-                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل شهري للموظف',
+                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل الموظف',
                         UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL => 'وجبة مجانية للموظف',
                     ])
                     ->native(false)
                     ->live()
                     ->helperText('اختر نوع التفعيل الأساسي لهذا الملف. لكل مستخدم ملف واحد نشط للتشغيل الحالي.'),
+                Forms\Components\Select::make('benefit_period_type')
+                    ->label('فترة الحد')
+                    ->options(collect(UserMealBenefitPeriodType::cases())->mapWithKeys(fn (UserMealBenefitPeriodType $type) => [
+                        $type->value => $type->label(),
+                    ])->all())
+                    ->formatStateUsing(fn ($state) => $state ?: UserMealBenefitPeriodType::Monthly->value)
+                    ->default(UserMealBenefitPeriodType::Monthly->value)
+                    ->required(fn (Get $get): bool => in_array($get('benefit_mode'), [
+                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE,
+                        UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL,
+                    ], true))
+                    ->visible(fn (Get $get): bool => in_array($get('benefit_mode'), [
+                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE,
+                        UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL,
+                    ], true))
+                    ->native(false),
                 Forms\Components\Toggle::make('is_active')
                     ->label('نشط')
                     ->default(true),
@@ -94,15 +111,15 @@ class UserMealBenefitProfileResource extends Resource
                     ->content('فعّل هذا النوع فقط للمستخدمين الذين يمكن تحميل الطلبات عليهم بدون تحصيل فوري.'),
             ])->visible(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_OWNER_CHARGE),
 
-            Section::make('البدل الشهري')->schema([
+            Section::make('بدل الموظف')->schema([
                 Forms\Components\TextInput::make('monthly_allowance_amount')
-                    ->label('قيمة البدل الشهري')
+                    ->label('قيمة البدل')
                     ->numeric()
                     ->minValue(0)
                     ->step('0.01')
                     ->prefix('ج.م')
                     ->required(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE)
-                    ->helperText('يعاد احتساب الرصيد المتبقي شهريًا من خلال دفتر الحركات.'),
+                    ->helperText('يعاد احتساب الرصيد المتبقي بحسب فترة الحد المختارة من خلال دفتر الحركات.'),
             ])->visible(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE),
 
             Section::make('الوجبة المجانية')->schema([
@@ -115,14 +132,14 @@ class UserMealBenefitProfileResource extends Resource
                     ->native(false)
                     ->live(),
                 Forms\Components\TextInput::make('free_meal_monthly_count')
-                    ->label('عدد الوجبات الشهرية')
+                    ->label('عدد الوجبات لكل فترة')
                     ->numeric()
                     ->minValue(0)
                     ->step(1)
                     ->required(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL && $get('free_meal_type') === UserMealBenefitFreeMealType::Count->value)
                     ->visible(fn (Get $get): bool => $get('benefit_mode') === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL && $get('free_meal_type') === UserMealBenefitFreeMealType::Count->value),
                 Forms\Components\TextInput::make('free_meal_monthly_amount')
-                    ->label('الحد الشهري بالمبلغ')
+                    ->label('حد المبلغ لكل فترة')
                     ->numeric()
                     ->minValue(0)
                     ->step('0.01')
@@ -182,9 +199,16 @@ class UserMealBenefitProfileResource extends Resource
                         'mixed' => 'gray',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('monthly_allowance_amount')
-                    ->label('البدل الشهري')
-                    ->money('EGP')
+                Tables\Columns\TextColumn::make('benefit_period_type')
+                    ->label('فترة الحد')
+                    ->state(fn (UserMealBenefitProfile $record): string => $record->monthly_allowance_enabled || $record->free_meal_enabled
+                        ? $record->benefitPeriodTypeLabel()
+                        : '—')
+                    ->badge()
+                    ->placeholder('—'),
+                Tables\Columns\TextColumn::make('allowance_limit')
+                    ->label('بدل الموظف')
+                    ->state(fn (UserMealBenefitProfile $record): string => $record->allowanceLimitLabel())
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('free_meal_limit')
                     ->label('حد الوجبة المجانية')
@@ -204,7 +228,7 @@ class UserMealBenefitProfileResource extends Resource
                     ->options([
                         UserMealBenefitProfile::BENEFIT_MODE_NONE => 'بدون مزايا',
                         UserMealBenefitProfile::BENEFIT_MODE_OWNER_CHARGE => 'تحميل مالك / إدارة',
-                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل شهري',
+                        UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل الموظف',
                         UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL => 'وجبة مجانية',
                     ])
                     ->query(function (Builder $query, array $data): Builder {

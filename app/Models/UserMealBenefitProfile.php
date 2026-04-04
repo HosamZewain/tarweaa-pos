@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\UserMealBenefitFreeMealType;
+use App\Enums\UserMealBenefitPeriodType;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,6 +26,7 @@ class UserMealBenefitProfile extends Model
         'monthly_allowance_enabled',
         'monthly_allowance_amount',
         'free_meal_enabled',
+        'benefit_period_type',
         'free_meal_type',
         'free_meal_monthly_count',
         'free_meal_monthly_amount',
@@ -37,6 +39,7 @@ class UserMealBenefitProfile extends Model
         'monthly_allowance_enabled' => 'boolean',
         'monthly_allowance_amount' => 'decimal:2',
         'free_meal_enabled' => 'boolean',
+        'benefit_period_type' => UserMealBenefitPeriodType::class,
         'free_meal_type' => UserMealBenefitFreeMealType::class,
         'free_meal_monthly_count' => 'integer',
         'free_meal_monthly_amount' => 'decimal:2',
@@ -86,11 +89,23 @@ class UserMealBenefitProfile extends Model
     {
         return match ($this->benefitMode()) {
             self::BENEFIT_MODE_OWNER_CHARGE => 'تحميل مالك / إدارة',
-            self::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل شهري للموظف',
+            self::BENEFIT_MODE_MONTHLY_ALLOWANCE => 'بدل الموظف',
             self::BENEFIT_MODE_FREE_MEAL => 'وجبة مجانية للموظف',
             'mixed' => 'أكثر من نوع مفعّل',
             default => 'بدون مزايا',
         };
+    }
+
+    public function benefitPeriodType(): UserMealBenefitPeriodType
+    {
+        return $this->benefit_period_type instanceof UserMealBenefitPeriodType
+            ? $this->benefit_period_type
+            : UserMealBenefitPeriodType::Monthly;
+    }
+
+    public function benefitPeriodTypeLabel(): string
+    {
+        return $this->benefitPeriodType()->label();
     }
 
     public function freeMealLimitLabel(): string
@@ -99,9 +114,24 @@ class UserMealBenefitProfile extends Model
             return '—';
         }
 
+        $periodLabel = $this->benefitPeriodType()->limitLabel();
+
         return match ($this->free_meal_type) {
-            UserMealBenefitFreeMealType::Count => sprintf('%s وجبة', number_format((int) ($this->free_meal_monthly_count ?? 0))),
-            UserMealBenefitFreeMealType::Amount => sprintf('%s ج.م', number_format((float) ($this->free_meal_monthly_amount ?? 0), 2)),
+            UserMealBenefitFreeMealType::Count => sprintf('%s وجبة %s', number_format((int) ($this->free_meal_monthly_count ?? 0)), $periodLabel),
+            UserMealBenefitFreeMealType::Amount => sprintf('%s ج.م %s', number_format((float) ($this->free_meal_monthly_amount ?? 0), 2), $periodLabel),
         };
+    }
+
+    public function allowanceLimitLabel(): string
+    {
+        if (!$this->monthly_allowance_enabled) {
+            return '—';
+        }
+
+        return sprintf(
+            '%s ج.م %s',
+            number_format((float) ($this->monthly_allowance_amount ?? 0), 2),
+            $this->benefitPeriodType()->limitLabel(),
+        );
     }
 }

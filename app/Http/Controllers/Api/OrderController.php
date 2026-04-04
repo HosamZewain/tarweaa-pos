@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\DTOs\AddOrderItemData;
 use App\DTOs\CreateOrderData;
 use App\DTOs\ProcessPaymentData;
+use App\Enums\OrderType;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Order\AddItemRequest;
@@ -321,7 +322,10 @@ class OrderController extends Controller
     {
         $order = $this->orderCreationService->createExternalOrder(
             processedBy: $request->user(),
-            data: CreateOrderData::fromArray($request->validated()),
+            data: CreateOrderData::fromArray(array_merge(
+                ['type' => OrderType::Delivery->value],
+                $request->validated(),
+            )),
             drawerSessionId: (int) $request->validated('drawer_session_id'),
         );
 

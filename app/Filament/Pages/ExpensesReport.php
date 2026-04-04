@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Filament\Pages\Concerns\HasPageExcelExport;
 use App\Services\ReportService;
 use App\Support\BusinessTime;
 use Filament\Forms;
@@ -14,6 +15,7 @@ use Filament\Pages\Page;
 class ExpensesReport extends Page implements HasForms
 {
     use HasPagePermission;
+    use HasPageExcelExport;
     use InteractsWithForms;
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-receipt-percent';

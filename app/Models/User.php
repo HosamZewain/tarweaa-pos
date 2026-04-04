@@ -18,6 +18,7 @@ use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class User extends Authenticatable implements FilamentUser
 {
@@ -114,17 +115,90 @@ class User extends Authenticatable implements FilamentUser
 
     public function mealBenefitProfile(): HasOne
     {
-        return $this->hasOne(UserMealBenefitProfile::class);
+        return $this->hasOne(UserMealBenefitProfile::class, 'user_id');
     }
 
     public function employeeProfile(): HasOne
     {
-        return $this->hasOne(EmployeeProfile::class);
+        return $this->hasOne(EmployeeProfile::class, 'user_id');
+    }
+
+    public function employeeSalaries(): HasMany
+    {
+        return $this->hasMany(EmployeeSalary::class, 'user_id')->latest('effective_from');
+    }
+
+    public function employeePenalties(): HasMany
+    {
+        return $this->hasMany(EmployeePenalty::class, 'user_id')->latest('penalty_date');
+    }
+
+    public function currentEmployeeSalaryRecord(): ?EmployeeSalary
+    {
+        $today = Carbon::today();
+
+        if ($this->relationLoaded('employeeSalaries')) {
+            /** @var \Illuminate\Support\Collection<int, EmployeeSalary> $salaries */
+            $salaries = $this->getRelation('employeeSalaries');
+
+            return $salaries
+                ->first(function (EmployeeSalary $salary) use ($today): bool {
+                    if (!$salary->effective_from || $salary->effective_from->isFuture()) {
+                        return false;
+                    }
+
+                    return !$salary->effective_to || !$salary->effective_to->lt($today);
+                });
+        }
+
+        return $this->employeeSalaries()
+            ->whereDate('effective_from', '<=', $today)
+            ->where(function ($query) use ($today): void {
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $today);
+            })
+            ->orderByDesc('effective_from')
+            ->first();
+    }
+
+    public function activeEmployeePenaltiesCount(): int
+    {
+        if ($this->relationLoaded('employeePenalties')) {
+            return $this->getRelation('employeePenalties')
+                ->where('is_active', true)
+                ->count();
+        }
+
+        return $this->employeePenalties()
+            ->where('is_active', true)
+            ->count();
+    }
+
+    public function activeEmployeePenaltiesTotal(): float
+    {
+        if ($this->relationLoaded('employeePenalties')) {
+            return (float) $this->getRelation('employeePenalties')
+                ->where('is_active', true)
+                ->sum('amount');
+        }
+
+        return (float) $this->employeePenalties()
+            ->where('is_active', true)
+            ->sum('amount');
+    }
+
+    public function latestEmployeePenaltyRecord(): ?EmployeePenalty
+    {
+        if ($this->relationLoaded('employeePenalties')) {
+            return $this->getRelation('employeePenalties')->first();
+        }
+
+        return $this->employeePenalties()->first();
     }
 
     public function mealBenefitLedgerEntries(): HasMany
     {
-        return $this->hasMany(MealBenefitLedgerEntry::class);
+        return $this->hasMany(MealBenefitLedgerEntry::class, 'user_id');
     }
 
     public function settlementBeneficiaryOrders(): HasMany
@@ -139,7 +213,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function settlementLines(): HasMany
     {
-        return $this->hasMany(OrderSettlementLine::class);
+        return $this->hasMany(OrderSettlementLine::class, 'user_id');
     }
 
     // ─────────────────────────────────────────

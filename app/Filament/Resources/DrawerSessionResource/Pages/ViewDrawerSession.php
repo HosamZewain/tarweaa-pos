@@ -7,10 +7,14 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Filament\Concerns\FormatsAdminDetailValues;
+use App\Filament\Concerns\HasPrintPageAction;
 use App\Filament\Resources\DrawerSessionResource;
 use App\Filament\Resources\OrderResource;
 use App\Models\CashierDrawerSession;
 use App\Models\Order;
+use App\Services\AdminExcelExportService;
+use App\Support\BusinessTime;
+use Filament\Actions\Action;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
 use Filament\Resources\Pages\ViewRecord;
@@ -18,6 +22,7 @@ use Filament\Resources\Pages\ViewRecord;
 class ViewDrawerSession extends ViewRecord
 {
     use FormatsAdminDetailValues;
+    use HasPrintPageAction;
 
     protected static string $resource = DrawerSessionResource::class;
     protected string $view = 'filament.resources.drawer-session-resource.pages.view-drawer-session';
@@ -49,6 +54,21 @@ class ViewDrawerSession extends ViewRecord
     public function getSubtitle(): string
     {
         return 'عرض تشغيلي ومالي متكامل للجلسة، مع الطلبات والحركات والمصروفات في تنسيق أوضح وأسهل مراجعة.';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            $this->makePrintPageAction(),
+            Action::make('exportExcel')
+                ->label('تصدير Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->action(fn () => app(AdminExcelExportService::class)->downloadFromData(
+                    'drawer-session-' . $this->record->session_number . '.xlsx',
+                    $this->getExcelExportPayload(),
+                )),
+        ];
     }
 
     public function getPrimaryStats(): array
@@ -261,5 +281,86 @@ class ViewDrawerSession extends ViewRecord
         if ($orders->isNotEmpty()) {
             $orders->loadMissing('payments', 'settlement');
         }
+    }
+
+    private function getExcelExportPayload(): array
+    {
+        $timezone = BusinessTime::timezone();
+        $session = $this->record->loadMissing([
+            'cashier:id,name',
+            'shift:id,shift_number',
+            'posDevice:id,name',
+            'opener:id,name',
+            'closer:id,name',
+            'cashMovements.performer:id,name',
+            'orders.cashier:id,name',
+            'orders.items',
+            'orders.payments',
+            'orders.settlement',
+            'expenses.category:id,name',
+            'expenses.approver:id,name',
+        ]);
+
+        return [
+            'summary' => [
+                'رقم الجلسة' => $session->session_number,
+                'الكاشير' => $session->cashier?->name,
+                'الوردية' => $session->shift?->shift_number,
+                'الجهاز' => $session->posDevice?->name,
+                'الحالة' => $session->status->label(),
+                'رصيد الفتح' => (float) $session->opening_balance,
+                'إجمالي المبيعات' => (float) $session->revenueOrdersCollection()->sum('total'),
+                'إجمالي المدفوع' => round($session->revenueOrdersCollection()->loadMissing('payments', 'settlement')->sum(fn (Order $order) => $order->reportablePaidAmount()), 2),
+                'مبيعات نقدية' => round($session->revenueOrdersCollection()->loadMissing('payments', 'settlement')->sum(fn (Order $order) => $order->reportableCashPaidAmount()), 2),
+                'مبيعات غير نقدية' => round($session->revenueOrdersCollection()->loadMissing('payments', 'settlement')->sum(fn (Order $order) => $order->reportableNonCashPaidAmount()), 2),
+                'إيداعات نقدية' => (float) $session->manualCashInTotal(),
+                'سحوبات نقدية' => (float) $session->manualCashOutTotal(),
+                'استرجاعات' => (float) $session->refundCashTotal(),
+                'مصروفات الجلسة' => (float) $session->expenses->sum('amount'),
+                'الرصيد المتوقع' => (float) $session->calculateExpectedBalance(),
+                'الرصيد الفعلي' => $session->closing_balance !== null ? (float) $session->closing_balance : null,
+                'فرق الجرد' => $session->cash_difference !== null ? (float) $session->cash_difference : null,
+                'البداية' => $session->started_at?->timezone($timezone)->format('Y-m-d H:i:s'),
+                'النهاية' => $session->ended_at?->timezone($timezone)->format('Y-m-d H:i:s'),
+            ],
+            'orders' => $session->orders->map(function (Order $order) use ($timezone): array {
+                return [
+                    'رقم الطلب' => $order->order_number,
+                    'الكاشير' => $order->cashier?->name,
+                    'الحالة' => $order->status->label(),
+                    'حالة الدفع' => $order->payment_status->label(),
+                    'الإجمالي' => (float) $order->total,
+                    'المدفوع' => (float) $order->reportablePaidAmount(),
+                    'الباقي' => (float) $order->change_amount,
+                    'طرق الدفع' => collect($order->reportablePaymentBreakdown())
+                        ->map(fn ($amount, $method) => $method . ':' . number_format((float) $amount, 2, '.', ''))
+                        ->implode(' | '),
+                    'وقت الإنشاء' => $order->created_at?->timezone($timezone)->format('Y-m-d H:i:s'),
+                ];
+            })->all(),
+            'cash_movements' => $session->cashMovements->map(function ($movement) use ($timezone): array {
+                return [
+                    'النوع' => $movement->type->label(),
+                    'الاتجاه' => $movement->direction->label(),
+                    'المبلغ' => (float) $movement->amount,
+                    'نوع المرجع' => $movement->reference_type,
+                    'رقم المرجع' => $movement->reference_id,
+                    'نفذ بواسطة' => $movement->performer?->name,
+                    'ملاحظات' => $movement->notes,
+                    'التوقيت' => $movement->created_at?->timezone($timezone)->format('Y-m-d H:i:s'),
+                ];
+            })->all(),
+            'expenses' => $session->expenses->map(function ($expense) use ($timezone): array {
+                return [
+                    'رقم المصروف' => $expense->expense_number,
+                    'الفئة' => $expense->category?->name,
+                    'المبلغ' => (float) $expense->amount,
+                    'طريقة الدفع' => $expense->payment_method,
+                    'اعتمد بواسطة' => $expense->approver?->name,
+                    'التاريخ' => $expense->expense_date?->timezone($timezone)->format('Y-m-d H:i:s'),
+                    'الوصف' => $expense->description,
+                ];
+            })->all(),
+        ];
     }
 }

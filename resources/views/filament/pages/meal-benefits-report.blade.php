@@ -2,7 +2,7 @@
     <div class="admin-page-shell">
         <x-admin.report-header
             title="كشف بدلات الوجبات والتحميل"
-            description="مراجعة ملفات مزايا الموظفين والمالكين، واستهلاك البدل الشهري، والوجبات المجانية، والتحميل على الحساب ضمن الشهر المختار."
+            description="مراجعة ملفات مزايا الموظفين والمالكين، واستهلاك بدل الموظف والوجبات المجانية بحسب فترة الحد المهيأة، مع عرض الحركة التشغيلية خلال الشهر المختار."
             :meta="[$reportData['period_label'] ?? '']"
         />
 
@@ -10,10 +10,10 @@
             <div class="admin-filter-card__header">
                 <div>
                     <h3 class="admin-filter-card__title">فلاتر الكشف</h3>
-                    <p class="admin-filter-card__description">حدد الشهر، ونوع الحركة، والمستخدم عند الحاجة لمراجعة كشف تفصيلي أو رصيد مستخدم محدد.</p>
+                    <p class="admin-filter-card__description">حدد الشهر، ونوع الحركة، والمستخدم عند الحاجة لمراجعة كشف تفصيلي أو رصيد مستخدم محدد. رصيد البدلات والوجبات يُحسب حسب فترة الحد المهيأة لكل ملف.</p>
                 </div>
 
-                <x-admin.badge tone="info">كشف شهري وتشغيلي</x-admin.badge>
+                <x-admin.badge tone="info">كشف شهري مع حدود يومية/أسبوعية/شهرية</x-admin.badge>
             </div>
 
             <form wire:submit="generateReport">
@@ -42,7 +42,7 @@
                     tone="warning"
                 />
                 <x-admin.metric-card
-                    title="استهلاك البدل الشهري"
+                    title="استهلاك بدل الموظف"
                     :value="number_format($reportData['summary_cards']['allowance_amount'], 2) . ' ج.م'"
                     hint="القيمة المغطاة من البدل"
                     tone="info"
@@ -72,19 +72,19 @@
                     <x-admin.metric-card
                         title="المستخدم المحدد"
                         :value="$reportData['selected_user']['name']"
-                        :hint="$reportData['selected_user_summary']['profile_mode'] ?? 'بدون ملف نشط'"
+                        :hint="($reportData['selected_user_summary']['profile_mode'] ?? 'بدون ملف نشط') . ' • ' . ($reportData['selected_user_summary']['period_label'] ?? '—')"
                         tone="primary"
                     />
                     <x-admin.metric-card
-                        title="المتبقي من البدل"
-                        :value="number_format($reportData['selected_user_summary']['monthly_allowance_remaining'] ?? 0, 2) . ' ج.م'"
-                        :hint="'المستهلك: ' . number_format($reportData['selected_user_summary']['monthly_allowance_used'] ?? 0, 2) . ' ج.م'"
+                        title="المتبقي من بدل الموظف"
+                        :value="number_format($reportData['selected_user_summary']['allowance_remaining'] ?? 0, 2) . ' ج.م'"
+                        :hint="($reportData['selected_user_summary']['allowance_limit_label'] ?? '—') . ' • المستهلك: ' . number_format($reportData['selected_user_summary']['allowance_used'] ?? 0, 2) . ' ج.م'"
                         tone="info"
                     />
                     <x-admin.metric-card
                         title="المتبقي من حد المبلغ"
                         :value="number_format($reportData['selected_user_summary']['free_meal_amount_remaining'] ?? 0, 2) . ' ج.م'"
-                        :hint="'المستهلك: ' . number_format($reportData['selected_user_summary']['free_meal_amount_used'] ?? 0, 2) . ' ج.م'"
+                        :hint="($reportData['selected_user_summary']['free_meal_limit_label'] ?? '—') . ' • المستهلك: ' . number_format($reportData['selected_user_summary']['free_meal_amount_used'] ?? 0, 2) . ' ج.م'"
                         tone="success"
                     />
                     <x-admin.metric-card
@@ -146,12 +146,12 @@
                 </x-admin.table-card>
 
                 <x-admin.table-card
-                    heading="تقرير البدل الشهري للموظفين"
-                    description="يعرض المبلغ المخصص، المستهلك، المتبقي، وعدد الطلبات المغطاة وفروق السداد."
+                    heading="تقرير بدل الموظفين"
+                    description="يعرض الحد المخصص، الفترة المطبقة، المستهلك، المتبقي، وعدد الطلبات المغطاة وفروق السداد."
                     :count="count($reportData['allowance_report']['rows'])"
                 >
                     @if (empty($reportData['allowance_report']['rows']))
-                        <x-admin.empty-state title="لا توجد ملفات بدل شهري نشطة في هذه الفترة" />
+                        <x-admin.empty-state title="لا توجد ملفات بدل موظفين نشطة في هذه الفترة" />
                     @else
                         <div class="mb-4 flex flex-wrap gap-2">
                             <x-admin.badge tone="info">المستهلك: {{ number_format($reportData['allowance_report']['totals']['consumed_amount'], 2) }} ج.م</x-admin.badge>
@@ -163,7 +163,8 @@
                                 <thead>
                                     <tr>
                                         <th>الموظف</th>
-                                        <th>البدل الشهري</th>
+                                        <th>فترة الحد</th>
+                                        <th>الحد المهيأ</th>
                                         <th>المستهلك</th>
                                         <th>المتبقي</th>
                                         <th>طلبات مغطاة</th>
@@ -174,7 +175,8 @@
                                     @foreach ($reportData['allowance_report']['rows'] as $row)
                                         <tr>
                                             <td class="font-semibold text-gray-900 dark:text-white">{{ $row['user_name'] }}</td>
-                                            <td>{{ number_format($row['configured_monthly_allowance'], 2) }} ج.م</td>
+                                            <td>{{ $row['period_type_label'] }}<div class="text-xs text-gray-500 dark:text-gray-400">{{ $row['period_label'] }}</div></td>
+                                            <td>{{ $row['configured_allowance_label'] }}</td>
                                             <td class="font-semibold text-info-600 dark:text-info-400">{{ number_format($row['consumed_amount'], 2) }} ج.م</td>
                                             <td class="font-semibold text-success-600 dark:text-success-400">{{ number_format($row['remaining_amount'], 2) }} ج.م</td>
                                             <td>{{ number_format($row['covered_orders_count']) }}</td>
@@ -191,7 +193,7 @@
             <div class="grid gap-6 xl:grid-cols-2">
                 <x-admin.table-card
                     heading="تقرير الوجبات المجانية"
-                    description="يعرض نوع الحد المطبق، حدود الاستخدام الشهرية، ما تم استهلاكه، والمتبقي لكل موظف."
+                    description="يعرض نوع الحد المطبق، فترة الحد، ما تم استهلاكه، والمتبقي لكل موظف."
                     :count="count($reportData['free_meal_report']['rows'])"
                 >
                     @if (empty($reportData['free_meal_report']['rows']))
@@ -207,6 +209,7 @@
                                 <thead>
                                     <tr>
                                         <th>الموظف</th>
+                                        <th>فترة الحد</th>
                                         <th>نوع الحد</th>
                                         <th>الحد المهيأ</th>
                                         <th>المستهلك بالمبلغ</th>
@@ -219,6 +222,7 @@
                                     @foreach ($reportData['free_meal_report']['rows'] as $row)
                                         <tr>
                                             <td class="font-semibold text-gray-900 dark:text-white">{{ $row['user_name'] }}</td>
+                                            <td>{{ $row['period_type_label'] }}<div class="text-xs text-gray-500 dark:text-gray-400">{{ $row['period_label'] }}</div></td>
                                             <td><x-admin.badge tone="success">{{ $row['benefit_type'] }}</x-admin.badge></td>
                                             <td>{{ $row['configured_limit'] }}</td>
                                             <td>{{ number_format($row['consumed_amount'], 2) }} ج.م</td>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserMealBenefitPeriodType;
 use App\Models\UserMealBenefitProfile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,7 @@ class UserMealBenefitProfileService
         $data['can_receive_owner_charge_orders'] = $mode === UserMealBenefitProfile::BENEFIT_MODE_OWNER_CHARGE;
         $data['monthly_allowance_enabled'] = $mode === UserMealBenefitProfile::BENEFIT_MODE_MONTHLY_ALLOWANCE;
         $data['free_meal_enabled'] = $mode === UserMealBenefitProfile::BENEFIT_MODE_FREE_MEAL;
+        $data['benefit_period_type'] = $data['benefit_period_type'] ?? UserMealBenefitPeriodType::Monthly->value;
         $data['monthly_allowance_amount'] = $data['monthly_allowance_enabled']
             ? round((float) ($data['monthly_allowance_amount'] ?? 0), 2)
             : 0;

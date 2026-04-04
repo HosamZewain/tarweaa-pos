@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Filament\Pages\Concerns\HasPageExcelExport;
 use App\Models\InventoryLocation;
 use App\Services\ReportService;
 use App\Support\BusinessTime;
@@ -15,6 +16,7 @@ use Filament\Schemas\Schema;
 class InventoryLocationsReport extends Page implements HasForms
 {
     use HasPagePermission;
+    use HasPageExcelExport;
     use InteractsWithForms;
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-storefront';

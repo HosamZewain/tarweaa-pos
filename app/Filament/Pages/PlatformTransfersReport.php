@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\PaymentMethod;
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Filament\Pages\Concerns\HasPageExcelExport;
 use App\Services\ReportService;
 use App\Support\BusinessTime;
 use Filament\Forms;
@@ -15,6 +16,7 @@ use Filament\Schemas\Schema;
 class PlatformTransfersReport extends Page implements HasForms
 {
     use HasPagePermission;
+    use HasPageExcelExport;
     use InteractsWithForms;
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-library';

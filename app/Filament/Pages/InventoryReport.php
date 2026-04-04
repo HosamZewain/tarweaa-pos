@@ -3,12 +3,14 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
+use App\Filament\Pages\Concerns\HasPageExcelExport;
 use App\Services\ReportService;
 use Filament\Pages\Page;
 
 class InventoryReport extends Page
 {
     use HasPagePermission;
+    use HasPageExcelExport;
 
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-archive-box';
     protected static string | \UnitEnum | null $navigationGroup = 'التقارير';

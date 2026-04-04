@@ -30,6 +30,10 @@ class OrderPaymentService
      */
     public function processPayment(Order $order, array $payments, int $actorId): Order
     {
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         $this->drawerSessionService->assertSessionNotUnderReconciliationForActor($order->drawerSession, $actorId);
 
         if ($order->drawerSession?->isClosed()) {
@@ -177,6 +181,10 @@ class OrderPaymentService
      */
     public function refund(Order $order, User $by, float $refundAmount, string $reason): Order
     {
+        if ($order->drawerSession?->isClosed()) {
+            throw OrderException::drawerSessionClosed();
+        }
+
         $this->drawerSessionService->assertSessionNotUnderReconciliation($order->drawerSession, $by);
 
         if ($order->payment_status !== PaymentStatus::Paid) {
