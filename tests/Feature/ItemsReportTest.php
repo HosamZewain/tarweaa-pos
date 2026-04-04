@@ -16,6 +16,7 @@ use App\Models\Role;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\ReportService;
+use App\Support\BusinessTime;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -56,10 +57,11 @@ class ItemsReportTest extends TestCase
     public function test_report_service_returns_all_items_and_selected_item_statistics(): void
     {
         [$burger, $cola] = $this->seedOrdersForItemsReport();
+        $businessDate = BusinessTime::today()->toDateString();
 
         $report = app(ReportService::class)->getItemsReport(
-            now()->toDateString(),
-            now()->toDateString(),
+            $businessDate,
+            $businessDate,
             $burger->id,
         );
 

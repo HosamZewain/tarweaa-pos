@@ -25,6 +25,7 @@ use App\Models\Role;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\ReportService;
+use App\Support\BusinessTime;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -86,13 +87,14 @@ class DashboardRevenueFilteringTest extends TestCase
         $this->createOrder('CANCELLED', 40, PaymentStatus::Paid, OrderStatus::Cancelled, PaymentMethod::Cash);
 
         $report = app(ReportService::class);
+        $businessDate = BusinessTime::today()->toDateString();
 
-        $daily = $report->getDailySales(now()->toDateString(), now()->toDateString());
-        $items = $report->getSalesByItem(now()->toDateString(), now()->toDateString());
-        $categories = $report->getSalesByCategory(now()->toDateString(), now()->toDateString());
-        $payments = $report->getSalesByPaymentMethod(now()->toDateString(), now()->toDateString())->keyBy('payment_method');
-        $byShift = $report->getSalesByShift(now()->toDateString(), now()->toDateString())->first();
-        $byCashier = $report->getSalesByCashier(now()->toDateString(), now()->toDateString())->first();
+        $daily = $report->getDailySales($businessDate, $businessDate);
+        $items = $report->getSalesByItem($businessDate, $businessDate);
+        $categories = $report->getSalesByCategory($businessDate, $businessDate);
+        $payments = $report->getSalesByPaymentMethod($businessDate, $businessDate)->keyBy('payment_method');
+        $byShift = $report->getSalesByShift($businessDate, $businessDate)->first();
+        $byCashier = $report->getSalesByCashier($businessDate, $businessDate)->first();
 
         $this->assertSame(2, $daily['totals']['total_orders']);
         $this->assertSame(180.0, (float) $daily['totals']['gross_revenue']);

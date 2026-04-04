@@ -6,6 +6,7 @@ use App\Filament\Pages\Concerns\HasPagePermission;
 use App\Filament\Widgets\CategorySalesChartWidget;
 use App\Filament\Widgets\DashboardHeroWidget;
 use App\Filament\Widgets\DashboardStatsWidget;
+use App\Filament\Widgets\OnlineUsersWidget;
 use App\Filament\Widgets\OrderStatusChartWidget;
 use App\Filament\Widgets\OrderVolumeChartWidget;
 use App\Filament\Widgets\SalesChartWidget;
@@ -51,6 +52,7 @@ class Dashboard extends BaseDashboard
         $widgets = [
             DashboardHeroWidget::class,
             DashboardStatsWidget::class,
+            OnlineUsersWidget::class,
         ];
 
         if (auth()->user()?->canViewDashboardAnalytics()) {

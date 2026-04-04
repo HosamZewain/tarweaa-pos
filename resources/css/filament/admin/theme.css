@@ -183,6 +183,14 @@
         @apply grid w-full min-w-0 gap-6 xl:grid-cols-2;
     }
 
+    .admin-online-summary-grid {
+        @apply grid w-full min-w-0 gap-4 sm:grid-cols-2;
+    }
+
+    .admin-online-context {
+        @apply inline-flex items-center rounded-full border border-gray-200/80 bg-gray-50/80 px-3 py-1 text-xs font-medium text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-300;
+    }
+
     .admin-metric-card {
         @apply block w-full min-w-0 rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
     }
