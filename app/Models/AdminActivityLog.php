@@ -49,6 +49,8 @@ class AdminActivityLog extends Model
             'restored' => 'استعادة',
             'approved' => 'اعتماد',
             'cancelled' => 'إلغاء',
+            'marked_ready' => 'تحديد كجاهز',
+            'marked_delivered' => 'تحديد كتم التسليم',
             'opened' => 'فتح',
             'closed' => 'إغلاق',
             'cash_in_recorded' => 'إيداع نقدي',

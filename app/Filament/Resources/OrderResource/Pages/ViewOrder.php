@@ -54,6 +54,8 @@ class ViewOrder extends ViewRecord
                     'order-' . $this->record->order_number . '.xlsx',
                     $this->getExcelExportPayload(),
                 )),
+            OrderResource::markReadyAction(),
+            OrderResource::markDeliveredAction(),
             OrderResource::recordPaymentAction(),
             Actions\Action::make('cancel')
                 ->label('إلغاء')

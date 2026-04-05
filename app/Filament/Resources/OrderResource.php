@@ -105,6 +105,8 @@ class OrderResource extends Resource
             ])
             ->actions([
                 \Filament\Actions\ViewAction::make(),
+                static::markReadyAction(),
+                static::markDeliveredAction(),
                 static::recordPaymentAction(),
                 \Filament\Actions\Action::make('cancel')
                     ->label('إلغاء')
@@ -438,6 +440,72 @@ class OrderResource extends Resource
             });
     }
 
+    public static function markReadyAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('markReady')
+            ->label('تحديد كجاهز')
+            ->icon('heroicon-o-check-badge')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('تحديد الطلب كجاهز')
+            ->modalDescription('سيتم نقل الطلب إلى حالة جاهز مع تسجيل وقت الجاهزية في النظام.')
+            ->visible(fn (Order $record): bool => static::canMarkReady($record))
+            ->action(function (Order $record): void {
+                $oldStatus = $record->status;
+
+                $updatedOrder = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record): Order {
+                    return app(OrderLifecycleService::class)->transition(
+                        order: $record,
+                        newStatus: OrderStatus::Ready,
+                        by: auth()->user(),
+                    );
+                });
+
+                static::logStatusTransition(
+                    order: $updatedOrder,
+                    action: 'marked_ready',
+                    oldStatus: $oldStatus,
+                    newStatus: OrderStatus::Ready,
+                    description: 'تم تحديد الطلب كجاهز من لوحة الإدارة.',
+                );
+            });
+    }
+
+    public static function markDeliveredAction(): \Filament\Actions\Action
+    {
+        return \Filament\Actions\Action::make('markDelivered')
+            ->label('تحديد كتم التسليم')
+            ->icon('heroicon-o-truck')
+            ->color('info')
+            ->requiresConfirmation()
+            ->modalHeading('تحديد الطلب كتم التسليم')
+            ->modalDescription('سيتم نقل الطلب إلى حالة تم التسليم مع تسجيل وقت التسليم في النظام.')
+            ->visible(fn (Order $record): bool => static::canMarkDelivered($record))
+            ->action(function (Order $record): void {
+                $oldStatus = $record->status;
+
+                $updatedOrder = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record): Order {
+                    if ($record->status === OrderStatus::Ready) {
+                        return app(OrderLifecycleService::class)->markHandedOver($record, auth()->user());
+                    }
+
+                    return app(OrderLifecycleService::class)->transition(
+                        order: $record,
+                        newStatus: OrderStatus::Delivered,
+                        by: auth()->user(),
+                    );
+                });
+
+                static::logStatusTransition(
+                    order: $updatedOrder,
+                    action: 'marked_delivered',
+                    oldStatus: $oldStatus,
+                    newStatus: OrderStatus::Delivered,
+                    description: 'تم تحديد الطلب كتم التسليم من لوحة الإدارة.',
+                );
+            });
+    }
+
     public static function canRecordManualPayment(Order $record): bool
     {
         return !$record->trashed()
@@ -447,6 +515,51 @@ class OrderResource extends Resource
             && (float) $record->remainingPayableAmount() > 0
             && $record->drawerSession?->isOpen()
             && auth()->user()?->hasPermission('orders.record_payment');
+    }
+
+    public static function canMarkReady(Order $record): bool
+    {
+        return !$record->trashed()
+            && $record->status->canTransitionTo(OrderStatus::Ready)
+            && auth()->user()?->hasPermission('mark_order_ready');
+    }
+
+    public static function canMarkDelivered(Order $record): bool
+    {
+        if ($record->trashed()) {
+            return false;
+        }
+
+        if ($record->status === OrderStatus::Ready) {
+            return auth()->user()?->hasPermission('handover_counter_orders') && $record->isPaid();
+        }
+
+        return $record->status->canTransitionTo(OrderStatus::Delivered)
+            && auth()->user()?->hasPermission('handover_counter_orders');
+    }
+
+    public static function logStatusTransition(
+        Order $order,
+        string $action,
+        OrderStatus $oldStatus,
+        OrderStatus $newStatus,
+        string $description,
+    ): void {
+        app(AdminActivityLogService::class)->logAction(
+            action: $action,
+            subject: $order,
+            description: $description,
+            oldValues: [
+                'status' => $oldStatus->value,
+                'status_label' => $oldStatus->label(),
+            ],
+            newValues: [
+                'status' => $newStatus->value,
+                'status_label' => $newStatus->label(),
+                'ready_at' => $order->ready_at,
+                'delivered_at' => $order->delivered_at,
+            ],
+        );
     }
 
     public static function getPages(): array
