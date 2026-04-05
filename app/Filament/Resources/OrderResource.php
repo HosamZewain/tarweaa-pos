@@ -454,7 +454,7 @@ class OrderResource extends Resource
                 $oldStatus = $record->status;
 
                 $updatedOrder = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record): Order {
-                    return app(OrderLifecycleService::class)->transition(
+                    return app(OrderLifecycleService::class)->transitionFromAdmin(
                         order: $record,
                         newStatus: OrderStatus::Ready,
                         by: auth()->user(),
@@ -486,10 +486,10 @@ class OrderResource extends Resource
 
                 $updatedOrder = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record): Order {
                     if ($record->status === OrderStatus::Ready) {
-                        return app(OrderLifecycleService::class)->markHandedOver($record, auth()->user());
+                        return app(OrderLifecycleService::class)->markHandedOverFromAdmin($record, auth()->user());
                     }
 
-                    return app(OrderLifecycleService::class)->transition(
+                    return app(OrderLifecycleService::class)->transitionFromAdmin(
                         order: $record,
                         newStatus: OrderStatus::Delivered,
                         by: auth()->user(),

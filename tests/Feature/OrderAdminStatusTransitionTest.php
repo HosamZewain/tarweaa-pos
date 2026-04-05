@@ -126,6 +126,57 @@ class OrderAdminStatusTransitionTest extends TestCase
         $this->assertSame(OrderStatus::Delivered->value, $activity->new_values['status']);
     }
 
+    public function test_admin_can_mark_order_ready_after_drawer_is_closed(): void
+    {
+        $this->drawer->update([
+            'status' => DrawerSessionStatus::Closed,
+            'ended_at' => now(),
+            'closed_by' => $this->adminUser->id,
+        ]);
+
+        $order = $this->createOrder(
+            orderNumber: 'ORD-ADMIN-READY-CLOSED-001',
+            status: OrderStatus::Preparing,
+            paymentStatus: PaymentStatus::Unpaid,
+            paidAmount: 0,
+        );
+
+        Livewire::actingAs($this->adminUser)
+            ->test(ViewOrder::class, ['record' => $order->getRouteKey()])
+            ->callAction('markReady');
+
+        $order->refresh();
+
+        $this->assertSame(OrderStatus::Ready->value, $order->status->value);
+        $this->assertNotNull($order->ready_at);
+    }
+
+    public function test_admin_can_mark_paid_ready_order_delivered_after_drawer_is_closed(): void
+    {
+        $this->drawer->update([
+            'status' => DrawerSessionStatus::Closed,
+            'ended_at' => now(),
+            'closed_by' => $this->adminUser->id,
+        ]);
+
+        $order = $this->createOrder(
+            orderNumber: 'ORD-ADMIN-DELIVERED-CLOSED-001',
+            status: OrderStatus::Ready,
+            paymentStatus: PaymentStatus::Paid,
+            paidAmount: 75,
+            readyAt: now()->subMinutes(5),
+        );
+
+        Livewire::actingAs($this->adminUser)
+            ->test(ViewOrder::class, ['record' => $order->getRouteKey()])
+            ->callAction('markDelivered');
+
+        $order->refresh();
+
+        $this->assertSame(OrderStatus::Delivered->value, $order->status->value);
+        $this->assertNotNull($order->delivered_at);
+    }
+
     private function createOrder(
         string $orderNumber,
         OrderStatus $status,

@@ -118,6 +118,22 @@ class OrderLifecycleService
     }
 
     /**
+     * Admin-only operational cleanup transition.
+     * Allows ready/delivered fixes after the drawer has been closed,
+     * without reopening any financial workflow.
+     *
+     * @throws OrderException
+     */
+    public function transitionFromAdmin(Order $order, OrderStatus $newStatus, User $by): Order
+    {
+        if (!$order->drawerSession?->isClosed()) {
+            return $this->transition($order, $newStatus, $by);
+        }
+
+        return $this->forceClosedDrawerOperationalTransition($order, $newStatus, $by);
+    }
+
+    /**
      * Mark a paid ready order as handed over from the pickup/delivery counter.
      *
      * @throws OrderException
@@ -133,6 +149,28 @@ class OrderLifecycleService
         }
 
         return $this->transition($order, OrderStatus::Delivered, $by);
+    }
+
+    /**
+     * Admin-only handover cleanup for orders stuck after drawer close.
+     *
+     * @throws OrderException
+     */
+    public function markHandedOverFromAdmin(Order $order, User $by): Order
+    {
+        if (!$order->isPaid()) {
+            throw OrderException::handoverRequiresPaidOrder();
+        }
+
+        if ($order->status !== OrderStatus::Ready) {
+            throw OrderException::handoverRequiresReadyOrder();
+        }
+
+        if (!$order->drawerSession?->isClosed()) {
+            return $this->markHandedOver($order, $by);
+        }
+
+        return $this->forceClosedDrawerOperationalTransition($order, OrderStatus::Delivered, $by);
     }
 
     /**
@@ -189,5 +227,27 @@ class OrderLifecycleService
 
             return $order->fresh();
         });
+    }
+
+    /**
+     * @throws OrderException
+     */
+    private function forceClosedDrawerOperationalTransition(Order $order, OrderStatus $newStatus, User $by): Order
+    {
+        if (!in_array($newStatus, [OrderStatus::Ready, OrderStatus::Delivered], true)) {
+            throw OrderException::drawerSessionClosed();
+        }
+
+        if (!$order->status->canTransitionTo($newStatus)) {
+            throw OrderException::invalidTransition($order->status, $newStatus);
+        }
+
+        if ($newStatus === OrderStatus::Delivered && !$order->isPaid()) {
+            throw OrderException::handoverRequiresPaidOrder();
+        }
+
+        $order->transitionTo($newStatus, $by->id);
+
+        return $order->fresh();
     }
 }
