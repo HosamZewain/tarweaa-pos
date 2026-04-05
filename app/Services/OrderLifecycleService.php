@@ -234,20 +234,69 @@ class OrderLifecycleService
      */
     private function forceClosedDrawerOperationalTransition(Order $order, OrderStatus $newStatus, User $by): Order
     {
-        if (!in_array($newStatus, [OrderStatus::Ready, OrderStatus::Delivered], true)) {
+        if (!in_array($newStatus, [OrderStatus::Preparing, OrderStatus::Ready, OrderStatus::Delivered], true)) {
             throw OrderException::drawerSessionClosed();
         }
 
-        if (!$order->status->canTransitionTo($newStatus)) {
-            throw OrderException::invalidTransition($order->status, $newStatus);
+        match ($newStatus) {
+            OrderStatus::Preparing => $this->forceClosedDrawerPreparingTransition($order, $by),
+            OrderStatus::Ready => $this->forceClosedDrawerReadyTransition($order, $by),
+            OrderStatus::Delivered => $this->forceClosedDrawerDeliveredTransition($order, $by),
+            default => throw OrderException::drawerSessionClosed(),
+        };
+
+        return $order->fresh();
+    }
+
+    /**
+     * @throws OrderException
+     */
+    private function forceClosedDrawerPreparingTransition(Order $order, User $by): void
+    {
+        if ($order->status !== OrderStatus::Confirmed) {
+            throw OrderException::invalidTransition($order->status, OrderStatus::Preparing);
         }
 
-        if ($newStatus === OrderStatus::Delivered && !$order->isPaid()) {
+        $order->transitionTo(OrderStatus::Preparing, $by->id);
+    }
+
+    /**
+     * @throws OrderException
+     */
+    private function forceClosedDrawerReadyTransition(Order $order, User $by): void
+    {
+        if ($order->status === OrderStatus::Confirmed) {
+            $order->transitionTo(OrderStatus::Preparing, $by->id);
+        }
+
+        if ($order->status !== OrderStatus::Preparing) {
+            throw OrderException::invalidTransition($order->status, OrderStatus::Ready);
+        }
+
+        $order->transitionTo(OrderStatus::Ready, $by->id);
+    }
+
+    /**
+     * @throws OrderException
+     */
+    private function forceClosedDrawerDeliveredTransition(Order $order, User $by): void
+    {
+        if (!$order->isPaid()) {
             throw OrderException::handoverRequiresPaidOrder();
         }
 
-        $order->transitionTo($newStatus, $by->id);
+        if ($order->status === OrderStatus::Confirmed) {
+            $order->transitionTo(OrderStatus::Preparing, $by->id);
+        }
 
-        return $order->fresh();
+        if ($order->status === OrderStatus::Preparing) {
+            $order->transitionTo(OrderStatus::Ready, $by->id);
+        }
+
+        if (!in_array($order->status, [OrderStatus::Ready, OrderStatus::Dispatched], true)) {
+            throw OrderException::invalidTransition($order->status, OrderStatus::Delivered);
+        }
+
+        $order->transitionTo(OrderStatus::Delivered, $by->id);
     }
 }

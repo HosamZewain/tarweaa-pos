@@ -519,9 +519,16 @@ class OrderResource extends Resource
 
     public static function canMarkReady(Order $record): bool
     {
-        return !$record->trashed()
-            && $record->status->canTransitionTo(OrderStatus::Ready)
-            && auth()->user()?->hasPermission('mark_order_ready');
+        if ($record->trashed() || !auth()->user()?->hasPermission('mark_order_ready')) {
+            return false;
+        }
+
+        if ($record->status->canTransitionTo(OrderStatus::Ready)) {
+            return true;
+        }
+
+        return $record->drawerSession?->isClosed()
+            && $record->status === OrderStatus::Confirmed;
     }
 
     public static function canMarkDelivered(Order $record): bool
@@ -534,8 +541,15 @@ class OrderResource extends Resource
             return auth()->user()?->hasPermission('handover_counter_orders') && $record->isPaid();
         }
 
-        return $record->status->canTransitionTo(OrderStatus::Delivered)
-            && auth()->user()?->hasPermission('handover_counter_orders');
+        if ($record->status->canTransitionTo(OrderStatus::Delivered)
+            && auth()->user()?->hasPermission('handover_counter_orders')) {
+            return true;
+        }
+
+        return $record->drawerSession?->isClosed()
+            && $record->isPaid()
+            && auth()->user()?->hasPermission('handover_counter_orders')
+            && in_array($record->status, [OrderStatus::Confirmed, OrderStatus::Preparing], true);
     }
 
     public static function logStatusTransition(

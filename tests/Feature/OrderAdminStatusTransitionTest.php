@@ -151,6 +151,32 @@ class OrderAdminStatusTransitionTest extends TestCase
         $this->assertNotNull($order->ready_at);
     }
 
+    public function test_admin_can_mark_confirmed_order_ready_after_drawer_is_closed(): void
+    {
+        $this->drawer->update([
+            'status' => DrawerSessionStatus::Closed,
+            'ended_at' => now(),
+            'closed_by' => $this->adminUser->id,
+        ]);
+
+        $order = $this->createOrder(
+            orderNumber: 'ORD-ADMIN-CONFIRMED-READY-CLOSED-001',
+            status: OrderStatus::Confirmed,
+            paymentStatus: PaymentStatus::Paid,
+            paidAmount: 75,
+        );
+
+        Livewire::actingAs($this->adminUser)
+            ->test(ViewOrder::class, ['record' => $order->getRouteKey()])
+            ->assertActionVisible('markReady')
+            ->callAction('markReady');
+
+        $order->refresh();
+
+        $this->assertSame(OrderStatus::Ready->value, $order->status->value);
+        $this->assertNotNull($order->ready_at);
+    }
+
     public function test_admin_can_mark_paid_ready_order_delivered_after_drawer_is_closed(): void
     {
         $this->drawer->update([
@@ -174,6 +200,33 @@ class OrderAdminStatusTransitionTest extends TestCase
         $order->refresh();
 
         $this->assertSame(OrderStatus::Delivered->value, $order->status->value);
+        $this->assertNotNull($order->delivered_at);
+    }
+
+    public function test_admin_can_mark_paid_confirmed_order_delivered_after_drawer_is_closed(): void
+    {
+        $this->drawer->update([
+            'status' => DrawerSessionStatus::Closed,
+            'ended_at' => now(),
+            'closed_by' => $this->adminUser->id,
+        ]);
+
+        $order = $this->createOrder(
+            orderNumber: 'ORD-ADMIN-CONFIRMED-DELIVERED-CLOSED-001',
+            status: OrderStatus::Confirmed,
+            paymentStatus: PaymentStatus::Paid,
+            paidAmount: 75,
+        );
+
+        Livewire::actingAs($this->adminUser)
+            ->test(ViewOrder::class, ['record' => $order->getRouteKey()])
+            ->assertActionVisible('markDelivered')
+            ->callAction('markDelivered');
+
+        $order->refresh();
+
+        $this->assertSame(OrderStatus::Delivered->value, $order->status->value);
+        $this->assertNotNull($order->ready_at);
         $this->assertNotNull($order->delivered_at);
     }
 
