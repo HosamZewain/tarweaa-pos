@@ -46,12 +46,27 @@ trait HasFilamentPermissions
         return $user->hasPermission($this->getPermissionPrefix() . '.delete');
     }
 
+    public function deleteAny(User $user): bool
+    {
+        return $user->hasPermission($this->getPermissionPrefix() . '.delete');
+    }
+
     public function restore(User $user, $model): bool
     {
         return $user->hasPermission($this->getPermissionPrefix() . '.restore');
     }
 
+    public function restoreAny(User $user): bool
+    {
+        return $user->hasPermission($this->getPermissionPrefix() . '.restore');
+    }
+
     public function forceDelete(User $user, $model): bool
+    {
+        return $user->hasPermission($this->getPermissionPrefix() . '.forceDelete');
+    }
+
+    public function forceDeleteAny(User $user): bool
     {
         return $user->hasPermission($this->getPermissionPrefix() . '.forceDelete');
     }

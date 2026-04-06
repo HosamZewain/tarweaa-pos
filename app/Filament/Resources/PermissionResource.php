@@ -59,7 +59,8 @@ class PermissionResource extends Resource
             ])
             ->actions([
                 \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                \Filament\Actions\DeleteAction::make()
+                    ->visible(fn (Permission $record): bool => auth()->user()?->can('delete', $record) ?? false),
             ])
             ->defaultSort('group')
             ->groups([

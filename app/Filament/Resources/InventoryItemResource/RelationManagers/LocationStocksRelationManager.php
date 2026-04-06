@@ -95,6 +95,7 @@ class LocationStocksRelationManager extends RelationManager
             ->headerActions([
                 Actions\CreateAction::make()
                     ->label('تهيئة رصيد موقع')
+                    ->visible(fn (): bool => $this->canUpdateInventoryItem())
                     ->mutateDataUsing(function (array $data): array {
                         $data['current_stock'] = 0;
                         $data['unit_cost'] = $this->getOwnerRecord()->unit_cost;
@@ -104,17 +105,21 @@ class LocationStocksRelationManager extends RelationManager
             ])
             ->actions([
                 Actions\EditAction::make()
-                    ->label('تعديل الحدود'),
+                    ->label('تعديل الحدود')
+                    ->visible(fn (): bool => $this->canUpdateInventoryItem()),
                 Actions\Action::make('addStock')
                     ->label('إضافة')
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
+                    ->visible(fn (): bool => $this->canAddStock())
                     ->form([
                         Forms\Components\TextInput::make('quantity')->label('الكمية')->numeric()->required()->minValue(0.001),
                         Forms\Components\TextInput::make('unit_cost')->label('تكلفة الوحدة')->numeric()->prefix('ج.م'),
                         Forms\Components\Textarea::make('notes')->label('ملاحظات'),
                     ])
                     ->action(function (InventoryLocationStock $record, array $data): void {
+                        abort_unless($this->canAddStock(), 403);
+
                         app(InventoryService::class)->addStock(
                             item: $record->inventoryItem,
                             quantity: (float) $data['quantity'],
@@ -129,6 +134,7 @@ class LocationStocksRelationManager extends RelationManager
                     ->label('جرد')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->color('warning')
+                    ->visible(fn (): bool => $this->canAdjustStock())
                     ->form([
                         Forms\Components\TextInput::make('new_quantity')
                             ->label('الكمية الجديدة')
@@ -138,6 +144,8 @@ class LocationStocksRelationManager extends RelationManager
                         Forms\Components\Textarea::make('notes')->label('سبب التعديل')->required(),
                     ])
                     ->action(function (InventoryLocationStock $record, array $data): void {
+                        abort_unless($this->canAdjustStock(), 403);
+
                         app(InventoryService::class)->adjustLocationTo(
                             item: $record->inventoryItem,
                             location: $record->inventoryLocation,
@@ -147,5 +155,20 @@ class LocationStocksRelationManager extends RelationManager
                         );
                     }),
             ]);
+    }
+
+    private function canUpdateInventoryItem(): bool
+    {
+        return auth()->user()?->can('update', $this->getOwnerRecord()) ?? false;
+    }
+
+    private function canAddStock(): bool
+    {
+        return $this->canUpdateInventoryItem() && (auth()->user()?->hasPermission('inventory_items.add_stock') ?? false);
+    }
+
+    private function canAdjustStock(): bool
+    {
+        return $this->canUpdateInventoryItem() && (auth()->user()?->hasPermission('inventory_items.adjust_stock') ?? false);
     }
 }

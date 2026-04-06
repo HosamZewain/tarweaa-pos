@@ -6,5 +6,12 @@ use Filament\Resources\Pages\EditRecord;
 class EditExpense extends EditRecord
 {
     protected static string $resource = ExpenseResource::class;
-    protected function getHeaderActions(): array { return [Actions\DeleteAction::make()]; }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\DeleteAction::make()
+                ->visible(fn (): bool => auth()->user()?->can('delete', $this->getRecord()) ?? false),
+        ];
+    }
 }

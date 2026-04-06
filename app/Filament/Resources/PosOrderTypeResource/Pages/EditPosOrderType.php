@@ -26,8 +26,10 @@ class EditPosOrderType extends EditRecord
         return [
             Actions\DeleteAction::make()
                 ->label('أرشفة')
+                ->visible(fn (): bool => auth()->user()?->can('delete', $this->getRecord()) ?? false)
                 ->after(fn () => app(PosOrderTypeService::class)->ensureDefaultExists()),
             Actions\RestoreAction::make()
+                ->visible(fn (): bool => auth()->user()?->can('restore', $this->getRecord()) ?? false)
                 ->after(fn () => app(PosOrderTypeService::class)->ensureDefaultExists()),
         ];
     }

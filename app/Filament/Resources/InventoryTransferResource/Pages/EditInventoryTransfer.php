@@ -20,9 +20,11 @@ class EditInventoryTransfer extends EditRecord
                 ->label('اعتماد')
                 ->icon('heroicon-o-check-badge')
                 ->color('info')
-                ->visible(fn () => $this->record->isDraft() && !$this->record->approved_by)
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->isDraft() && !$this->record->approved_by)
                 ->requiresConfirmation()
                 ->action(function (): void {
+                    abort_unless(auth()->user()?->can('update', $this->getRecord()), 403);
+
                     $this->record = app(InventoryTransferService::class)->approve($this->record, auth()->id());
                     Notification::make()->title('تم اعتماد التحويل')->success()->send();
                 }),
@@ -30,9 +32,11 @@ class EditInventoryTransfer extends EditRecord
                 ->label('إرسال التحويل')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('warning')
-                ->visible(fn () => $this->record->isDraft())
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->isDraft())
                 ->requiresConfirmation()
                 ->action(function (): void {
+                    abort_unless(auth()->user()?->can('update', $this->getRecord()), 403);
+
                     $this->record = app(InventoryTransferService::class)->send($this->record, auth()->id());
                     Notification::make()->title('تم إرسال التحويل')->success()->send();
                 }),
@@ -40,7 +44,7 @@ class EditInventoryTransfer extends EditRecord
                 ->label('استلام التحويل')
                 ->icon('heroicon-o-inbox-arrow-down')
                 ->color('success')
-                ->visible(fn () => $this->record->isSent())
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->isSent())
                 ->requiresConfirmation()
                 ->fillForm(function (): array {
                     $this->record->loadMissing('items.inventoryItem');
@@ -79,6 +83,8 @@ class EditInventoryTransfer extends EditRecord
                         ->deletable(false),
                 ])
                 ->action(function (array $data): void {
+                    abort_unless(auth()->user()?->can('update', $this->getRecord()), 403);
+
                     $items = $this->record->items()->get()->keyBy('id');
 
                     foreach ($data['items'] ?? [] as $row) {
@@ -101,14 +107,16 @@ class EditInventoryTransfer extends EditRecord
                 ->label('إلغاء')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn () => $this->record->isDraft())
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->isDraft())
                 ->requiresConfirmation()
                 ->action(function (): void {
+                    abort_unless(auth()->user()?->can('update', $this->getRecord()), 403);
+
                     $this->record = app(InventoryTransferService::class)->cancel($this->record, auth()->id());
                     Notification::make()->title('تم إلغاء التحويل')->success()->send();
                 }),
             Actions\DeleteAction::make()
-                ->visible(fn () => $this->record->isDraft()),
+                ->visible(fn () => (auth()->user()?->can('delete', $this->getRecord()) ?? false) && $this->record->isDraft()),
         ];
     }
 }

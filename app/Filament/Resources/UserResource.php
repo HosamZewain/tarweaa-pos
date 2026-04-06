@@ -127,6 +127,8 @@ class UserResource extends Resource
                     ->visible(fn (User $record): bool => static::canEdit($record) && auth()->id() !== $record->id)
                     ->requiresConfirmation()
                     ->action(function (User $record): void {
+                        abort_unless(auth()->user()?->can('update', $record), 403);
+
                         if (!$record->is_active && User::activePinConflictExists($record->pin, $record->id)) {
                             Notification::make()
                                 ->title('لا يمكن تفعيل المستخدم')

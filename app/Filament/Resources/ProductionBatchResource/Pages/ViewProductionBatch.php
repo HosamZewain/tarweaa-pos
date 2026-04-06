@@ -24,7 +24,7 @@ class ViewProductionBatch extends ViewRecord
                 ->label('إلغاء الدفعة')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn () => $this->record->canBeVoided())
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->canBeVoided())
                 ->requiresConfirmation()
                 ->form([
                     Forms\Components\Textarea::make('reason')

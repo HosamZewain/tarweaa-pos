@@ -118,6 +118,8 @@ class PaymentTerminalResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (PaymentTerminal $record) => auth()->user()?->can('update', $record) ?? false)
                     ->action(function (PaymentTerminal $record): void {
+                        abort_unless(auth()->user()?->can('update', $record), 403);
+
                         $oldState = (bool) $record->is_active;
                         app(AdminActivityLogService::class)->withoutModelLogging(fn () => $record->update(['is_active' => !$record->is_active]));
                         $record->refresh();

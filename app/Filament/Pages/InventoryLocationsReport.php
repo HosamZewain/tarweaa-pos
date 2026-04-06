@@ -4,6 +4,8 @@ namespace App\Filament\Pages;
 
 use App\Filament\Pages\Concerns\HasPagePermission;
 use App\Filament\Pages\Concerns\HasPageExcelExport;
+use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Support\Collection;
 use App\Models\InventoryLocation;
 use App\Services\ReportService;
 use App\Support\BusinessTime;
@@ -57,7 +59,7 @@ class InventoryLocationsReport extends Page implements HasForms
     {
         $reportService = app(ReportService::class);
 
-        $this->reportData = [
+        $this->reportData = $this->normalizeReportData([
             'valuation' => $reportService->getInventoryValuationByLocation($this->location_id),
             'stock_rows' => $reportService->getStockByLocation($this->location_id),
             'low_stock_rows' => $reportService->getLowStockByLocation($this->location_id),
@@ -65,6 +67,28 @@ class InventoryLocationsReport extends Page implements HasForms
             'received' => $reportService->getReceivedStockByLocation($this->date_from, $this->date_to, $this->location_id),
             'transfers' => $reportService->getInventoryTransfersReport($this->date_from, $this->date_to, $this->location_id),
             'reconciliation' => $reportService->getStockReconciliation(),
-        ];
+        ]);
+    }
+
+    private function normalizeReportData(array $data): array
+    {
+        return array_map(fn (mixed $value): mixed => $this->normalizeReportValue($value), $data);
+    }
+
+    private function normalizeReportValue(mixed $value): mixed
+    {
+        if ($value instanceof Collection) {
+            return $value->map(fn (mixed $item): mixed => $this->normalizeReportValue($item))->all();
+        }
+
+        if ($value instanceof Arrayable) {
+            return $this->normalizeReportValue($value->toArray());
+        }
+
+        if (is_array($value)) {
+            return array_map(fn (mixed $item): mixed => $this->normalizeReportValue($item), $value);
+        }
+
+        return $value;
     }
 }

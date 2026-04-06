@@ -13,7 +13,10 @@ class EditMenuItem extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [Actions\DeleteAction::make()];
+        return [
+            Actions\DeleteAction::make()
+                ->visible(fn (): bool => auth()->user()?->can('delete', $this->getRecord()) ?? false),
+        ];
     }
 
     protected function afterSave(): void

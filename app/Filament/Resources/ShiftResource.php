@@ -91,6 +91,8 @@ class ShiftResource extends Resource
                         Forms\Components\Textarea::make('notes')->label('ملاحظات'),
                     ])
                     ->action(function (Shift $record, array $data) {
+                        abort_unless(auth()->user()?->hasPermission('shifts.close'), 403);
+
                         try {
                             app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
                                 app(ShiftService::class)->close(
@@ -127,6 +129,8 @@ class ShiftResource extends Resource
                         Forms\Components\Textarea::make('notes')->label('ملاحظات'),
                     ])
                     ->action(function (array $data) {
+                        abort_unless(auth()->user()?->hasPermission('shifts.open'), 403);
+
                         try {
                             $shift = app(AdminActivityLogService::class)->withoutModelLogging(function () use ($data) {
                                 return app(ShiftService::class)->open(

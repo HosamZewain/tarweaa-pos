@@ -267,8 +267,11 @@ class EmployeeResource extends Resource
                     ->label(fn (Employee $record) => $record->is_active ? 'تعطيل' : 'تفعيل')
                     ->icon(fn (Employee $record) => $record->is_active ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
                     ->color(fn (Employee $record) => $record->is_active ? 'danger' : 'success')
+                    ->visible(fn (Employee $record): bool => auth()->user()?->can('update', $record) ?? false)
                     ->requiresConfirmation()
                     ->action(function (Employee $record): void {
+                        abort_unless(auth()->user()?->can('update', $record), 403);
+
                         if (!$record->is_active && User::activePinConflictExists($record->pin, $record->id)) {
                             Notification::make()
                                 ->title('لا يمكن تفعيل الموظف')

@@ -29,6 +29,7 @@ class ListUserMealBenefitProfiles extends ListRecords
                 ->label('إسناد جماعي')
                 ->icon('heroicon-o-users')
                 ->color('info')
+                ->visible(fn (): bool => $this->canBulkAssign())
                 ->modalHeading('إسناد مزايا لعدة مستخدمين')
                 ->modalDescription('اختر عدة مستخدمين ثم طبّق نفس نوع المزية عليهم دفعة واحدة. إذا كان للمستخدم ملف سابق فسيتم تحديثه.')
                 ->schema([
@@ -138,6 +139,8 @@ class ListUserMealBenefitProfiles extends ListRecords
                         ->columnSpanFull(),
                 ])
                 ->action(function (array $data): void {
+                    abort_unless($this->canBulkAssign(), 403);
+
                     $count = app(UserMealBenefitProfileService::class)->upsertForUsers(
                         $data['user_ids'] ?? [],
                         $data,
@@ -163,5 +166,13 @@ class ListUserMealBenefitProfiles extends ListRecords
                         ->send();
                 }),
         ];
+    }
+
+    private function canBulkAssign(): bool
+    {
+        $user = auth()->user();
+
+        return ($user?->hasPermission('user_meal_benefit_profiles.create') ?? false)
+            && ($user?->hasPermission('user_meal_benefit_profiles.update') ?? false);
     }
 }

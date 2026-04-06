@@ -33,7 +33,7 @@ class EditRole extends EditRecord
     {
         return [
             Actions\DeleteAction::make()
-                ->visible(fn () => $this->getRecord()->users()->doesntExist()),
+                ->visible(fn (): bool => (auth()->user()?->can('delete', $this->getRecord()) ?? false) && $this->getRecord()->users()->doesntExist()),
         ];
     }
 }

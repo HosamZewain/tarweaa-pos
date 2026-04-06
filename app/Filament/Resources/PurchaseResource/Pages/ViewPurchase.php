@@ -18,10 +18,12 @@ class ViewPurchase extends ViewRecord
                 ->label('استلام كامل الشراء')
                 ->icon('heroicon-o-inbox-arrow-down')
                 ->color('success')
-                ->visible(fn () => $this->record->status !== 'cancelled' && $this->record->pendingItemsCount() > 0)
+                ->visible(fn () => (auth()->user()?->can('update', $this->getRecord()) ?? false) && $this->record->status !== 'cancelled' && $this->record->pendingItemsCount() > 0)
                 ->requiresConfirmation()
                 ->modalDescription('سيتم استلام كل الكميات المتبقية لكل بنود أمر الشراء في موقع الاستلام المحدد.')
                 ->action(function (): void {
+                    abort_unless(auth()->user()?->can('update', $this->getRecord()), 403);
+
                     $receivedLines = $this->record->receiveAllPendingItems();
                     $this->record->refresh();
 

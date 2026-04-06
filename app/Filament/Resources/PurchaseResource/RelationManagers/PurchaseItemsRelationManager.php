@@ -86,7 +86,7 @@ class PurchaseItemsRelationManager extends RelationManager
             ->headerActions([
                 Actions\CreateAction::make()
                     ->label('إضافة بند')
-                    ->visible(fn () => !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true))
+                    ->visible(fn () => $this->canMutatePurchase() && !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true))
                     ->mutateDataUsing(function (array $data): array {
                         $data['quantity_received'] = 0;
                         $data['total'] = round(((float) $data['quantity_ordered']) * ((float) $data['unit_price']), 2);
@@ -98,7 +98,7 @@ class PurchaseItemsRelationManager extends RelationManager
             ->actions([
                 Actions\EditAction::make()
                     ->label('تعديل')
-                    ->visible(fn (PurchaseItem $record) => !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true) && (float) $record->quantity_received === 0.0)
+                    ->visible(fn (PurchaseItem $record) => $this->canMutatePurchase() && !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true) && (float) $record->quantity_received === 0.0)
                     ->mutateDataUsing(function (array $data): array {
                         $data['total'] = round(((float) $data['quantity_ordered']) * ((float) $data['unit_price']), 2);
 
@@ -109,7 +109,7 @@ class PurchaseItemsRelationManager extends RelationManager
                     ->label('استلام')
                     ->icon('heroicon-o-inbox-arrow-down')
                     ->color('success')
-                    ->visible(fn (PurchaseItem $record) => !in_array($this->getOwnerRecord()->status, ['cancelled', 'received'], true) && $record->pendingQuantity() > 0)
+                    ->visible(fn (PurchaseItem $record) => $this->canMutatePurchase() && !in_array($this->getOwnerRecord()->status, ['cancelled', 'received'], true) && $record->pendingQuantity() > 0)
                     ->form([
                         Forms\Components\TextInput::make('quantity')
                             ->label('الكمية المستلمة')
@@ -119,12 +119,19 @@ class PurchaseItemsRelationManager extends RelationManager
                             ->default(fn (PurchaseItem $record) => $record->pendingQuantity()),
                     ])
                     ->action(function (PurchaseItem $record, array $data): void {
+                        abort_unless($this->canMutatePurchase(), 403);
+
                         $record->receive((float) $data['quantity']);
                         $this->getOwnerRecord()->refresh();
                     }),
                 Actions\DeleteAction::make()
-                    ->visible(fn (PurchaseItem $record) => !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true) && (float) $record->quantity_received === 0.0)
+                    ->visible(fn (PurchaseItem $record) => $this->canMutatePurchase() && !in_array($this->getOwnerRecord()->status, ['received', 'cancelled'], true) && (float) $record->quantity_received === 0.0)
                     ->after(fn () => $this->getOwnerRecord()->refresh()->recalculate()),
             ]);
+    }
+
+    private function canMutatePurchase(): bool
+    {
+        return auth()->user()?->can('update', $this->getOwnerRecord()) ?? false;
     }
 }

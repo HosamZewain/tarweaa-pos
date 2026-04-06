@@ -95,6 +95,11 @@ class DrawerSessionResource extends Resource
                         Forms\Components\Textarea::make('notes')->label('ملاحظات'),
                     ])
                     ->action(function (CashierDrawerSession $record, array $data) {
+                        abort_unless(
+                            auth()->id() === $record->cashier_id || auth()->user()?->hasPermission('drawers.close'),
+                            403,
+                        );
+
                         try {
                             app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
                                 app(DrawerSessionService::class)->close(

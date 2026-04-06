@@ -126,8 +126,10 @@ class PosOrderTypeResource extends Resource
                 \Filament\Actions\EditAction::make(),
                 \Filament\Actions\DeleteAction::make()
                     ->label('أرشفة')
+                    ->visible(fn (\App\Models\PosOrderType $record): bool => auth()->user()?->can('delete', $record) ?? false)
                     ->after(fn () => app(PosOrderTypeService::class)->ensureDefaultExists()),
                 \Filament\Actions\RestoreAction::make()
+                    ->visible(fn (\App\Models\PosOrderType $record): bool => auth()->user()?->can('restore', $record) ?? false)
                     ->after(fn () => app(PosOrderTypeService::class)->ensureDefaultExists()),
             ])
             ->bulkActions([
