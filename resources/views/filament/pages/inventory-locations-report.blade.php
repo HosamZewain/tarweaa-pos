@@ -334,14 +334,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse (($received['entries'] ?? collect()) as $entry)
+                        @forelse (($received['entries'] ?? []) as $entry)
                             <tr>
-                                <td>{{ $entry->created_at?->timezone(\App\Support\BusinessTime::timezone())->format('Y-m-d h:i A') }}</td>
-                                <td>{{ $entry->inventoryLocation?->name ?? '—' }}</td>
-                                <td>{{ $entry->inventoryItem?->name ?? '—' }}</td>
-                                <td>{{ number_format($entry->quantity, 3) }} {{ $entry->inventoryItem?->unit }}</td>
-                                <td>{{ number_format($entry->unit_cost, 2) }} ج.م</td>
-                                <td>{{ number_format($entry->total_cost, 2) }} ج.م</td>
+                                <td>{{ $entry['created_at'] ? \Illuminate\Support\Carbon::parse($entry['created_at'])->timezone(\App\Support\BusinessTime::timezone())->format('Y-m-d h:i A') : '—' }}</td>
+                                <td>{{ $entry['inventory_location']['name'] ?? '—' }}</td>
+                                <td>{{ $entry['inventory_item']['name'] ?? '—' }}</td>
+                                <td>{{ number_format($entry['quantity'], 3) }} {{ $entry['inventory_item']['unit'] ?? '' }}</td>
+                                <td>{{ number_format($entry['unit_cost'], 2) }} ج.م</td>
+                                <td>{{ number_format($entry['total_cost'], 2) }} ج.م</td>
                             </tr>
                         @empty
                             <tr><td colspan="6">لا توجد حركات استلام في الفترة الحالية</td></tr>
@@ -370,15 +370,15 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse (($transfers['entries'] ?? collect()) as $transfer)
+                        @forelse (($transfers['entries'] ?? []) as $transfer)
                             <tr>
-                                <td>{{ $transfer->transfer_number }}</td>
-                                <td>{{ $transfer->sourceLocation?->name ?? '—' }}</td>
-                                <td>{{ $transfer->destinationLocation?->name ?? '—' }}</td>
-                                <td>{{ $transfer->status }}</td>
-                                <td>{{ $transfer->requester?->name ?? '—' }}</td>
-                                <td>{{ $transfer->transferredBy?->name ?? '—' }}</td>
-                                <td>{{ $transfer->receivedBy?->name ?? '—' }}</td>
+                                <td>{{ $transfer['transfer_number'] ?? '—' }}</td>
+                                <td>{{ $transfer['source_location']['name'] ?? '—' }}</td>
+                                <td>{{ $transfer['destination_location']['name'] ?? '—' }}</td>
+                                <td>{{ $transfer['status'] ?? '—' }}</td>
+                                <td>{{ $transfer['requester']['name'] ?? '—' }}</td>
+                                <td>{{ $transfer['transferred_by']['name'] ?? '—' }}</td>
+                                <td>{{ $transfer['received_by']['name'] ?? '—' }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="7">لا توجد تحويلات في الفترة الحالية</td></tr>
