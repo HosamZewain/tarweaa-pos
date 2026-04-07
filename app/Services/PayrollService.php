@@ -300,7 +300,7 @@ class PayrollService
             ->values();
     }
 
-    private function advanceAllocationsForMonth(Employee $employee, Carbon $monthEnd): array
+    private function advanceAllocationsForMonth(Employee $employee, Carbon $monthEnd): Collection
     {
         return $employee->employeeAdvances
             ->filter(function (EmployeeAdvance $advance) use ($monthEnd): bool {
@@ -330,8 +330,7 @@ class PayrollService
                 ];
             })
             ->filter()
-            ->values()
-            ->all();
+            ->values();
     }
 
     private function syncRunTotals(PayrollRun $run): void
