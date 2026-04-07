@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeeAdvancesRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeePenaltiesRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeeSalariesRelationManager;
 use App\Filament\Resources\EmployeeResource\Pages;
@@ -12,6 +13,7 @@ use App\Support\HrFeature;
 use App\Services\AdminActivityLogService;
 use App\Services\EmployeeManagementService;
 use Filament\Forms;
+use Filament\Infolists;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Get;
@@ -30,7 +32,7 @@ class EmployeeResource extends Resource
     protected static ?string $navigationLabel = 'الموظفون';
     protected static ?string $modelLabel = 'موظف';
     protected static ?string $pluralModelLabel = 'الموظفون';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 2;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -40,39 +42,50 @@ class EmployeeResource extends Resource
     public static function form(Schema $form): Schema
     {
         $employeeService = app(EmployeeManagementService::class);
+        $summarySchema = [
+            Forms\Components\Placeholder::make('current_salary_summary')
+                ->label('الراتب الحالي')
+                ->content(function (?Employee $record): string {
+                    $salary = $record?->currentEmployeeSalaryRecord();
+
+                    return $salary ? number_format((float) $salary->amount, 2) . ' ج.م' : 'غير محدد';
+                }),
+            Forms\Components\Placeholder::make('salary_effective_summary')
+                ->label('سريان الراتب الحالي')
+                ->content(function (?Employee $record): string {
+                    $salary = $record?->currentEmployeeSalaryRecord();
+
+                    if (!$salary) {
+                        return 'لا يوجد راتب ساري';
+                    }
+
+                    $from = $salary->effective_from?->format('Y-m-d') ?? '—';
+                    $to = $salary->effective_to?->format('Y-m-d') ?? 'مستمر';
+
+                    return "{$from} → {$to}";
+                }),
+            Forms\Components\Placeholder::make('active_penalties_count_summary')
+                ->label('عدد الجزاءات النشطة')
+                ->content(fn (?Employee $record): string => (string) ($record?->activeEmployeePenaltiesCount() ?? 0)),
+            Forms\Components\Placeholder::make('active_penalties_total_summary')
+                ->label('إجمالي الجزاءات النشطة')
+                ->content(fn (?Employee $record): string => number_format((float) ($record?->activeEmployeePenaltiesTotal() ?? 0), 2) . ' ج.م'),
+        ];
+
+        if (HrFeature::hasAdvanceTables()) {
+            $summarySchema[] = Forms\Components\Placeholder::make('active_advances_count_summary')
+                ->label('عدد السلف النشطة')
+                ->content(fn (?Employee $record): string => (string) ($record?->activeEmployeeAdvancesCount() ?? 0));
+
+            $summarySchema[] = Forms\Components\Placeholder::make('active_advances_total_summary')
+                ->label('إجمالي السلف النشطة')
+                ->content(fn (?Employee $record): string => number_format((float) ($record?->activeEmployeeAdvancesTotal() ?? 0), 2) . ' ج.م');
+        }
 
         return $form->schema([
             \Filament\Schemas\Components\Section::make('ملخص HR')
-                ->schema([
-                    Forms\Components\Placeholder::make('current_salary_summary')
-                        ->label('الراتب الحالي')
-                        ->content(function (?Employee $record): string {
-                            $salary = $record?->currentEmployeeSalaryRecord();
-
-                            return $salary ? number_format((float) $salary->amount, 2) . ' ج.م' : 'غير محدد';
-                        }),
-                    Forms\Components\Placeholder::make('salary_effective_summary')
-                        ->label('سريان الراتب الحالي')
-                        ->content(function (?Employee $record): string {
-                            $salary = $record?->currentEmployeeSalaryRecord();
-
-                            if (!$salary) {
-                                return 'لا يوجد راتب ساري';
-                            }
-
-                            $from = $salary->effective_from?->format('Y-m-d') ?? '—';
-                            $to = $salary->effective_to?->format('Y-m-d') ?? 'مستمر';
-
-                            return "{$from} → {$to}";
-                        }),
-                    Forms\Components\Placeholder::make('active_penalties_count_summary')
-                        ->label('عدد الجزاءات النشطة')
-                        ->content(fn (?Employee $record): string => (string) ($record?->activeEmployeePenaltiesCount() ?? 0)),
-                    Forms\Components\Placeholder::make('active_penalties_total_summary')
-                        ->label('إجمالي الجزاءات النشطة')
-                        ->content(fn (?Employee $record): string => number_format((float) ($record?->activeEmployeePenaltiesTotal() ?? 0), 2) . ' ج.م'),
-                ])
-                ->columns(4)
+                ->schema($summarySchema)
+                ->columns(3)
                 ->visible(fn (string $operation): bool => $operation === 'edit'),
 
             \Filament\Schemas\Components\Section::make('بيانات الموظف')->schema([
@@ -262,6 +275,7 @@ class EmployeeResource extends Resource
                     ->relationship('roles', 'display_name', fn (Builder $query) => $query->whereIn('name', User::assignableEmployeeRoleNames())),
             ])
             ->actions([
+                \Filament\Actions\ViewAction::make(),
                 \Filament\Actions\EditAction::make(),
                 \Filament\Actions\Action::make('toggleActive')
                     ->label(fn (Employee $record) => $record->is_active ? 'تعطيل' : 'تفعيل')
@@ -297,19 +311,98 @@ class EmployeeResource extends Resource
             ->defaultSort('name');
     }
 
+    public static function infolist(Schema $infolist): Schema
+    {
+        $businessTimezone = BusinessTime::timezone();
+
+        return $infolist->schema([
+            \Filament\Schemas\Components\Section::make('ملخص HR')->schema(array_filter([
+                Infolists\Components\TextEntry::make('current_salary_summary')
+                    ->label('الراتب الحالي')
+                    ->state(fn (Employee $record): string => $record->currentEmployeeSalaryRecord()
+                        ? number_format((float) $record->currentEmployeeSalaryRecord()->amount, 2) . ' ج.م'
+                        : 'غير محدد'),
+                Infolists\Components\TextEntry::make('active_penalties_count_summary')
+                    ->label('عدد الجزاءات النشطة')
+                    ->state(fn (Employee $record): string => (string) $record->activeEmployeePenaltiesCount()),
+                Infolists\Components\TextEntry::make('active_penalties_total_summary')
+                    ->label('إجمالي الجزاءات النشطة')
+                    ->state(fn (Employee $record): string => number_format((float) $record->activeEmployeePenaltiesTotal(), 2) . ' ج.م'),
+                HrFeature::hasAdvanceTables()
+                    ? Infolists\Components\TextEntry::make('active_advances_count_summary')
+                        ->label('عدد السلف النشطة')
+                        ->state(fn (Employee $record): string => (string) $record->activeEmployeeAdvancesCount())
+                    : null,
+                HrFeature::hasAdvanceTables()
+                    ? Infolists\Components\TextEntry::make('active_advances_total_summary')
+                        ->label('إجمالي السلف النشطة')
+                        ->state(fn (Employee $record): string => number_format((float) $record->activeEmployeeAdvancesTotal(), 2) . ' ج.م')
+                    : null,
+            ]))->columns(3),
+            \Filament\Schemas\Components\Section::make('بيانات الموظف')->schema([
+                Infolists\Components\TextEntry::make('name')
+                    ->label('الاسم'),
+                Infolists\Components\TextEntry::make('username')
+                    ->label('اسم المستخدم'),
+                Infolists\Components\TextEntry::make('email')
+                    ->label('البريد الإلكتروني')
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('phone')
+                    ->label('الهاتف')
+                    ->placeholder('—'),
+                Infolists\Components\IconEntry::make('is_active')
+                    ->label('نشط')
+                    ->boolean(),
+                Infolists\Components\TextEntry::make('created_at')
+                    ->label('تاريخ الإنشاء')
+                    ->dateTime()
+                    ->timezone($businessTimezone),
+            ])->columns(3),
+            \Filament\Schemas\Components\Section::make('الملف الوظيفي')->schema([
+                Infolists\Components\TextEntry::make('employeeProfile.full_name')
+                    ->label('الاسم الكامل')
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('employeeProfile.job_title')
+                    ->label('المسمى الوظيفي')
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('employeeProfile.hired_at')
+                    ->label('تاريخ التعيين')
+                    ->date()
+                    ->placeholder('—'),
+                Infolists\Components\TextEntry::make('roles.display_name')
+                    ->label('الدور التشغيلي')
+                    ->badge(),
+                Infolists\Components\TextEntry::make('employeeProfile.notes')
+                    ->label('ملاحظات إدارية')
+                    ->placeholder('—')
+                    ->columnSpanFull(),
+            ])->columns(3),
+        ]);
+    }
+
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->manageable()->with([
+        $relations = [
             'roles',
             'employeeProfile',
             'employeeSalaries',
             'employeePenalties',
-        ]);
+        ];
+
+        if (HrFeature::hasAdvanceTables()) {
+            $relations[] = 'employeeAdvances';
+        }
+
+        return parent::getEloquentQuery()->manageable()->with($relations);
     }
 
     public static function getRelations(): array
     {
         $relations = [];
+
+        if (HrFeature::hasAdvanceTables()) {
+            $relations[] = EmployeeAdvancesRelationManager::class;
+        }
 
         if (HrFeature::hasSalaryTables()) {
             $relations[] = EmployeeSalariesRelationManager::class;
@@ -327,6 +420,7 @@ class EmployeeResource extends Resource
         return [
             'index' => Pages\ListEmployees::route('/'),
             'create' => Pages\CreateEmployee::route('/create'),
+            'view' => Pages\ViewEmployee::route('/{record}'),
             'edit' => Pages\EditEmployee::route('/{record}/edit'),
         ];
     }

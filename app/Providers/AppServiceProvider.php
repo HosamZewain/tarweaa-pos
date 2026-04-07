@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\CashierDrawerSession;
 use App\Models\Employee;
+use App\Models\EmployeeAdvance;
 use App\Models\EmployeePenalty;
 use App\Models\EmployeeProfile;
 use App\Models\EmployeeProfileAttachment;
@@ -18,6 +19,7 @@ use App\Models\MenuItem;
 use App\Models\MenuItemChannelPrice;
 use App\Models\PaymentTerminal;
 use App\Models\Permission;
+use App\Models\PayrollRun;
 use App\Models\PosDevice;
 use App\Models\PosOrderType;
 use App\Models\ProductionBatch;
@@ -52,8 +54,10 @@ class AppServiceProvider extends ServiceProvider
         foreach ([
             User::class,
             Employee::class,
+            EmployeeAdvance::class,
             EmployeeSalary::class,
             EmployeePenalty::class,
+            PayrollRun::class,
             EmployeeProfile::class,
             EmployeeProfileAttachment::class,
             Role::class,

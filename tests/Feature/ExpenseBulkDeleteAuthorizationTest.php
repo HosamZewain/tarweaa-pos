@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\ExpenseResource\Pages\EditExpense;
 use App\Filament\Resources\ExpenseResource\Pages\ListExpenses;
+use App\Filament\Resources\ExpenseResource;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Permission;
@@ -61,7 +62,8 @@ class ExpenseBulkDeleteAuthorizationTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(EditExpense::class, ['record' => $expense->getRouteKey()])
-            ->assertActionHidden('delete');
+            ->assertDontSee('Delete')
+            ->assertDontSee('حذف');
     }
 
     public function test_user_with_expense_delete_permission_can_see_delete_action_on_edit_page(): void
@@ -77,6 +79,44 @@ class ExpenseBulkDeleteAuthorizationTest extends TestCase
         Livewire::actingAs($user)
             ->test(EditExpense::class, ['record' => $expense->getRouteKey()])
             ->assertActionVisible('delete');
+    }
+
+    public function test_approved_expense_cannot_be_edited_even_with_update_permission(): void
+    {
+        $user = $this->makeExpenseUser([
+            'expenses.viewAny',
+            'expenses.view',
+            'expenses.update',
+        ]);
+
+        $expense = $this->createExpense([
+            'approved_by' => User::where('email', 'admin@pos.com')->firstOrFail()->id,
+            'approved_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(ExpenseResource::getUrl('edit', ['record' => $expense]))
+            ->assertForbidden();
+    }
+
+    public function test_approved_expense_hides_delete_action_even_with_delete_permission(): void
+    {
+        $user = $this->makeExpenseUser([
+            'expenses.viewAny',
+            'expenses.view',
+            'expenses.update',
+            'expenses.delete',
+        ]);
+
+        $expense = $this->createExpense([
+            'approved_by' => User::where('email', 'admin@pos.com')->firstOrFail()->id,
+            'approved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(EditExpense::class, ['record' => $expense->getRouteKey()])
+            ->assertDontSee('Delete')
+            ->assertDontSee('حذف');
     }
 
     private function makeExpenseUser(array $permissionNames): User
@@ -105,7 +145,7 @@ class ExpenseBulkDeleteAuthorizationTest extends TestCase
         return $user->fresh();
     }
 
-    private function createExpense(): Expense
+    private function createExpense(array $overrides = []): Expense
     {
         $category = ExpenseCategory::query()->first()
             ?? ExpenseCategory::create([
@@ -114,7 +154,7 @@ class ExpenseBulkDeleteAuthorizationTest extends TestCase
                 'is_active' => true,
             ]);
 
-        return Expense::create([
+        return Expense::create(array_merge([
             'expense_number' => 'EXP-TEST-' . fake()->unique()->numerify('####'),
             'category_id' => $category->id,
             'amount' => 150,
@@ -123,6 +163,6 @@ class ExpenseBulkDeleteAuthorizationTest extends TestCase
             'expense_date' => now()->toDateString(),
             'created_by' => User::where('email', 'admin@pos.com')->firstOrFail()->id,
             'updated_by' => User::where('email', 'admin@pos.com')->firstOrFail()->id,
-        ]);
+        ], $overrides));
     }
 }

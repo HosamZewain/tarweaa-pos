@@ -206,10 +206,32 @@ class FilamentIntegrationTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_admin_can_view_employee_advances_resource(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get('/admin/employee-advances')
+            ->assertSuccessful()
+            ->assertSee('إضافة سلفة');
+    }
+
     public function test_admin_can_view_employee_penalties_resource(): void
     {
         $this->actingAs($this->adminUser)
             ->get('/admin/employee-penalties')
+            ->assertSuccessful();
+    }
+
+    public function test_admin_can_view_employee_profile_page(): void
+    {
+        $employee = User::factory()->create([
+            'name' => 'Employee View Profile',
+            'username' => 'employee-view-profile',
+            'is_active' => true,
+        ]);
+        $employee->roles()->sync([Role::firstWhere('name', 'cashier')->id]);
+
+        $this->actingAs($this->adminUser)
+            ->get("/admin/employees/{$employee->id}")
             ->assertSuccessful();
     }
 

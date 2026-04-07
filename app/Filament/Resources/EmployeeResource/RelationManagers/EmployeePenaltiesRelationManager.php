@@ -15,6 +15,11 @@ class EmployeePenaltiesRelationManager extends RelationManager
 
     protected static ?string $title = 'الجزاءات';
 
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     public function form(Schema $form): Schema
     {
         return $form->schema([

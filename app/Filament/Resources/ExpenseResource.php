@@ -31,7 +31,7 @@ class ExpenseResource extends Resource
                 Forms\Components\TextInput::make('amount')->label('المبلغ')->numeric()->required()->prefix('ج.م'),
                 Forms\Components\Textarea::make('description')->label('الوصف')->required()->maxLength(500),
                 Forms\Components\Select::make('payment_method')->label('طريقة الدفع')->options([
-                    'cash' => 'نقد', 'bank_transfer' => 'تحويل بنكي', 'credit_card' => 'بطاقة ائتمان',
+                    'cash' => 'نقد', 'bank_transfer' => 'تحويل بنكي', 'card' => 'بطاقة ائتمان',
                 ])->default('cash'),
                 Forms\Components\TextInput::make('receipt_number')->label('رقم الإيصال')->maxLength(100),
                 Forms\Components\FileUpload::make('bill_images')
@@ -88,7 +88,8 @@ class ExpenseResource extends Resource
                     }),
             ])
             ->actions([
-                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make()
+                    ->visible(fn (Expense $record): bool => auth()->user()?->can('update', $record) ?? false),
                 \Filament\Actions\Action::make('approve')
                     ->label('موافقة')
                     ->icon('heroicon-o-check-circle')
@@ -113,7 +114,12 @@ class ExpenseResource extends Resource
                         Notification::make()->title('تمت الموافقة على المصروف')->success()->send();
                     }),
             ])
-            ->bulkActions([\Filament\Actions\BulkActionGroup::make([\Filament\Actions\DeleteBulkAction::make()])])
+            ->bulkActions([
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make()
+                        ->authorizeIndividualRecords('delete'),
+                ]),
+            ])
             ->defaultSort('expense_date', 'desc');
     }
 

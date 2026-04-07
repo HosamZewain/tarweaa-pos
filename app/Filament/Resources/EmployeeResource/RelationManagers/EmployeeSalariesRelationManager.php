@@ -16,6 +16,11 @@ class EmployeeSalariesRelationManager extends RelationManager
 
     protected static ?string $title = 'الرواتب';
 
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     public function form(Schema $form): Schema
     {
         return $form->schema([

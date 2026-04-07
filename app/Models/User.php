@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ShiftStatus;
 use App\Enums\DrawerSessionStatus;
+use App\Support\HrFeature;
 use App\Support\SystemPermissions;
 use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -128,9 +129,48 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(EmployeeSalary::class, 'user_id')->latest('effective_from');
     }
 
+    public function employeeAdvances(): HasMany
+    {
+        return $this->hasMany(EmployeeAdvance::class, 'user_id')->latest('advance_date');
+    }
+
     public function employeePenalties(): HasMany
     {
         return $this->hasMany(EmployeePenalty::class, 'user_id')->latest('penalty_date');
+    }
+
+    public function activeEmployeeAdvancesCount(): int
+    {
+        if (!HrFeature::hasAdvanceTables()) {
+            return 0;
+        }
+
+        if ($this->relationLoaded('employeeAdvances')) {
+            return $this->getRelation('employeeAdvances')
+                ->where('status', 'active')
+                ->count();
+        }
+
+        return $this->employeeAdvances()
+            ->where('status', 'active')
+            ->count();
+    }
+
+    public function activeEmployeeAdvancesTotal(): float
+    {
+        if (!HrFeature::hasAdvanceTables()) {
+            return 0.0;
+        }
+
+        if ($this->relationLoaded('employeeAdvances')) {
+            return (float) $this->getRelation('employeeAdvances')
+                ->where('status', 'active')
+                ->sum('amount');
+        }
+
+        return (float) $this->employeeAdvances()
+            ->where('status', 'active')
+            ->sum('amount');
     }
 
     public function currentEmployeeSalaryRecord(): ?EmployeeSalary
@@ -248,10 +288,6 @@ class User extends Authenticatable implements FilamentUser
 
     public function hasPermission(string $permission): bool
     {
-        if ($this->hasRole('admin')) {
-            return true;
-        }
-
         if ($this->cachedPermissions === null) {
             $this->cachedPermissions = $this->getRoles()
                 ->flatMap(fn ($role) => $role->permissions->pluck('name'))

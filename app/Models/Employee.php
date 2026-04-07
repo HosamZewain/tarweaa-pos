@@ -32,6 +32,11 @@ class Employee extends User
         return $this->hasMany(EmployeeSalary::class, 'user_id')->latest('effective_from');
     }
 
+    public function employeeAdvances(): HasMany
+    {
+        return $this->hasMany(EmployeeAdvance::class, 'user_id')->latest('advance_date');
+    }
+
     public function employeePenalties(): HasMany
     {
         return $this->hasMany(EmployeePenalty::class, 'user_id')->latest('penalty_date');

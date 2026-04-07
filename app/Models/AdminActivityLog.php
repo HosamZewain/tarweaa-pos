@@ -66,6 +66,9 @@ class AdminActivityLog extends Model
             'operational_data_reset' => 'إعادة تهيئة بيانات',
             'bulk_assigned' => 'إسناد جماعي',
             'toggled' => 'تغيير حالة',
+            'advance_cancelled' => 'إلغاء سلفة',
+            'payroll_generated' => 'توليد مسير رواتب',
+            'payroll_approved' => 'اعتماد مسير رواتب',
             default => $this->action,
         };
     }

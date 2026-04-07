@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\EmployeeResource;
+use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeeAdvancesRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeePenaltiesRelationManager;
 use App\Filament\Resources\EmployeeResource\RelationManagers\EmployeeSalariesRelationManager;
+use App\Models\EmployeeAdvance;
 use App\Models\EmployeePenalty;
 use App\Models\EmployeeSalary;
 use App\Models\Role;
@@ -16,12 +18,13 @@ class EmployeeHrProfileUiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_employee_resource_exposes_salary_and_penalty_relation_managers(): void
+    public function test_employee_resource_exposes_advance_salary_and_penalty_relation_managers(): void
     {
         $this->artisan('db:seed');
 
         $relations = EmployeeResource::getRelations();
 
+        $this->assertContains(EmployeeAdvancesRelationManager::class, $relations);
         $this->assertContains(EmployeeSalariesRelationManager::class, $relations);
         $this->assertContains(EmployeePenaltiesRelationManager::class, $relations);
     }
@@ -48,6 +51,12 @@ class EmployeeHrProfileUiTest extends TestCase
             'amount' => 6500,
             'effective_from' => now()->startOfMonth()->toDateString(),
         ]);
+        EmployeeAdvance::query()->create([
+            'user_id' => $employee->id,
+            'amount' => 500,
+            'advance_date' => now()->toDateString(),
+            'status' => 'active',
+        ]);
         EmployeePenalty::query()->create([
             'user_id' => $employee->id,
             'penalty_date' => now()->toDateString(),
@@ -57,12 +66,40 @@ class EmployeeHrProfileUiTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get("/admin/employees/{$employee->id}/edit")
+            ->get("/admin/employees/{$employee->id}")
             ->assertSuccessful()
             ->assertSee('ملخص HR')
             ->assertSee('الراتب الحالي')
             ->assertSee('عدد الجزاءات النشطة')
+            ->assertSee('عدد السلف النشطة')
+            ->assertSee('إجمالي السلف النشطة')
+            ->assertSee('السلف')
             ->assertSee('الرواتب')
-            ->assertSee('الجزاءات');
+            ->assertSee('الجزاءات')
+            ->assertSee('إضافة سلفة')
+            ->assertSee('إضافة راتب')
+            ->assertSee('إضافة جزاء');
+    }
+
+    public function test_employee_edit_page_keeps_sensitive_editing_separate_from_hr_relation_sections(): void
+    {
+        $this->artisan('db:seed');
+
+        $admin = User::where('email', 'admin@pos.com')->firstOrFail();
+
+        $employee = User::factory()->create([
+            'name' => 'Edit Separation Employee',
+            'username' => 'edit-separation-employee',
+            'is_active' => true,
+        ]);
+        $employee->roles()->sync([Role::firstWhere('name', 'cashier')->id]);
+
+        $response = $this->actingAs($admin)
+            ->get("/admin/employees/{$employee->id}/edit");
+
+        $response->assertSuccessful();
+        $response->assertDontSee('إضافة سلفة');
+        $response->assertDontSee('إضافة راتب');
+        $response->assertDontSee('إضافة جزاء');
     }
 }

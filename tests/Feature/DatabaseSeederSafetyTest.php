@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -32,5 +34,36 @@ class DatabaseSeederSafetyTest extends TestCase
         $this->assertSame('01111111111', $admin->phone);
         $this->assertTrue(Hash::check('custom-secret', $admin->password));
         $this->assertFalse(Hash::check('password', $admin->password));
+    }
+
+    public function test_reseeding_assigns_all_permissions_to_admin_role_only(): void
+    {
+        $this->artisan('db:seed');
+
+        $adminRole = Role::where('name', 'admin')->firstOrFail();
+
+        $this->assertSame(Permission::count(), $adminRole->permissions()->count());
+
+        foreach (['owner', 'manager', 'cashier', 'kitchen', 'counter', 'employee'] as $roleName) {
+            $role = Role::where('name', $roleName)->firstOrFail();
+
+            $this->assertSame(0, $role->permissions()->count(), "Role [{$roleName}] should not keep default permissions.");
+        }
+    }
+
+    public function test_admin_role_permissions_are_controlled_by_role_permissions_table(): void
+    {
+        $this->artisan('db:seed');
+
+        $admin = User::where('email', 'admin@pos.com')->firstOrFail();
+        $adminRole = Role::where('name', 'admin')->firstOrFail();
+
+        $this->assertTrue($admin->hasPermission('employees.viewAny'));
+
+        $adminRole->revokePermissionTo('employees.viewAny');
+        $admin->refresh();
+        $admin->forgetAuthorizationCache();
+
+        $this->assertFalse($admin->hasPermission('employees.viewAny'));
     }
 }

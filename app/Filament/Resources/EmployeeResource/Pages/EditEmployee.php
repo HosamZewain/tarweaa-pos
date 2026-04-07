@@ -36,4 +36,9 @@ class EditEmployee extends EditRecord
     {
         return [];
     }
+
+    public function getRelationManagers(): array
+    {
+        return [];
+    }
 }

@@ -27,6 +27,8 @@ class Expense extends Model
         'approved_at',
         'notes',
         'bill_images',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [

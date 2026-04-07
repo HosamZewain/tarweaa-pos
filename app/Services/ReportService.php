@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CashierDrawerSession;
 use App\Models\DiscountLog;
 use App\Models\Employee;
+use App\Models\EmployeeAdvance;
 use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\InventoryLocation;
@@ -758,6 +759,58 @@ class ReportService
             'expenses'   => $expenses,
             'byCategory' => $byCategory,
             'totals'     => $totals,
+        ];
+    }
+
+    public function getEmployeeAdvancesReport(?string $dateFrom = null, ?string $dateTo = null, ?int $userId = null): array
+    {
+        $advances = EmployeeAdvance::query()
+            ->with([
+                'employee:id,name',
+                'employee.employeeProfile:id,user_id,full_name,job_title',
+                'creator:id,name',
+                'canceller:id,name',
+            ])
+            ->when($dateFrom, fn ($query, $date) => $query->whereDate('advance_date', '>=', $date))
+            ->when($dateTo, fn ($query, $date) => $query->whereDate('advance_date', '<=', $date))
+            ->when($userId, fn ($query, $id) => $query->where('user_id', $id))
+            ->orderByDesc('advance_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $byEmployee = $advances
+            ->groupBy('user_id')
+            ->map(function (Collection $group): array {
+                $employee = $group->first()?->employee;
+                $active = $group->where('status', 'active');
+                $cancelled = $group->where('status', 'cancelled');
+
+                return [
+                    'employee_id' => $employee?->id,
+                    'employee_name' => $employee?->employeeProfile?->full_name ?: $employee?->name ?: '—',
+                    'job_title' => $employee?->employeeProfile?->job_title,
+                    'total_advances' => $group->count(),
+                    'active_advances' => $active->count(),
+                    'cancelled_advances' => $cancelled->count(),
+                    'total_amount' => round((float) $group->sum('amount'), 2),
+                    'active_amount' => round((float) $active->sum('amount'), 2),
+                    'cancelled_amount' => round((float) $cancelled->sum('amount'), 2),
+                ];
+            })
+            ->sortByDesc('total_amount')
+            ->values();
+
+        return [
+            'advances' => $advances,
+            'byEmployee' => $byEmployee,
+            'totals' => [
+                'total_advances' => $advances->count(),
+                'active_advances' => $advances->where('status', 'active')->count(),
+                'cancelled_advances' => $advances->where('status', 'cancelled')->count(),
+                'total_amount' => round((float) $advances->sum('amount'), 2),
+                'active_amount' => round((float) $advances->where('status', 'active')->sum('amount'), 2),
+                'cancelled_amount' => round((float) $advances->where('status', 'cancelled')->sum('amount'), 2),
+            ],
         ];
     }
 
