@@ -131,6 +131,23 @@ class EmployeeResourceManagementTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_employee_resource_excludes_accounts_with_privileged_and_operational_roles(): void
+    {
+        $mixedRoleUser = User::factory()->create([
+            'name' => 'Mixed Role User',
+            'username' => 'mixed-role-user',
+            'is_active' => true,
+        ]);
+        $mixedRoleUser->roles()->sync([
+            Role::firstWhere('name', 'manager')->id,
+            Role::firstWhere('name', 'cashier')->id,
+        ]);
+
+        $this->actingAs($this->managerUser)
+            ->get("/admin/employees/{$mixedRoleUser->id}/edit")
+            ->assertNotFound();
+    }
+
     public function test_operational_employees_and_back_office_users_do_not_overlap_between_users_and_employees_resources(): void
     {
         $cashierEmployee = User::factory()->create([
