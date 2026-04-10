@@ -41,13 +41,26 @@ class EmployeeResourceManagementTest extends TestCase
 
         $this->adminUser = User::where('email', 'admin@pos.com')->firstOrFail();
 
-        $this->ownerUser->roles()->sync([Role::firstWhere('name', 'owner')->id]);
-        $this->managerUser->roles()->sync([Role::firstWhere('name', 'manager')->id]);
+        $ownerRole = Role::firstWhere('name', 'owner');
+        $ownerRole->givePermissionTo([
+            'dashboard.view',
+            'employees.viewAny',
+        ]);
+        $this->ownerUser->roles()->sync([$ownerRole->id]);
+
+        $managerRole = Role::firstWhere('name', 'manager');
+        $managerRole->givePermissionTo([
+            'employees.viewAny',
+            'employees.view',
+            'employees.create',
+            'employees.update',
+        ]);
+        $this->managerUser->roles()->sync([$managerRole->id]);
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    public function test_owner_can_access_employee_resource_but_not_roles_or_permissions_modules(): void
+    public function test_owner_with_explicit_permissions_can_access_employee_resource_but_not_roles_or_permissions_modules(): void
     {
         $this->actingAs($this->ownerUser)
             ->get('/admin')

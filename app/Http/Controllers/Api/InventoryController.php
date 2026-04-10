@@ -2,14 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\InventoryTransactionType;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Inventory\StockAdjustmentRequest;
 use App\Models\InventoryItem;
-use App\Models\InventoryTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Services\InventoryService;
 
 class InventoryController extends Controller
 {
@@ -81,30 +77,14 @@ class InventoryController extends Controller
     }
 
     /**
-     * POST /api/inventory/{item}/adjust — Manual stock adjustment.
+     * POST /api/inventory/{item}/adjust — Disabled unsafe direct adjustment path.
      */
-    public function adjust(StockAdjustmentRequest $request, InventoryItem $item, InventoryService $inventoryService): JsonResponse
+    public function adjust(Request $request, InventoryItem $item): JsonResponse
     {
-        $validated = $request->validated();
-        $type      = InventoryTransactionType::from($validated['type']);
-        $quantity  = (float) $validated['quantity'];
-        $user      = $request->user();
-
-        // Determine the actual stock change based on transaction type
-        $stockChange = $type->isStockIncrease() ? abs($quantity) : -abs($quantity);
-        $newQuantity = (float) $item->current_stock + $stockChange;
-
-        $transaction = $inventoryService->adjustTo(
-            item:        $item,
-            newQuantity: clone $newQuantity, // we don't really need clone, just $newQuantity
-            actorId:     $user->id,
-            notes:       $validated['notes'] ?? ''
+        return $this->error(
+            'تم إيقاف التعديل المباشر للمخزون. استخدم جرد الموقع أو استلام المشتريات أو التحويلات المعتمدة فقط.',
+            403
         );
-
-        return $this->success([
-            'transaction' => $transaction,
-            'item'        => $item->fresh(),
-        ], 'تم تعديل المخزون بنجاح');
     }
 
     /**

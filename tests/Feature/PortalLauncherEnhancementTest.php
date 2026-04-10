@@ -31,6 +31,7 @@ class PortalLauncherEnhancementTest extends TestCase
         ]);
 
         $role = Role::firstOrCreate(['name' => 'manager'], ['display_name' => 'Manager']);
+        $role->givePermissionTo('dashboard.view');
         $user->roles()->sync([$role->id]);
 
         $this->actingAs($user)

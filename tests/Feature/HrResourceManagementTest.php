@@ -32,7 +32,14 @@ class HrResourceManagementTest extends TestCase
             'username' => 'hr-manager',
             'is_active' => true,
         ]);
-        $this->managerUser->roles()->sync([Role::firstWhere('name', 'manager')->id]);
+        $managerRole = Role::firstWhere('name', 'manager');
+        $managerRole->givePermissionTo([
+            'employee_salaries.viewAny',
+            'employee_salaries.create',
+            'employee_penalties.viewAny',
+            'employee_penalties.create',
+        ]);
+        $this->managerUser->roles()->sync([$managerRole->id]);
 
         $this->employeeUser = User::factory()->create([
             'name' => 'Operational Employee',

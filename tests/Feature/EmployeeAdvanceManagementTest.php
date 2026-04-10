@@ -35,7 +35,15 @@ class EmployeeAdvanceManagementTest extends TestCase
             'username' => 'advance-manager',
             'is_active' => true,
         ]);
-        $this->managerUser->roles()->sync([Role::firstWhere('name', 'manager')->id]);
+        $managerRole = Role::firstWhere('name', 'manager');
+        $managerRole->givePermissionTo([
+            'employee_advances.viewAny',
+            'employee_advances.view',
+            'employee_advances.create',
+            'employee_advances.update',
+            'employee_advances.cancel',
+        ]);
+        $this->managerUser->roles()->sync([$managerRole->id]);
 
         $this->employeeUser = User::factory()->create([
             'name' => 'Advance Employee',

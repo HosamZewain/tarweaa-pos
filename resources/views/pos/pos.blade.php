@@ -1062,6 +1062,31 @@
         return escapeHtml(value ?? '');
     }
 
+    function resolveReceiptCopyCount(order) {
+        const rawCopies = Number.parseInt(
+            order?.print_copies
+                ?? order?.pos_order_type?.print_copies
+                ?? order?.posOrderType?.print_copies
+                ?? selectedOrderType?.print_copies
+                ?? 1,
+            10
+        );
+
+        if (!Number.isFinite(rawCopies) || rawCopies < 1) {
+            return 1;
+        }
+
+        return rawCopies;
+    }
+
+    function buildReceiptCopyLabels(copyCount) {
+        if (copyCount <= 1) {
+            return ['نسخة الطباعة'];
+        }
+
+        return Array.from({ length: copyCount }, (_, index) => `نسخة ${index + 1}`);
+    }
+
     function buildReceiptHtml(order, { shouldOpenDrawer = false } = {}) {
         const items = Array.isArray(order?.items) ? order.items : [];
         const payments = Array.isArray(order?.payments) ? order.payments : [];
@@ -1073,7 +1098,7 @@
         const deviceName = order?.pos_device?.name || order?.posDevice?.name || drawerSession?.pos_device?.name || '—';
         const reference = primaryPayment?.reference_number || '';
         const terminalName = primaryPayment?.terminal?.name || '';
-        const receiptCopies = ['نسخة العميل', 'نسخة المحل'];
+        const receiptCopies = buildReceiptCopyLabels(resolveReceiptCopyCount(order));
 
         const renderReceiptCopy = (copyLabel) => `
     <div class="receipt receipt-copy">
@@ -1085,7 +1110,11 @@
 
         <div class="line"></div>
 
-        <div class="row"><span>رقم الطلب</span><strong>${escapeReceiptHtml(order?.order_number || '—')}</strong></div>
+        <div class="order-number-block">
+            <div class="order-number-label">رقم الطلب</div>
+            <div class="order-number-value">${escapeReceiptHtml(order?.order_number || '—')}</div>
+        </div>
+
         <div class="row"><span>التاريخ</span><strong>${escapeReceiptHtml(formatReceiptDateTime(order?.created_at))}</strong></div>
         <div class="row"><span>الكاشير</span><strong>${escapeReceiptHtml(cashierName)}</strong></div>
         <div class="row"><span>نقطة البيع</span><strong>${escapeReceiptHtml(deviceName)}</strong></div>
@@ -1191,6 +1220,25 @@
             margin-top: 2px;
             font-size: 11px;
             font-weight: 700;
+        }
+        .order-number-block {
+            margin: 8px 0 10px;
+            padding: 8px 6px;
+            border: 2px solid #000;
+            text-align: center;
+        }
+        .order-number-label {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .order-number-value {
+            margin-top: 4px;
+            font-size: 28px;
+            line-height: 1.1;
+            font-weight: 900;
+            letter-spacing: 1px;
+            direction: ltr;
         }
         .line { border-top: 1px dashed #000; margin: 8px 0; }
         .row {

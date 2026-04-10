@@ -58,7 +58,14 @@ class InventoryMovementsReport extends Page implements HasForms
         $movements = app(ReportService::class)->getInventoryMovements($this->date_from, $this->date_to, $this->location_id);
 
         $this->reportData = [
-            'movements' => $movements,
+            'movements' => $movements->map(fn (array $row): array => [
+                'item_name' => $row['item']?->name ?? '—',
+                'item_sku' => $row['item']?->sku ?? '—',
+                'item_category' => $row['item']?->category ?? '—',
+                'item_unit' => $row['item']?->unit ?? '—',
+                'location_name' => $row['location']?->name ?? 'عام / بدون موقع',
+                'movements' => $row['movements'],
+            ])->all(),
             'total_items' => $movements->count(),
         ];
     }

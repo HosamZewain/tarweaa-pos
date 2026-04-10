@@ -930,6 +930,80 @@ class ReportService
             ->values();
     }
 
+    public function getStockCountVariances(
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        ?string $day = null,
+        ?int $locationId = null,
+        ?int $itemId = null,
+        ?int $performedBy = null,
+    ): array {
+        $query = BusinessTime::applyUtcDateRange(
+            InventoryTransaction::query()
+                ->with([
+                    'inventoryItem:id,name,sku,category,unit',
+                    'inventoryLocation:id,name,type',
+                    'performer:id,name',
+                ])
+                ->where('type', \App\Enums\InventoryTransactionType::Adjustment)
+                ->whereNotNull('inventory_location_id')
+                ->where(function ($query) {
+                    $query->where('reference_type', InventoryTransaction::REFERENCE_TYPE_STOCK_COUNT)
+                        ->orWhereNull('reference_type');
+                }),
+            $dateFrom,
+            $dateTo,
+        );
+
+        if ($day) {
+            $query = BusinessTime::applyUtcDate($query, $day);
+        }
+
+        $entries = $query
+            ->when($locationId, fn ($query, $id) => $query->where('inventory_location_id', $id))
+            ->when($itemId, fn ($query, $id) => $query->where('inventory_item_id', $id))
+            ->when($performedBy, fn ($query, $id) => $query->where('performed_by', $id))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (InventoryTransaction $transaction): array {
+                $variance = round((float) $transaction->quantity, 3);
+
+                return [
+                    'counted_at' => optional($transaction->created_at)?->toDateTimeString(),
+                    'counted_at_label' => BusinessTime::formatDateTime($transaction->created_at, 'Y-m-d h:i A'),
+                    'count_day' => BusinessTime::formatDate($transaction->created_at, 'Y-m-d'),
+                    'location_id' => $transaction->inventory_location_id,
+                    'location_name' => $transaction->inventoryLocation?->name ?? '—',
+                    'item_id' => $transaction->inventory_item_id,
+                    'item_name' => $transaction->inventoryItem?->name ?? '—',
+                    'item_sku' => $transaction->inventoryItem?->sku ?? '—',
+                    'item_unit' => $transaction->inventoryItem?->unit ?? '—',
+                    'quantity_before' => round((float) $transaction->quantity_before, 3),
+                    'counted_quantity' => round((float) $transaction->quantity_after, 3),
+                    'quantity_after' => round((float) $transaction->quantity_after, 3),
+                    'variance' => $variance,
+                    'direction' => $variance > 0 ? 'increase' : ($variance < 0 ? 'decrease' : 'no_change'),
+                    'direction_label' => $variance > 0 ? 'زيادة' : ($variance < 0 ? 'نقص' : 'بدون تغيير'),
+                    'performed_by' => $transaction->performed_by,
+                    'performed_by_name' => $transaction->performer?->name ?? '—',
+                    'notes' => $transaction->notes,
+                ];
+            })
+            ->values();
+
+        return [
+            'entries' => $entries,
+            'summary' => [
+                'counts_count' => $entries->count(),
+                'increase_count' => $entries->where('direction', 'increase')->count(),
+                'decrease_count' => $entries->where('direction', 'decrease')->count(),
+                'net_variance' => round((float) $entries->sum('variance'), 3),
+                'absolute_variance' => round((float) $entries->sum(fn (array $entry): float => abs((float) $entry['variance'])), 3),
+            ],
+        ];
+    }
+
     public function getPreparedItemStockByLocation(?int $locationId = null, ?int $preparedItemId = null): Collection
     {
         return InventoryLocationStock::query()

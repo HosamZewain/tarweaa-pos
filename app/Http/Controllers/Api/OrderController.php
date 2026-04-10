@@ -26,6 +26,7 @@ use App\Services\OrderCreationService;
 use App\Services\OrderSettlementService;
 use App\Services\OrderPaymentService;
 use App\Services\OrderLifecycleService;
+use App\Services\PosOrderTypeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -39,6 +40,7 @@ class OrderController extends Controller
         private readonly DiscountApprovalService $discountApprovalService,
         private readonly ManagerVerificationService $managerVerificationService,
         private readonly AdminActivityLogService $adminActivityLogService,
+        private readonly PosOrderTypeService $posOrderTypeService,
     ) {}
 
     /**
@@ -77,6 +79,12 @@ class OrderController extends Controller
      */
     public function show(Order $order): JsonResponse
     {
+        $posOrderTypeColumns = ['id', 'name'];
+
+        if ($this->posOrderTypeService->supportsPrintCopies()) {
+            $posOrderTypeColumns[] = 'print_copies';
+        }
+
         $order->load([
             'items.modifiers',
             'payments.terminal:id,name,bank_name,code',
@@ -85,11 +93,17 @@ class OrderController extends Controller
             'shift:id,shift_number',
             'drawerSession:id,session_number',
             'posDevice:id,name',
+            'posOrderType:' . implode(',', $posOrderTypeColumns),
             'settlement.lines.orderItem:id,order_id,item_name,quantity,total',
             'settlement.lines.menuItem:id,name',
             'settlement.beneficiaryUser:id,name',
             'settlement.chargeAccountUser:id,name',
         ]);
+
+        $order->setAttribute(
+            'print_copies',
+            $this->posOrderTypeService->resolvePrintCopies($order->posOrderType),
+        );
 
         return $this->success($order);
     }

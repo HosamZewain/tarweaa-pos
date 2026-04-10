@@ -31,7 +31,7 @@ class PosOrderTypeResource extends Resource
 
     public static function form(Schema $form): Schema
     {
-        return $form->schema([
+        $schema = [
             Forms\Components\TextInput::make('name')
                 ->label('الاسم الظاهر')
                 ->required()
@@ -78,46 +78,70 @@ class PosOrderTypeResource extends Resource
             Forms\Components\Toggle::make('is_default')
                 ->label('الافتراضي في الـPOS')
                 ->helperText('يمكن أن يوجد نوع افتراضي واحد فقط، وسيُختار تلقائيًا عند فتح نقطة البيع.'),
-        ])->columns(2);
+        ];
+
+        if (app(PosOrderTypeService::class)->supportsPrintCopies()) {
+            array_splice($schema, 6, 0, [
+                Forms\Components\TextInput::make('print_copies')
+                    ->label('عدد نسخ الطباعة')
+                    ->numeric()
+                    ->default(1)
+                    ->minValue(1)
+                    ->maxValue(10)
+                    ->step(1)
+                    ->required()
+                    ->helperText('عدد النسخ التي ستُطبع تلقائيًا لهذا النوع من الطلبات. القيمة الافتراضية الآمنة هي 1.'),
+            ]);
+        }
+
+        return $form->schema($schema)->columns(2);
     }
 
     public static function table(Table $table): Table
     {
         $businessTimezone = BusinessTime::timezone();
+        $columns = [
+            Tables\Columns\TextColumn::make('name')
+                ->label('الاسم')
+                ->searchable()
+                ->sortable(),
+            Tables\Columns\TextColumn::make('type')
+                ->label('النوع الداخلي')
+                ->badge(),
+            Tables\Columns\TextColumn::make('source')
+                ->label('المصدر')
+                ->badge(),
+            Tables\Columns\TextColumn::make('pricing_rule_summary')
+                ->label('قاعدة التسعير')
+                ->state(fn (PosOrderType $record) => app(ChannelPricingService::class)->ruleSummary($record))
+                ->wrap(),
+            Tables\Columns\IconColumn::make('is_default')
+                ->label('افتراضي')
+                ->boolean(),
+            Tables\Columns\IconColumn::make('is_active')
+                ->label('نشط')
+                ->boolean(),
+            Tables\Columns\TextColumn::make('sort_order')
+                ->label('الترتيب')
+                ->sortable(),
+        ];
+
+        if (app(PosOrderTypeService::class)->supportsPrintCopies()) {
+            $columns[] = Tables\Columns\TextColumn::make('print_copies')
+                ->label('نسخ الطباعة')
+                ->sortable();
+        }
+
+        $columns[] = Tables\Columns\TextColumn::make('deleted_at')
+            ->label('محذوف')
+            ->since()
+            ->timezone($businessTimezone)
+            ->placeholder('—')
+            ->toggleable(isToggledHiddenByDefault: true);
 
         return $table
             ->defaultSort('sort_order')
-            ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label('الاسم')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('type')
-                    ->label('النوع الداخلي')
-                    ->badge(),
-                Tables\Columns\TextColumn::make('source')
-                    ->label('المصدر')
-                    ->badge(),
-                Tables\Columns\TextColumn::make('pricing_rule_summary')
-                    ->label('قاعدة التسعير')
-                    ->state(fn (PosOrderType $record) => app(ChannelPricingService::class)->ruleSummary($record))
-                    ->wrap(),
-                Tables\Columns\IconColumn::make('is_default')
-                    ->label('افتراضي')
-                    ->boolean(),
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('نشط')
-                    ->boolean(),
-                Tables\Columns\TextColumn::make('sort_order')
-                    ->label('الترتيب')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('deleted_at')
-                    ->label('محذوف')
-                    ->since()
-                    ->timezone($businessTimezone)
-                    ->placeholder('—')
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
+            ->columns($columns)
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')->label('الحالة'),
                 Tables\Filters\TrashedFilter::make(),

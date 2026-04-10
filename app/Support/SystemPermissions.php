@@ -96,6 +96,7 @@ class SystemPermissions
             ['name' => 'reports.employee_advances.view', 'display_name' => 'عرض تقرير سلف الموظفين', 'group' => 'التقارير'],
             ['name' => 'reports.inventory.view', 'display_name' => 'عرض تقرير المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.inventory_movements.view', 'display_name' => 'عرض حركة المخزون', 'group' => 'التقارير'],
+            ['name' => 'reports.stock_counts.view', 'display_name' => 'عرض تقرير الجرد وفروقات المخزون', 'group' => 'التقارير'],
             ['name' => 'reports.inventory_locations.view', 'display_name' => 'عرض تقرير المخزون متعدد المواقع', 'group' => 'التقارير'],
             ['name' => 'reports.production.view', 'display_name' => 'عرض تقرير الإنتاج والتحضير', 'group' => 'التقارير'],
             ['name' => 'reports.card_terminals.view', 'display_name' => 'عرض تقرير أجهزة الدفع', 'group' => 'التقارير'],

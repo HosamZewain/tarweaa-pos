@@ -207,8 +207,14 @@ class POSController extends Controller
             return $response;
         }
 
+        $selectColumns = ['id', 'name', 'type', 'source', 'pricing_rule_type', 'pricing_rule_value', 'is_default', 'sort_order'];
+
+        if ($this->posOrderTypeService->supportsPrintCopies()) {
+            $selectColumns[] = 'print_copies';
+        }
+
         $types = $this->posOrderTypeService->activeQuery()
-            ->get(['id', 'name', 'type', 'source', 'pricing_rule_type', 'pricing_rule_value', 'is_default', 'sort_order'])
+            ->get($selectColumns)
             ->map(fn (PosOrderType $type) => [
                 'id' => $type->id,
                 'name' => $type->name,
@@ -218,6 +224,7 @@ class POSController extends Controller
                 'pricing_rule_value' => $type->pricing_rule_value,
                 'is_default' => (bool) $type->is_default,
                 'sort_order' => $type->sort_order,
+                'print_copies' => $this->posOrderTypeService->resolvePrintCopies($type),
                 'contextual_payment_method' => $this->posOrderTypeService->contextualPaymentMethod($type),
             ])
             ->values();

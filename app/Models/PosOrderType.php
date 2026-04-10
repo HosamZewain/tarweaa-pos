@@ -21,6 +21,7 @@ class PosOrderType extends Model
         'is_active',
         'is_default',
         'sort_order',
+        'print_copies',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class PosOrderType extends Model
         'pricing_rule_value' => 'decimal:2',
         'is_active' => 'boolean',
         'is_default' => 'boolean',
+        'print_copies' => 'integer',
     ];
 
     public function orders(): HasMany

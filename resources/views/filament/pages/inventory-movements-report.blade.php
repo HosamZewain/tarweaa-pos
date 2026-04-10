@@ -108,8 +108,6 @@
                             <tbody>
                                     @foreach ($reportData['movements'] as $row)
                                     @php
-                                        $item = $row['item'];
-                                        $location = $row['location'];
                                         $movements = collect($row['movements']);
                                         $inbound = $movements
                                             ->filter(fn (array $value, string $type): bool => in_array($type, $inboundTypes, true))
@@ -122,13 +120,13 @@
                                             ->sum(fn (array $value): float => (float) ($value['quantity'] ?? 0));
                                     @endphp
                                     <tr>
-                                        <td>{{ $location?->name ?? 'عام / بدون موقع' }}</td>
+                                        <td>{{ $row['location_name'] }}</td>
                                         <td>
-                                            <div class="font-semibold text-gray-900 dark:text-white">{{ $item->name ?? '—' }}</div>
-                                            <div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{{ $item->sku ?? '—' }}</div>
+                                            <div class="font-semibold text-gray-900 dark:text-white">{{ $row['item_name'] }}</div>
+                                            <div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{{ $row['item_sku'] }}</div>
                                         </td>
-                                        <td>{{ $item->category ?? '—' }}</td>
-                                        <td>{{ $item->unit ?? '—' }}</td>
+                                        <td>{{ $row['item_category'] }}</td>
+                                        <td>{{ $row['item_unit'] }}</td>
                                         <td class="font-semibold text-success-600 dark:text-success-400">
                                             {{ $inbound > 0 ? '+' . number_format($inbound, 3) : '—' }}
                                         </td>

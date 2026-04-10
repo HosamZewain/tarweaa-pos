@@ -109,6 +109,8 @@ class EmployeeAdvancesReportTest extends TestCase
             ->get('/admin/employee-advances-report')
             ->assertForbidden();
 
+        $this->managerRole->givePermissionTo('reports.employee_advances.view');
+
         $this->actingAs($this->managerUser->fresh())
             ->get('/admin/employee-advances-report')
             ->assertSuccessful();

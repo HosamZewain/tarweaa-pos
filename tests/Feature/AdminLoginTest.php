@@ -13,11 +13,12 @@ class AdminLoginTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_panel_login_accepts_username_for_manager(): void
+    public function test_admin_panel_login_accepts_username_for_manager_with_admin_permission(): void
     {
         $this->artisan('db:seed');
 
         $managerRole = Role::where('name', 'manager')->firstOrFail();
+        $managerRole->givePermissionTo('dashboard.view');
 
         $manager = User::factory()->create([
             'name' => 'Manager User',

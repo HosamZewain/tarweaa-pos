@@ -283,6 +283,7 @@ class InventoryLocationOperationsTest extends TestCase
         $this->assertSame('9.000', $restaurantStock->current_stock);
         $this->assertSame(InventoryTransactionType::Adjustment, $transaction->type);
         $this->assertSame($restaurant->id, $transaction->inventory_location_id);
+        $this->assertSame('stock_count', $transaction->reference_type);
         $this->assertSame('2.000', $transaction->quantity);
         $this->assertSame('7.000', $transaction->quantity_before);
         $this->assertSame('9.000', $transaction->quantity_after);

@@ -94,7 +94,7 @@ class InventoryItemResource extends Resource
             ->actions([
                 \Filament\Actions\EditAction::make(),
                 \Filament\Actions\Action::make('adjustLocationStock')
-                    ->label('جرد موقع')
+                    ->label('تسجيل جرد موقع')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->color('warning')
                     ->visible(fn () => auth()->user()?->hasPermission('inventory_items.adjust_stock'))
@@ -105,14 +105,17 @@ class InventoryItemResource extends Resource
                             ->required()
                             ->searchable()
                             ->preload(),
-                        Forms\Components\TextInput::make('new_quantity')->label('الكمية الجديدة')->numeric()->required(),
-                        Forms\Components\Textarea::make('notes')->label('سبب التعديل')->required(),
+                        Forms\Components\TextInput::make('new_quantity')->label('الكمية المعدودة')->numeric()->required(),
+                        Forms\Components\Textarea::make('notes')->label('ملاحظات الجرد')->required(),
                     ])
                     ->action(function (InventoryItem $record, array $data) {
                         abort_unless(auth()->user()?->hasPermission('inventory_items.adjust_stock'), 403);
                         try {
                             $location = InventoryLocation::query()->findOrFail($data['location_id']);
-                            $oldQuantity = (float) $record->current_stock;
+                            $oldGlobalQuantity = (float) $record->current_stock;
+                            $oldLocationQuantity = (float) optional($record->locationStocks()
+                                ->where('inventory_location_id', $location->id)
+                                ->first())->current_stock;
                             app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
                                 $location = InventoryLocation::query()->findOrFail($data['location_id']);
                                 app(InventoryService::class)->adjustLocationTo(
@@ -124,19 +127,28 @@ class InventoryItemResource extends Resource
                                 );
                             });
                             $record->refresh();
+                            $updatedLocationStock = $record->locationStocks()
+                                ->where('inventory_location_id', $location->id)
+                                ->first();
                             app(AdminActivityLogService::class)->logAction(
-                                action: 'stock_adjusted',
+                                action: 'stock_count_recorded',
                                 subject: $record,
-                                description: 'تم تعديل رصيد موقع مخزني من شاشة المخزون.',
-                                oldValues: ['current_stock' => $oldQuantity],
+                                description: 'تم تسجيل جرد موقع مخزني من شاشة المخزون.',
+                                oldValues: [
+                                    'global_stock' => $oldGlobalQuantity,
+                                    'location_stock' => $oldLocationQuantity,
+                                ],
                                 newValues: [
-                                    'current_stock' => $record->current_stock,
+                                    'global_stock' => $record->current_stock,
+                                    'location_stock' => $updatedLocationStock?->current_stock,
+                                    'counted_quantity' => (float) $data['new_quantity'],
+                                    'variance' => round((float) $data['new_quantity'] - $oldLocationQuantity, 3),
                                     'location_id' => $location->id,
                                     'location_name' => $location->name,
-                                    'reason' => $data['notes'],
+                                    'notes' => $data['notes'],
                                 ],
                             );
-                            Notification::make()->title('تم تعديل رصيد الموقع بنجاح')->success()->send();
+                            Notification::make()->title('تم تسجيل جرد الموقع بنجاح')->success()->send();
                         } catch (\Exception $e) {
                             Notification::make()->title('خطأ')->body($e->getMessage())->danger()->send();
                         }
@@ -190,46 +202,6 @@ class InventoryItemResource extends Resource
                                 ],
                             );
                             Notification::make()->title('تمت إضافة المخزون بنجاح')->success()->send();
-                        } catch (\Exception $e) {
-                            Notification::make()->title('خطأ')->body($e->getMessage())->danger()->send();
-                        }
-                    }),
-                \Filament\Actions\Action::make('globalCorrection')
-                    ->label('تصحيح عام')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->color('danger')
-                    ->visible(fn () => auth()->user()?->hasPermission('inventory_items.adjust_stock'))
-                    ->form([
-                        Forms\Components\TextInput::make('new_quantity')->label('الرصيد العام الجديد')->numeric()->required(),
-                        Forms\Components\Textarea::make('notes')
-                            ->label('سبب التصحيح')
-                            ->required()
-                            ->helperText('يستخدم فقط لتصحيح الرصيد الإجمالي في الحالات الاستثنائية.'),
-                    ])
-                    ->action(function (InventoryItem $record, array $data) {
-                        abort_unless(auth()->user()?->hasPermission('inventory_items.adjust_stock'), 403);
-                        try {
-                            $oldQuantity = (float) $record->current_stock;
-                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
-                                app(InventoryService::class)->adjustTo(
-                                    item: $record,
-                                    newQuantity: (float) $data['new_quantity'],
-                                    actorId: auth()->id(),
-                                    notes: $data['notes'],
-                                );
-                            });
-                            $record->refresh();
-                            app(AdminActivityLogService::class)->logAction(
-                                action: 'stock_global_corrected',
-                                subject: $record,
-                                description: 'تم تنفيذ تصحيح عام على الرصيد الإجمالي للمخزون.',
-                                oldValues: ['current_stock' => $oldQuantity],
-                                newValues: [
-                                    'current_stock' => $record->current_stock,
-                                    'reason' => $data['notes'],
-                                ],
-                            );
-                            Notification::make()->title('تم تنفيذ التصحيح العام')->success()->send();
                         } catch (\Exception $e) {
                             Notification::make()->title('خطأ')->body($e->getMessage())->danger()->send();
                         }

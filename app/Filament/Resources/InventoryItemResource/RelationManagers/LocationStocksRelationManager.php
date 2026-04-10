@@ -5,9 +5,11 @@ namespace App\Filament\Resources\InventoryItemResource\RelationManagers;
 use App\Enums\InventoryTransactionType;
 use App\Models\InventoryLocation;
 use App\Models\InventoryLocationStock;
+use App\Services\AdminActivityLogService;
 use App\Services\InventoryService;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -131,28 +133,61 @@ class LocationStocksRelationManager extends RelationManager
                         );
                     }),
                 Actions\Action::make('adjustStock')
-                    ->label('جرد')
+                    ->label('تسجيل جرد')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->color('warning')
                     ->visible(fn (): bool => $this->canAdjustStock())
                     ->form([
                         Forms\Components\TextInput::make('new_quantity')
-                            ->label('الكمية الجديدة')
+                            ->label('الكمية المعدودة')
                             ->numeric()
                             ->required()
                             ->default(fn (InventoryLocationStock $record) => (float) $record->current_stock),
-                        Forms\Components\Textarea::make('notes')->label('سبب التعديل')->required(),
+                        Forms\Components\Textarea::make('notes')->label('ملاحظات الجرد')->required(),
                     ])
                     ->action(function (InventoryLocationStock $record, array $data): void {
                         abort_unless($this->canAdjustStock(), 403);
 
-                        app(InventoryService::class)->adjustLocationTo(
-                            item: $record->inventoryItem,
-                            location: $record->inventoryLocation,
-                            newQuantity: (float) $data['new_quantity'],
-                            actorId: auth()->id(),
-                            notes: $data['notes'],
-                        );
+                        try {
+                            $oldLocationQuantity = (float) $record->current_stock;
+                            $oldGlobalQuantity = (float) $record->inventoryItem->current_stock;
+
+                            app(AdminActivityLogService::class)->withoutModelLogging(function () use ($record, $data): void {
+                                app(InventoryService::class)->adjustLocationTo(
+                                    item: $record->inventoryItem,
+                                    location: $record->inventoryLocation,
+                                    newQuantity: (float) $data['new_quantity'],
+                                    actorId: auth()->id(),
+                                    notes: $data['notes'],
+                                );
+                            });
+
+                            $record->refresh();
+                            $record->inventoryItem->refresh();
+
+                            app(AdminActivityLogService::class)->logAction(
+                                action: 'stock_count_recorded',
+                                subject: $record->inventoryItem,
+                                description: 'تم تسجيل جرد موقع مخزني من بطاقة أرصدة المواقع.',
+                                oldValues: [
+                                    'global_stock' => $oldGlobalQuantity,
+                                    'location_stock' => $oldLocationQuantity,
+                                ],
+                                newValues: [
+                                    'global_stock' => $record->inventoryItem->current_stock,
+                                    'location_stock' => $record->current_stock,
+                                    'counted_quantity' => (float) $data['new_quantity'],
+                                    'variance' => round((float) $data['new_quantity'] - $oldLocationQuantity, 3),
+                                    'location_id' => $record->inventory_location_id,
+                                    'location_name' => $record->inventoryLocation?->name,
+                                    'notes' => $data['notes'],
+                                ],
+                            );
+
+                            Notification::make()->title('تم تسجيل الجرد بنجاح')->success()->send();
+                        } catch (\Exception $e) {
+                            Notification::make()->title('خطأ')->body($e->getMessage())->danger()->send();
+                        }
                     }),
             ]);
     }

@@ -58,6 +58,7 @@ class AdminActivityLog extends Model
             'manual_payment_recorded' => 'تسجيل دفعة يدوية',
             'special_settlement_applied' => 'تسوية خاصة',
             'stock_adjusted' => 'تعديل مخزون',
+            'stock_count_recorded' => 'تسجيل جرد مخزون',
             'stock_added' => 'إضافة مخزون',
             'production_batch_completed' => 'تنفيذ دفعة إنتاج',
             'production_batch_voided' => 'إلغاء دفعة إنتاج',

@@ -81,7 +81,7 @@ class FilamentIntegrationTest extends TestCase
         );
     }
 
-    public function test_manager_can_access_dashboard_without_viewing_analytics_widgets(): void
+    public function test_manager_with_dashboard_permission_can_access_dashboard_without_viewing_analytics_widgets(): void
     {
         $manager = User::factory()->create([
             'name' => 'Branch Manager',
@@ -91,6 +91,7 @@ class FilamentIntegrationTest extends TestCase
         ]);
 
         $managerRole = Role::firstWhere('name', 'manager');
+        $managerRole->givePermissionTo('dashboard.view');
         $manager->roles()->sync([$managerRole->id]);
 
         $this->actingAs($manager)

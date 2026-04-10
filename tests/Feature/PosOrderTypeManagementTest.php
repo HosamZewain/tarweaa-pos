@@ -67,6 +67,7 @@ class PosOrderTypeManagementTest extends TestCase
                 'type' => OrderType::Takeaway->value,
                 'source' => OrderSource::Pos->value,
                 'sort_order' => 10,
+                'print_copies' => 3,
                 'is_active' => true,
                 'is_default' => true,
             ])
@@ -77,6 +78,7 @@ class PosOrderTypeManagementTest extends TestCase
 
         $this->assertNotNull($created);
         $this->assertTrue($created->is_default);
+        $this->assertSame(3, $created->print_copies);
         $this->assertFalse(
             PosOrderType::query()
                 ->whereKeyNot($created->id)
@@ -96,6 +98,7 @@ class PosOrderTypeManagementTest extends TestCase
             'is_active' => true,
             'is_default' => true,
             'sort_order' => 50,
+            'print_copies' => 2,
         ]);
 
         PosOrderType::query()->create([
@@ -125,6 +128,7 @@ class PosOrderTypeManagementTest extends TestCase
         $this->assertNotEmpty($response);
         $this->assertSame($default->id, $response[0]['id']);
         $this->assertTrue($response[0]['is_default']);
+        $this->assertSame(2, $response[0]['print_copies']);
         $this->assertFalse(collect($response)->contains(fn (array $type) => $type['name'] === 'مؤرشف'));
         $this->assertFalse(collect($response)->contains(fn (array $type) => $type['name'] === 'غير نشط'));
     }

@@ -51,6 +51,25 @@ class DatabaseSeederSafetyTest extends TestCase
         }
     }
 
+    public function test_reseeding_preserves_existing_custom_role_permissions(): void
+    {
+        $this->artisan('db:seed');
+
+        $managerRole = Role::where('name', 'manager')->firstOrFail();
+        $permission = Permission::where('name', 'reports.sales.view')->firstOrFail();
+
+        $managerRole->permissions()->sync([$permission->id]);
+
+        $this->artisan('db:seed');
+
+        $managerRole->refresh();
+
+        $this->assertTrue(
+            $managerRole->permissions()->where('permissions.id', $permission->id)->exists(),
+            'Custom manager permissions should survive reseeding.'
+        );
+    }
+
     public function test_admin_role_permissions_are_controlled_by_role_permissions_table(): void
     {
         $this->artisan('db:seed');

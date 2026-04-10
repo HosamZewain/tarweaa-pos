@@ -88,6 +88,7 @@ class UnifiedPortalTest extends TestCase
             )->id,
         );
         $managerRole->permissions()->syncWithoutDetaching($permissionIds);
+        $managerRole->givePermissionTo('dashboard.view');
         $manager->roles()->sync([$managerRole->id]);
 
         $this->actingAs($manager)

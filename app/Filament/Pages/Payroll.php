@@ -46,11 +46,13 @@ class Payroll extends Page implements HasForms
 
     public static function canAccess(): bool
     {
+        $user = auth()->user();
+
         return HrFeature::hasPayrollTables()
             && HrFeature::hasSalaryTables()
             && HrFeature::hasPenaltyTables()
             && HrFeature::hasAdvanceTables()
-            && parent::canAccess();
+            && ($user?->hasPermission(static::$permissionName) ?? false);
     }
 
     public function form(Schema $form): Schema

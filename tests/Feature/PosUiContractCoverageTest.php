@@ -362,14 +362,16 @@ class PosUiContractCoverageTest extends TestCase
             ->assertJsonPath('data.items.0.item_name', 'بطاطس UI');
     }
 
-    public function test_pos_page_contains_session_modal_reprint_and_two_copy_receipt_contract(): void
+    public function test_pos_page_contains_session_modal_reprint_and_receipt_copy_configuration_contract(): void
     {
         $this->actingAs($this->cashierUser)
             ->get('/pos')
             ->assertSuccessful()
             ->assertSee('id="tab-session-orders"', false)
             ->assertSee('id="session-orders-list"', false)
-            ->assertSee("const receiptCopies = ['نسخة العميل', 'نسخة المحل'];", false)
+            ->assertSee('function resolveReceiptCopyCount(order)', false)
+            ->assertSee('function buildReceiptCopyLabels(copyCount)', false)
+            ->assertSee('order-number-value', false)
             ->assertSee('async function printPaidOrderReceipt(orderId', false)
             ->assertSee('function canReprintSessionOrder(order)', false)
             ->assertSee('async function reprintSessionOrder(event, orderId)', false);

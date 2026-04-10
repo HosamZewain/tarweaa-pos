@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Support\SystemPermissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class DatabaseSeeder extends Seeder
@@ -125,11 +126,15 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $this->syncDefaultRolePermissions();
+        $this->bootstrapDefaultRolePermissions();
     }
 
-    private function syncDefaultRolePermissions(): void
+    private function bootstrapDefaultRolePermissions(): void
     {
+        if (DB::table('role_permissions')->exists()) {
+            return;
+        }
+
         $allPermissionIds = Permission::query()->pluck('id')->all();
 
         foreach (Role::query()->get() as $role) {

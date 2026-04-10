@@ -16,6 +16,8 @@ class InventoryTransaction extends Model
 {
     use HasFactory, HasAuditFields;
 
+    public const REFERENCE_TYPE_STOCK_COUNT = 'stock_count';
+
     protected $fillable = [
         'inventory_item_id',
         'inventory_location_id',

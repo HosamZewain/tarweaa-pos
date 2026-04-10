@@ -10,9 +10,12 @@ use App\Exceptions\OrderException;
 use App\Models\PosOrderType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PosOrderTypeService
 {
+    private static ?bool $printCopiesSupported = null;
+
     public function activeQuery(): Builder
     {
         return PosOrderType::query()
@@ -55,6 +58,12 @@ class PosOrderTypeService
         $data['is_default'] = (bool) ($data['is_default'] ?? false);
         $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
 
+        if ($this->supportsPrintCopies()) {
+            $data['print_copies'] = max(1, (int) ($data['print_copies'] ?? 1));
+        } else {
+            unset($data['print_copies']);
+        }
+
         if ($data['pricing_rule_type'] === ChannelPricingRuleType::BasePrice->value) {
             $data['pricing_rule_value'] = 0;
         }
@@ -64,6 +73,25 @@ class PosOrderTypeService
         }
 
         return $data;
+    }
+
+    public function resolvePrintCopies(?PosOrderType $type): int
+    {
+        if (!$this->supportsPrintCopies()) {
+            return 1;
+        }
+
+        return max(1, (int) ($type?->print_copies ?? 1));
+    }
+
+    public function supportsPrintCopies(): bool
+    {
+        if (self::$printCopiesSupported !== null) {
+            return self::$printCopiesSupported;
+        }
+
+        return self::$printCopiesSupported = Schema::hasTable('pos_order_types')
+            && Schema::hasColumn('pos_order_types', 'print_copies');
     }
 
     public function syncDefaultState(PosOrderType $record): void
